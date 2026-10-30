@@ -245,7 +245,13 @@ td .secondary { display: block; color: var(--muted); font-size: 13px; margin-top
 .auth { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); min-height: 100vh; background: var(--surface); }
 .auth-brand { position: relative; overflow: hidden; background: var(--night); color: #fff; padding: 48px 56px; display: flex; flex-direction: column; }
 .auth-brand .logo img { height: 36px; }
-.auth-brand .pitch { margin-block: auto;max-width: 30ch; position: relative; }
+.auth-brand .pitch { margin-block: auto; max-width: 36ch; position: relative; z-index: 1; }
+/* Icône help desk en filigrane, centrée dans le panneau, derrière le titre */
+.auth-brand .illustration {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 420px; max-width: 70%; pointer-events: none;
+}
+.auth-brand .illustration img { display: block; width: 100%; height: auto; opacity: .08; }
 .auth-brand .pitch h1 { font-size: 34px; line-height: 1.15; font-weight: 700; color: #fff; letter-spacing: -.02em; }
 .auth-brand .pitch p { color: #B8C3CF; margin: 14px 0 0; font-size: 15px; }
 .auth-brand .contact { position: relative; margin-top: 40px; font-size: 13px; color: #93A1B2; }

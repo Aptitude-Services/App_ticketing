@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}{% translate "Support" %}{% endblock %} · Aptitude</title>
+  <title>{% block head_title %}{% block title %}{% translate "Support" %}{% endblock %} · Aptitude{% endblock %}</title>
   <script>
     // Résout « comme mon système » avant l'affichage, pour éviter un flash de thème.
     (function () {

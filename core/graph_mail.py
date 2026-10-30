@@ -58,12 +58,14 @@ def _recipients(addresses):
 
 
 class GraphEmailBackend(BaseEmailBackend):
-    def __init__(self, fail_silently=False, **kwargs):
+    def __init__(self, fail_silently=False, tenant_id=None, client_id=None, client_secret=None,
+                 sender=None, **kwargs):
         super().__init__(fail_silently=fail_silently, **kwargs)
-        self.tenant_id = settings.GRAPH_TENANT_ID
-        self.client_id = settings.GRAPH_CLIENT_ID
-        self.client_secret = settings.GRAPH_CLIENT_SECRET
-        self.sender = settings.GRAPH_MAIL_SENDER or parseaddr(settings.DEFAULT_FROM_EMAIL)[1]
+        # Paramètres explicites (module Messagerie de l'application), sinon ceux du .env.
+        self.tenant_id = tenant_id or settings.GRAPH_TENANT_ID
+        self.client_id = client_id or settings.GRAPH_CLIENT_ID
+        self.client_secret = client_secret or settings.GRAPH_CLIENT_SECRET
+        self.sender = sender or settings.GRAPH_MAIL_SENDER or parseaddr(settings.DEFAULT_FROM_EMAIL)[1]
         if not (self.tenant_id and self.client_id and self.client_secret and self.sender):
             raise ImproperlyConfigured(
                 "Envoi Graph : GRAPH_TENANT_ID, GRAPH_CLIENT_ID, GRAPH_CLIENT_SECRET et "

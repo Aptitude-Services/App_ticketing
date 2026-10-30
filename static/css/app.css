@@ -212,7 +212,7 @@ td .secondary { display: block; color: var(--muted); font-size: 13px; margin-top
 .form-row { margin-bottom: 16px; }
 .form-row:last-child { margin-bottom: 0; }
 .form-row > label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px; }
-.form-row input[type=text], .form-row input[type=email], .form-row input[type=password], .form-row input[type=tel], .form-row select {
+.form-row input[type=text], .form-row input[type=email], .form-row input[type=password], .form-row input[type=tel], .form-row input[type=number], .form-row select {
   width: 100%; padding: 10px 12px; border: 1px solid var(--field-line); border-radius: 8px; font: inherit; font-size: 15px; background: var(--surface); color: var(--ink);
 }
 .form-row input:focus, .form-row select:focus { outline: none; border-color: var(--orange); box-shadow: var(--focus); }
@@ -236,6 +236,7 @@ td .secondary { display: block; color: var(--muted); font-size: 13px; margin-top
 .messages { list-style: none; padding: 0; margin: 0 0 22px; }
 .messages li { display: flex; gap: 10px; align-items: center; padding: 12px 16px; border-radius: 8px; margin-bottom: 8px; background: var(--ok-soft); color: var(--ok); font-weight: 500; font-size: 14px; border: 1px solid var(--ok-line); }
 .messages li.error { background: var(--err-soft); color: var(--err); border-color: var(--err-line); }
+.messages li.warning { background: var(--warn-soft); color: var(--warn); border-color: var(--warn-soft); }
 
 .empty { text-align: center; padding: 44px 24px; color: var(--muted); }
 .empty img { width: 52px; opacity: .25; margin-bottom: 10px; }
@@ -290,7 +291,7 @@ details.manual code { margin-top: 8px; }
 .choices > div[id] > div > label { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-weight: 500; font-size: 14px; cursor: pointer; background: var(--surface); }
 .choices > div[id] > div > label:hover { border-color: var(--hover-line); }
 .choices > div[id] > div > label:has(input:checked) { border-color: var(--orange); background: var(--orange-soft); }
-.choices input[type=checkbox], .check input[type=checkbox] { accent-color: var(--orange); width: 16px; height: 16px; margin: 0; flex: none; }
+.choices input[type=checkbox], .choices input[type=radio], .check input[type=checkbox] { accent-color: var(--orange); width: 16px; height: 16px; margin: 0; flex: none; }
 .check input[type=checkbox] { margin-top: 3px; }
 .form-section h2 + .form-grid, .form-section h2 + .form-row { margin-top: 14px; }
 .choices > label { display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px; }

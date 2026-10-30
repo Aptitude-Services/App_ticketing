@@ -1,0 +1,91 @@
+{% extends "base.html" %}{% load i18n %}
+{% block title %}{% translate "Messagerie" %}{% endblock %}
+{% block content %}
+<div class="page-head"><div>
+  <h1>{% translate "Messagerie" %}</h1>
+  <p class="lead">{% translate "Comment l'application envoie ses emails (invitations, mots de passe, notifications)." %}</p>
+</div></div>
+
+<form method="post" class="panel" style="max-width:820px" novalidate>{% csrf_token %}
+  {% if form.non_field_errors %}<div style="padding:20px 24px 0"><div class="form-alert">{{ form.non_field_errors }}</div></div>{% endif %}
+
+  <div class="form-section">
+    <h2>{% translate "Mode d'envoi" %}</h2>
+    <div class="form-row choices">{{ form.provider }}{{ form.provider.errors }}</div>
+    <p class="muted small" data-mode="env">{% blocktranslate %}Mode actuel du serveur : <span class="mono">{{ env_backend }}</span> (variable EMAIL_BACKEND du .env).{% endblocktranslate %}</p>
+  </div>
+
+  <div class="form-section">
+    <h2>{% translate "Expéditeur" %}</h2>
+    <div class="form-grid">
+      {% for f in form %}{% if f.name == "from_email" or f.name == "reply_to" %}
+      <div class="form-row"><label for="{{ f.id_for_label }}">{{ f.label|capfirst }}</label>{{ f }}{% if f.help_text %}<div class="help">{{ f.help_text }}</div>{% endif %}{{ f.errors }}</div>
+      {% endif %}{% endfor %}
+    </div>
+  </div>
+
+  <div class="form-section" data-mode="smtp">
+    <h2>{% translate "Serveur SMTP" %}</h2>
+    <p class="muted">{% translate "Tout serveur SMTP : hébergeur, relais interne, Gmail, Brevo, ou Microsoft 365 en SMTP AUTH." %}</p>
+    <div class="form-grid">
+      {% for f in form %}{% if f.name == "smtp_host" or f.name == "smtp_port" or f.name == "smtp_security" or f.name == "smtp_username" or f.name == "smtp_password" %}
+      <div class="form-row"><label for="{{ f.id_for_label }}">{{ f.label|capfirst }}</label>{{ f }}{% if f.help_text %}<div class="help">{{ f.help_text }}</div>{% endif %}{{ f.errors }}</div>
+      {% endif %}{% endfor %}
+    </div>
+    {% if config.smtp_password_encrypted %}<div class="form-row"><label class="check">{{ form.clear_smtp_password }}<span>{{ form.clear_smtp_password.label }}</span></label></div>{% endif %}
+  </div>
+
+  <div class="form-section" data-mode="graph">
+    <h2>{% translate "Microsoft 365 (API Graph)" %}</h2>
+    <p class="muted">{% translate "Inscription d'application Entra ID avec l'autorisation Mail.Send, limitée à la boîte d'envoi." %}</p>
+    <div class="form-grid">
+      {% for f in form %}{% if f.name == "graph_tenant_id" or f.name == "graph_client_id" or f.name == "graph_client_secret" or f.name == "graph_sender" %}
+      <div class="form-row"><label for="{{ f.id_for_label }}">{{ f.label|capfirst }}</label>{{ f }}{% if f.help_text %}<div class="help">{{ f.help_text }}</div>{% endif %}{{ f.errors }}</div>
+      {% endif %}{% endfor %}
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">{% translate "Enregistrer" %}</button>
+    {% if config.updated_by %}<span class="muted small">{% blocktranslate with who=config.updated_by.display_name when=config.updated_at|date:"j M Y H:i" %}Modifié par {{ who }} le {{ when }}{% endblocktranslate %}</span>{% endif %}
+  </div>
+</form>
+
+<form method="post" action="{% url 'mail_test' %}" class="panel" style="max-width:820px;margin-top:24px">{% csrf_token %}
+  <div class="form-section">
+    <h2>{% translate "Tester l'envoi" %}</h2>
+    <p class="muted">{% translate "Utilise la configuration enregistrée (pas les modifications non enregistrées ci-dessus)." %}</p>
+    <div class="form-grid"><div class="form-row"><label for="{{ test_form.to.id_for_label }}">{{ test_form.to.label }}</label>{{ test_form.to }}</div></div>
+  </div>
+  <div class="form-actions"><button class="btn btn-secondary" type="submit">{% translate "Envoyer un test" %}</button></div>
+</form>
+
+<section class="panel" style="margin-top:24px">
+  <div class="panel-head"><h2>{% translate "Derniers envois" %}</h2></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>{% translate "Date" %}</th><th>{% translate "Destinataires" %}</th><th>{% translate "Sujet" %}</th><th>{% translate "Mode" %}</th><th>{% translate "Statut" %}</th></tr></thead>
+    <tbody>{% for m in journal %}
+      <tr>
+        <td class="mono small">{{ m.created_at|date:"j M H:i" }}</td>
+        <td>{{ m.recipients }}</td>
+        <td>{{ m.subject }}</td>
+        <td class="small">{{ m.get_provider_display }}</td>
+        <td>{% if m.status == "sent" %}<span class="tag ok">{{ m.get_status_display }}</span>{% elif m.status == "failed" %}<span class="tag err" title="{{ m.error }}">{{ m.get_status_display }}</span>{% else %}<span class="tag warn">{% translate "Non envoyé" %}</span>{% endif %}
+          {% if m.error %}<div class="secondary small">{{ m.error|truncatechars:160 }}</div>{% endif %}</td>
+      </tr>{% empty %}<tr><td colspan="5"><div class="empty"><strong>{% translate "Aucun email envoyé" %}</strong>{% translate "Les envois de l'application apparaîtront ici." %}</div></td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</section>
+<script>
+  // N'affiche que les réglages du mode choisi (le serveur reste la référence).
+  (function () {
+    var radios = document.querySelectorAll("input[name=provider]");
+    function sync() {
+      var mode = (document.querySelector("input[name=provider]:checked") || {}).value;
+      document.querySelectorAll("[data-mode]").forEach(function (el) { el.hidden = el.dataset.mode !== mode; });
+    }
+    radios.forEach(function (r) { r.addEventListener("change", sync); });
+    sync();
+  })();
+</script>
+{% endblock %}

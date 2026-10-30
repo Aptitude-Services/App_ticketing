@@ -87,13 +87,26 @@ python manage.py runserver
 Comptes de démo : `admin@aptitudes.net` (admin Aptitude, MFA demandée à la première connexion), `admin@banque-lagune.ci` (admin client), `compta@banque-lagune.ci` (lecture seule limitée au contrat SOC).
 En local, les emails (invitations) s'affichent dans la console.
 
+## Messagerie
+
+L'admin Aptitude règle l'envoi des emails dans **Configuration > Messagerie** (`/configuration/messagerie/`), sans redémarrer :
+
+| Mode | Usage |
+| --- | --- |
+| Paramètres du serveur | Comportement du `.env` (`EMAIL_BACKEND` : console en dev, Microsoft Graph ou SMTP en production). Mode par défaut |
+| Serveur SMTP | Tout serveur SMTP (hébergeur, relais interne, Microsoft 365 en SMTP AUTH) : hôte, port, STARTTLS ou SSL, identifiant |
+| Microsoft 365 (API Graph) | Tenant, application et secret saisis dans l'application plutôt que dans le `.env` |
+| Désactivé | Aucun envoi ; les messages sont seulement inscrits au journal |
+
+La page propose un envoi de test et affiche les 50 derniers envois (statut, erreur). Le journal complet est dans `/gestion`. Les secrets (mot de passe SMTP, secret Graph) sont chiffrés en base avec une clé dérivée de `DJANGO_SECRET_KEY` : si cette clé change, il faut les ressaisir. Chaque modification est tracée dans l'audit, sans les secrets.
+
 ## Tests
 
 ```bash
 pytest
 ```
 
-74 tests couvrent le cloisonnement (contrats, solutions, utilisateurs, pages), les droits de l'admin client, la protection du dernier admin, l'invitation, l'audit, la MFA le moteur SLA (heures ouvrées, week-ends, fériés, cohérence échéance et temps écoulé) et les tickets (couverture 8x5, escalade, P1, pauses, pièces jointes, notes internes, isolation par le navigateur).
+92 tests couvrent le cloisonnement (contrats, solutions, utilisateurs, pages), les droits de l'admin client, la protection du dernier admin, l'invitation, l'audit, la MFA le moteur SLA (heures ouvrées, week-ends, fériés, cohérence échéance et temps écoulé), la messagerie (modes d'envoi, journal, secrets chiffrés, accès réservé à l'admin Aptitude) et les tickets (couverture 8x5, escalade, P1, pauses, pièces jointes, notes internes, isolation par le navigateur).
 Toute nouvelle vue doit filtrer ses données via `accounts/permissions.py` et ajouter son test d'isolation.
 
 ## Déployer sur le VPS
@@ -102,7 +115,7 @@ Prérequis : Docker et Docker Compose, ports 80 et 443 ouverts, enregistrement D
 
 ```bash
 cp .env.example .env
-# éditer .env : DJANGO_SECRET_KEY, POSTGRES_PASSWORD, ADMIN_ALLOWED_IPS, mot de passe SMTP
+# éditer .env : DJANGO_SECRET_KEY, POSTGRES_PASSWORD, ADMIN_ALLOWED_IPS (la messagerie peut ensuite se régler dans l'application)
 python3 -c "import secrets; print(secrets.token_urlsafe(50))"   # pour DJANGO_SECRET_KEY
 docker compose up -d --build
 docker compose exec web python manage.py createsuperuser

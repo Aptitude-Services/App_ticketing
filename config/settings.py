@@ -153,8 +153,12 @@ AXES_RESET_ON_SUCCESS = True
 AXES_USERNAME_FORM_FIELD = "username"
 AXES_IPWARE_PROXY_COUNT = int(os.environ.get("AXES_PROXY_COUNT", "1"))
 
-# --- Emails (console en dev ; SMTP Microsoft 365 au jalon 5) -------------------
-EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+# --- Emails -------------------------------------------------------------------
+# Tout passe par le module Messagerie (core/mail.py), réglable dans l'application.
+# Son mode « Paramètres du serveur » utilise le backend EMAIL_BACKEND du .env
+# (console en dev, core.graph_mail.GraphEmailBackend ou SMTP en production).
+EMAIL_BACKEND = "core.mail.AppEmailBackend"
+MAIL_ENV_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.office365.com")
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")

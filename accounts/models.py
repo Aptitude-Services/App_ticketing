@@ -198,6 +198,7 @@ class AuditEvent(models.Model):
         USER_CREATED = "user_created", _("Utilisateur créé")
         USER_UPDATED = "user_updated", _("Utilisateur modifié")
         MFA_ENABLED = "mfa_enabled", _("MFA activée")
+        MAIL_SETTINGS_UPDATED = "mail_settings_updated", _("Messagerie modifiée")
 
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     actor = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")

@@ -55,6 +55,7 @@
       {% if user.is_staff %}
       <div class="grp">{% translate "Configuration" %}</div>
       <a href="{% url 'admin:sla_sla_changelist' %}">{% include "icons/clock.svg" %}{% translate "SLA et jours fériés" %}</a>
+      {% if user.profile == "aptitude_admin" %}<a href="{% url 'mail_settings' %}" {% if section == 'mail_settings' %}aria-current="page"{% endif %}>{% include "icons/mail.svg" %}{% translate "Messagerie" %}</a>{% endif %}
       <a href="{% url 'admin:index' %}">{% include "icons/settings.svg" %}{% translate "Administration" %}</a>
       {% endif %}
     </nav>

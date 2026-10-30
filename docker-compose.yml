@@ -14,9 +14,9 @@ services:
       - --certificatesresolvers.le.acme.email=${ACME_EMAIL}
       - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
       - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+    # Apache occupe déjà le port 80 sur srv-aptitude-4 : site servi en HTTPS sur 8843.
     ports:
-      - "80:80"
-      - "443:443"
+      - "8843:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - letsencrypt:/letsencrypt

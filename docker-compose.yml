@@ -1,0 +1,67 @@
+# Aptitude Support — déploiement sur VPS
+# Usage : cp .env.example .env (puis éditer) && docker compose up -d --build
+services:
+  proxy:
+    image: traefik:v3.1
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt:/letsencrypt
+
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+    volumes:
+      - media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+    labels:
+      - traefik.enable=true
+      - traefik.http.services.support.loadbalancer.server.port=8000
+      - traefik.http.routers.support.rule=Host(`${SITE_DOMAIN}`)
+      - traefik.http.routers.support.entrypoints=websecure
+      - traefik.http.routers.support.tls.certresolver=le
+      - traefik.http.routers.support.service=support
+      # Console d'administration (/gestion) limitée aux IP Aptitude
+      - traefik.http.routers.support-admin.rule=Host(`${SITE_DOMAIN}`) && PathPrefix(`/gestion`)
+      - traefik.http.routers.support-admin.entrypoints=websecure
+      - traefik.http.routers.support-admin.tls.certresolver=le
+      - traefik.http.routers.support-admin.service=support
+      - traefik.http.routers.support-admin.middlewares=admin-ip
+      - traefik.http.middlewares.admin-ip.ipallowlist.sourcerange=${ADMIN_ALLOWED_IPS}
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+  media:
+  letsencrypt:

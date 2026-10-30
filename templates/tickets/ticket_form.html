@@ -1,0 +1,90 @@
+{% extends "base.html" %}{% load i18n %}
+{% block title %}{% translate "Nouveau ticket" %}{% endblock %}
+{% block content %}
+<p class="crumb"><a href="{% url 'ticket_list' %}">{% if user.is_aptitude %}{% translate "Tickets" %}{% else %}{% translate "Mes tickets" %}{% endif %}</a></p>
+<div class="page-head"><div>
+  <h1>{% translate "Nouveau ticket" %}</h1>
+  <p class="lead">{% translate "Décrivez le problème : l'équipe Aptitude est notifiée dès l'envoi." %}</p>
+</div></div>
+
+{% if not contracts %}
+<section class="panel"><div class="empty"><strong>{% translate "Aucun contrat actif ne vous permet d'ouvrir un ticket" %}</strong>{% translate "Contactez votre administrateur ou l'équipe Aptitude." %}</div></section>
+{% else %}
+{% for row in contracts %}{% if row.cov.state == "closed" %}
+<div class="banner warn" data-cov-for="{{ row.c.pk }}" hidden>
+  {% include "icons/clock.svg" %}
+  <div class="grow">{% if user.is_client %}{% blocktranslate with when=row.cov.next_open|date:"l j F à G\hi" %}Ce contrat est couvert en heures ouvrées : la création de ticket sera possible à partir du {{ when }}.{% endblocktranslate %}{% else %}{% blocktranslate %}Hors heures ouvrées sur ce contrat 8x5 : le ticket sera marqué « hors couverture » et repris dans le rapport mensuel.{% endblocktranslate %}{% endif %}</div>
+</div>
+{% endif %}{% endfor %}
+
+<form method="post" enctype="multipart/form-data" class="panel" style="max-width:860px" novalidate>{% csrf_token %}
+  {% if form.non_field_errors %}<div style="padding:20px 24px 0"><div class="form-alert">{{ form.non_field_errors }}</div></div>{% endif %}
+
+  <div class="form-section">
+    <h2>{% translate "Périmètre" %}</h2>
+    <div class="form-grid">
+      <div class="form-row"><label for="{{ form.contract.id_for_label }}">{{ form.contract.label }}</label>{{ form.contract }}{{ form.contract.errors }}</div>
+      {% if form.requester %}<div class="form-row"><label for="{{ form.requester.id_for_label }}">{{ form.requester.label }}</label>{{ form.requester }}<div class="help">{{ form.requester.help_text }}</div>{{ form.requester.errors }}</div>{% endif %}
+    </div>
+    <div class="form-row">
+      <label>{{ form.solutions.label }}</label>
+      <div class="sol-list" id="sol-list">
+        {% for s in solutions %}
+        <label data-contract="{{ s.contract_id }}"><input type="checkbox" name="solutions" value="{{ s.pk }}" {% if s.pk in selected_solutions %}checked{% endif %}>{{ s.name }}<small>{{ s.get_category_display }}{% if s.serial_or_version %}, {{ s.serial_or_version }}{% endif %}</small></label>
+        {% endfor %}
+      </div>
+      <p class="help" id="sol-empty" hidden>{% translate "Aucune solution enregistrée sur ce contrat : décrivez l'élément concerné dans la description." %}</p>
+      {{ form.solutions.errors }}
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h2>{% translate "Demande" %}</h2>
+    <div class="form-row" style="margin-top:14px"><label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>{{ form.title }}{{ form.title.errors }}</div>
+    <div class="form-row"><label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>{{ form.description }}<div class="help">{{ form.description.help_text }}</div>{{ form.description.errors }}</div>
+    <div class="form-grid">
+      <div class="form-row"><label for="{{ form.priority.id_for_label }}">{{ form.priority.label }}</label>{{ form.priority }}
+        <div class="help">{% if user.is_client %}{% translate "P4 : faible impact, contournement possible. P3 : impact sur la production, interruption intermittente. Le passage en P2 ou P1 est décidé par Aptitude." %}{% else %}{% translate "P1 et P2 exigent une justification. Un P1 démarre en attente de prérequis (sauvegarde saine, devis validé)." %}{% endif %}</div>{{ form.priority.errors }}</div>
+      <div class="form-row"><label for="{{ form.files.id_for_label }}">{{ form.files.label }}</label>{{ form.files }}<div class="help">{{ form.files.help_text }}</div>{{ form.files.errors }}</div>
+    </div>
+    {% if form.justification %}<div class="form-row" id="justif-row"><label for="{{ form.justification.id_for_label }}">{{ form.justification.label }}</label>{{ form.justification }}<div class="help">{{ form.justification.help_text }}</div>{{ form.justification.errors }}</div>{% endif %}
+  </div>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit" id="submit-btn">{% translate "Envoyer le ticket" %}</button>
+    <a class="btn btn-secondary" href="{% url 'ticket_list' %}">{% translate "Annuler" %}</a>
+  </div>
+</form>
+<script>
+  (function () {
+    var contract = document.getElementById("{{ form.contract.id_for_label }}");
+    var labels = document.querySelectorAll("#sol-list label");
+    var empty = document.getElementById("sol-empty");
+    var prio = document.getElementById("{{ form.priority.id_for_label }}");
+    var justif = document.getElementById("justif-row");
+    var submit = document.getElementById("submit-btn");
+    var clientBlocked = {% if user.is_client %}true{% else %}false{% endif %};
+    function sync() {
+      var id = contract.value, shown = 0;
+      labels.forEach(function (l) {
+        var on = l.dataset.contract === id;
+        l.hidden = !on;
+        if (!on) l.querySelector("input").checked = false; else shown++;
+      });
+      empty.hidden = !id || shown > 0;
+      var closed = false;
+      document.querySelectorAll("[data-cov-for]").forEach(function (b) {
+        var on = b.dataset.covFor === id;
+        b.hidden = !on;
+        if (on) closed = true;
+      });
+      submit.disabled = clientBlocked && closed;
+      if (justif && prio) justif.hidden = !(prio.value === "1" || prio.value === "2");
+    }
+    contract.addEventListener("change", sync);
+    if (prio) prio.addEventListener("change", sync);
+    sync();
+  })();
+</script>
+{% endif %}
+{% endblock %}

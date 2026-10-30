@@ -1,0 +1,62 @@
+{% extends "base.html" %}{% load i18n static %}
+{% block title %}{% translate "Accueil" %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{% blocktranslate with name=user.get_short_name %}Bonjour {{ name }}{% endblocktranslate %}</h1>
+    <p class="lead">{% if n_open %}{% blocktranslate count n=n_open with org=user.organisation %}{{ n }} demande en cours pour {{ org }}.{% plural %}{{ n }} demandes en cours pour {{ org }}.{% endblocktranslate %}{% else %}{% blocktranslate with org=user.organisation %}Aucune demande en cours pour {{ org }}.{% endblocktranslate %}{% endif %}</p>
+  </div>
+  {% if can_create %}<a class="btn btn-primary" href="{% url 'ticket_create' %}">{% include "icons/plus.svg" %}{% translate "Ouvrir un ticket" %}</a>{% endif %}
+</div>
+
+{% for t in waiting_me|slice:":1" %}
+<div class="banner">{% include "icons/clock.svg" %}
+  <div class="grow"><strong>{{ t.title }}</strong> {% blocktranslate with since=t.updated_at|timesince %}attend votre réponse depuis {{ since }}. Le délai d'intervention est suspendu jusqu'à votre retour.{% endblocktranslate %}</div>
+  <a class="btn btn-secondary" href="{% url 'ticket_detail' t.reference %}">{% translate "Répondre" %}</a>
+</div>
+{% endfor %}
+
+<dl class="summary">
+  <div><dt>{% translate "Demandes en cours" %}</dt><dd>{{ n_open }}</dd></div>
+  <div><dt>{% translate "Attendent votre réponse" %}</dt><dd>{{ waiting_me|length }}</dd></div>
+  <div><dt>{% translate "Résolues ce mois-ci" %}</dt><dd>{{ month.total }}</dd></div>
+  <div><dt>{% translate "Délais tenus ce mois-ci" %}</dt><dd>{% if month.total %}{{ month.ok }} <span class="small">/ {{ month.total }}</span>{% else %}<span class="small">—</span>{% endif %}</dd></div>
+</dl>
+
+<div class="split">
+  <section class="panel">
+    <div class="panel-head" style="padding-bottom:14px"><h2>{% translate "Vos demandes en cours" %}</h2><a class="small" href="{% url 'ticket_list' %}?vue=tous">{% translate "Historique complet" %}</a></div>
+    {% if my_open %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>{% translate "Demande" %}</th><th>{% translate "Priorité" %}</th><th>{% translate "Où en est-on" %}</th><th class="hide-sm">{% translate "Mise à jour" %}</th></tr></thead>
+      <tbody>{% for t in my_open %}
+        <tr><td><a class="primary" href="{% url 'ticket_detail' t.reference %}">{{ t.title }}</a><span class="secondary mono">{{ t.reference }}</span></td>
+          <td><span class="prio prio-{{ t.priority }}">P{{ t.priority }}</span></td>
+          <td><span class="st st-{{ t.status }}">{% if t.status == "waiting_client" %}{% translate "Attend votre réponse" %}{% else %}{{ t.get_status_display }}{% endif %}</span><span class="secondary">{{ t.sla.label }}</span></td>
+          <td class="hide-sm muted small">{{ t.updated_at|timesince }}</td></tr>
+      {% endfor %}</tbody>
+    </table></div>
+    {% else %}<div class="empty"><img src="{% static 'img/mark.png' %}" alt=""><strong>{% translate "Aucune demande en cours" %}</strong>{% if can_create %}{% translate "Ouvrez un ticket pour signaler un incident ou faire une demande." %}{% endif %}</div>{% endif %}
+  </section>
+
+  <aside class="stack">
+    <section class="panel"><div class="panel-body">
+      <h2>{% translate "Vos contrats" %}</h2>
+      {% for c in contracts %}
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 0;{% if not forloop.last %}border-bottom:1px solid var(--line-soft){% endif %}">
+        <div><a class="primary" href="{% url 'contract_detail' c.pk %}" style="font-weight:600;text-decoration:none;color:var(--ink)">{{ c.title }}</a><div class="small muted">{{ c.reference }}, {% blocktranslate count n=c.n_solutions %}{{ n }} solution{% plural %}{{ n }} solutions{% endblocktranslate %}</div></div>
+        {% include "contracts/_coverage_tag.html" with status=c.coverage_now %}
+      </div>
+      {% empty %}<p class="muted small">{% translate "Aucun contrat actif." %}</p>{% endfor %}
+    </div></section>
+    {% if recent_resolved %}
+    <section class="panel"><div class="panel-body">
+      <h2>{% translate "Résolues récemment" %}</h2>
+      <ol class="feed">{% for t in recent_resolved %}
+        <li><span class="dot" style="color:{% if t.resolution_breached or t.response_breached %}var(--warn){% else %}var(--ok){% endif %}"></span><div><a href="{% url 'ticket_detail' t.reference %}">{{ t.title }}</a><time>{{ t.reference }}, {% translate "résolue le" %} {{ t.resolved_at|date:"j F" }}{% if t.resolution_breached %}, {% translate "hors délai" %}{% else %}, {% translate "dans les délais" %}{% endif %}</time></div></li>
+      {% endfor %}</ol>
+    </div></section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

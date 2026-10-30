@@ -1,0 +1,115 @@
+{% extends "base.html" %}{% load i18n static %}
+{% block title %}{% translate "Accueil" %}{% endblock %}
+{% block content %}
+<div class="page-head" style="margin-bottom:20px">
+  <div>
+    <h1>{% blocktranslate with name=user.get_short_name %}Bonjour {{ name }}{% endblocktranslate %}</h1>
+    <p class="lead">{% if user.sees_all_contracts %}{% translate "Tous les clients" %}{% else %}{% translate "Vos contrats affectés" %}{% endif %}, {% translate "situation à" %} <span class="mono">{{ now|date:"H:i" }}</span></p>
+  </div>
+  <a class="btn btn-primary" href="{% url 'ticket_create' %}">{% include "icons/plus.svg" %}{% translate "Nouveau ticket" %}</a>
+</div>
+
+<div class="kpis">
+  <a class="kpi" href="{% url 'ticket_list' %}">
+    <div class="k-label">{% translate "Tickets ouverts" %}</div>
+    <div class="k-value">{{ n_open }}</div>
+    <div class="k-sub">{% blocktranslate count n=n_unassigned %}dont {{ n }} non assigné{% plural %}dont {{ n }} non assignés{% endblocktranslate %}</div>
+    <svg viewBox="0 0 200 34" preserveAspectRatio="none" aria-hidden="true"><path d="{{ spark_open.1 }}" style="fill:var(--orange);fill-opacity:.12"></path><path d="{{ spark_open.0 }}" style="fill:none;stroke:var(--orange);stroke-width:1.6"></path></svg>
+  </a>
+  <a class="kpi warn" href="{% url 'ticket_list' %}">
+    <div class="k-label">{% translate "SLA à risque" %}</div>
+    <div class="k-value">{{ n_risk }}</div>
+    <div class="k-sub">{% translate "plus de 75 % du délai consommé" %}</div>
+  </a>
+  <a class="kpi err" href="{% url 'ticket_list' %}">
+    <div class="k-label">{% translate "SLA dépassé" %}</div>
+    <div class="k-value">{{ n_late }}</div>
+    <div class="k-sub">{% translate "tickets ouverts hors délai" %}</div>
+  </a>
+  <div class="kpi ok">
+    <div class="k-label">{% translate "Délais tenus, 30 jours" %}</div>
+    <div class="k-value">{% if compliance.pct is not None %}{{ compliance.pct }} %{% else %}—{% endif %}</div>
+    <div class="k-sub">{% if compliance.total %}{% blocktranslate with ok=compliance.ok total=compliance.total %}{{ ok }} tickets résolus sur {{ total }}{% endblocktranslate %}{% else %}{% translate "aucun ticket résolu sur la période" %}{% endif %}</div>
+  </div>
+</div>
+
+<div class="grid-2-1">
+  <section class="panel"><div class="panel-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <h2 style="margin:0">{% translate "Tickets ouverts et résolus, 30 jours" %}</h2>
+      <div class="small muted" style="display:flex;gap:16px"><span style="display:inline-flex;gap:6px;align-items:center"><span style="width:12px;height:3px;border-radius:2px;background:var(--orange)"></span>{% translate "Ouverts" %}</span><span style="display:inline-flex;gap:6px;align-items:center"><span style="width:12px;height:3px;border-radius:2px;background:var(--ink)"></span>{% translate "Résolus" %}</span></div>
+    </div>
+    <div style="display:flex;gap:28px;margin:12px 0 6px;flex-wrap:wrap">
+      <div><div style="font-size:24px;font-weight:700">{{ chart.n_created }}</div><div class="small muted">{% translate "ouverts" %}</div></div>
+      <div><div style="font-size:24px;font-weight:700">{{ chart.n_resolved }}</div><div class="small muted">{% translate "résolus" %}</div></div>
+      {% if chart.avg_resolution %}<div><div style="font-size:24px;font-weight:700">{{ chart.avg_resolution }}</div><div class="small muted">{% translate "durée moyenne jusqu'à résolution" %}</div></div>{% endif %}
+    </div>
+    <svg viewBox="0 0 600 170" preserveAspectRatio="none" style="width:100%;height:180px;display:block" role="img" aria-label="{% translate 'Tickets ouverts et résolus par jour sur 30 jours' %}">
+      <path d="M0 43H600M0 85H600M0 128H600" style="stroke:var(--line-soft);stroke-width:1"></path>
+      <path d="{{ chart.open_area }}" style="fill:var(--orange);fill-opacity:.12"></path>
+      <path d="{{ chart.open_line }}" style="fill:none;stroke:var(--orange);stroke-width:2"></path>
+      <path d="{{ chart.done_line }}" style="fill:none;stroke:var(--ink);stroke-width:1.6;stroke-dasharray:4 3"></path>
+    </svg>
+    <div class="mono" style="display:flex;justify-content:space-between;color:var(--faint);font-size:11.5px;margin-top:4px">{% for d in chart.ticks %}<span>{{ d|date:"j M" }}</span>{% endfor %}</div>
+  </div></section>
+
+  <section class="panel"><div class="panel-body">
+    <h2>{% translate "Respect des SLA" %}</h2>
+    {% for h in health %}
+    <div class="health">
+      <span class="dot" style="color:{% if h.c.pct is None %}var(--faint){% elif h.c.pct >= 95 %}var(--ok){% else %}var(--warn){% endif %}"></span>
+      <div style="flex:1"><div style="font-weight:600">{{ h.name }}</div><div class="small muted">{% if h.c.total %}{% blocktranslate with ok=h.c.ok total=h.c.total %}{{ ok }} sur {{ total }} dans les délais, 30 jours{% endblocktranslate %}{% else %}{% translate "aucun ticket résolu sur 30 jours" %}{% endif %}</div></div>
+      {% if h.c.pct is not None %}<span class="tag {% if h.c.pct >= 95 %}ok{% else %}warn{% endif %}">{{ h.c.pct }} %</span>{% endif %}
+    </div>
+    {% endfor %}
+    <div class="health">
+      <span class="dot" style="color:var(--faint)"></span>
+      <div style="flex:1"><div style="font-weight:600">{% translate "Créés hors couverture" %}</div><div class="small muted">{% translate "contrats 8x5, 30 jours, repris dans les rapports mensuels" %}</div></div>
+      <span class="tag">{{ n_out_of_coverage }}</span>
+    </div>
+    {% if team %}
+    <h3 style="margin-top:18px">{% translate "Charge de l'équipe" %}</h3>
+    {% for m in team %}<div class="bar-top small" style="display:flex;justify-content:space-between;padding:4px 0"><span>{{ m.assignee__first_name }} {{ m.assignee__last_name }}</span><strong>{{ m.n }}</strong></div>{% endfor %}
+    {% endif %}
+  </div></section>
+</div>
+
+<div class="grid-2">
+  <section class="panel"><div class="panel-body">
+    <h2>{% translate "Tickets ouverts par client" %}</h2>
+    {% if by_client %}<div class="bars">{% for r in by_client %}
+      <div class="bar-row"><div class="bar-top"><span>{{ r.name }}</span><strong>{{ r.n }}</strong></div><div class="track"><span style="width:{{ r.pct }}%"></span></div></div>
+    {% endfor %}</div>{% else %}<p class="muted small">{% translate "Aucun ticket ouvert." %}</p>{% endif %}
+  </div></section>
+  <section class="panel"><div class="panel-body">
+    <h2>{% translate "Solutions les plus sollicitées, 30 jours" %}</h2>
+    {% if by_solution %}<div class="bars">{% for r in by_solution %}
+      <div class="bar-row"><div class="bar-top"><span>{{ r.s.name }} <span class="muted small">{{ r.s.contract.client }}</span></span><strong>{{ r.n }}</strong></div><div class="track"><span class="ink" style="width:{{ r.pct }}%"></span></div></div>
+    {% endfor %}</div>{% else %}<p class="muted small">{% translate "Aucun ticket rattaché à une solution sur la période." %}</p>{% endif %}
+  </div></section>
+</div>
+
+<div class="grid-2-1">
+  <section class="panel">
+    <div class="panel-head" style="padding-bottom:12px"><h2>{% translate "À traiter en priorité" %}</h2><a class="small" href="{% url 'ticket_list' %}">{% translate "Ouvrir la liste des tickets" %}</a></div>
+    {% if urgent %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>{% translate "Ticket" %}</th><th>{% translate "Priorité" %}</th><th class="hide-sm">{% translate "Client" %}</th><th class="hide-sm">{% translate "Assigné" %}</th><th>{% translate "Échéance" %}</th></tr></thead>
+      <tbody>{% for t in urgent %}
+        <tr><td class="ticket-cell"><span class="mono ref">{{ t.reference }}</span><a class="primary" href="{% url 'ticket_detail' t.reference %}">{{ t.title }}</a></td>
+          <td><span class="prio prio-{{ t.priority }}">P{{ t.priority }}</span></td>
+          <td class="hide-sm">{{ t.contract.client }}</td>
+          <td class="hide-sm">{% if t.assignee %}{{ t.assignee.display_name }}{% else %}<span class="unassigned">{% translate "Non assigné" %}</span>{% endif %}</td>
+          <td style="min-width:170px">{% include "tickets/_sla.html" with s=t.sla %}</td></tr>
+      {% endfor %}</tbody>
+    </table></div>
+    {% else %}<div class="empty"><img src="{% static 'img/mark.png' %}" alt=""><strong>{% translate "Rien en attente" %}</strong>{% translate "Aucun ticket ouvert avec une échéance en cours." %}</div>{% endif %}
+  </section>
+  <section class="panel"><div class="panel-body">
+    <h2>{% translate "Dernières activités" %}</h2>
+    {% if feed %}<ol class="feed">{% for f in feed %}
+      <li><span class="dot"></span><div><a href="{% url 'ticket_detail' f.e.ticket.reference %}" class="mono">{{ f.e.ticket.reference }}</a> {% if f.e.actor %}<strong>{{ f.e.actor.display_name }}</strong> {% endif %}{{ f.text }}<time class="mono" datetime="{{ f.e.created_at|date:'c' }}">{{ f.e.created_at|timesince }}</time></div></li>
+    {% endfor %}</ol>{% else %}<p class="muted small">{% translate "Aucune activité pour le moment." %}</p>{% endif %}
+  </div></section>
+</div>
+{% endblock %}

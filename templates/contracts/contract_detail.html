@@ -1,0 +1,83 @@
+{% extends "base.html" %}{% load i18n static %}
+{% block title %}{{ contract.reference }}{% endblock %}
+{% block content %}
+<p class="crumb"><a href="{% url 'contract_list' %}">{% translate "Contrats" %}</a></p>
+<div class="page-head">
+  <div>
+    <h1>{{ contract.title }}</h1>
+    <p class="lead">{% if user.is_aptitude %}{{ contract.client }}, {% endif %}{% translate "contrat" %} {{ contract.reference }}</p>
+  </div>
+  <span class="tag {% if contract.status == 'active' %}ok{% endif %}">{{ contract.get_status_display }}</span>
+</div>
+
+<div class="split">
+  <div class="stack">
+    <section class="panel">
+      <div class="panel-head"><h2>{% translate "Délais d'intervention" %}</h2>
+        {% if sla %}<span class="tag {% if sla.is_24x7 %}brand{% else %}outline{% endif %}">{{ sla.get_coverage_display }}</span>{% endif %}</div>
+      {% if sla %}
+      <p class="muted small" style="margin:6px 24px 14px">
+        {% if sla.is_24x7 %}{% translate "Délais comptés en heures calendaires, 7 jours sur 7, jours fériés compris." %}
+        {% else %}{% blocktranslate with s=sla.day_start|time:"G\hi" e=sla.day_end|time:"G\hi" %}Délais comptés en heures ouvrées, de {{ s }} à {{ e }} du lundi au vendredi, hors jours fériés.{% endblocktranslate %}{% endif %}
+      </p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>{% translate "Priorité" %}</th><th class="num">{% translate "Prise en charge" %}</th><th class="num">{% translate "Résolution" %}</th></tr></thead>
+        <tbody>{% for row in targets %}
+          <tr class="sla-row">
+            <td><div style="display:flex;gap:12px;align-items:flex-start"><span class="prio prio-{{ row.target.priority }}">P{{ row.target.priority }}</span>
+              <div><strong>{{ row.name }}</strong><div class="def">{{ row.definition }}</div></div></div></td>
+            <td class="num"><span class="hours">{% widthratio row.target.response_minutes 60 1 %} h</span></td>
+            <td class="num"><span class="hours">{% widthratio row.target.resolution_minutes 60 1 %} h</span></td>
+          </tr>{% endfor %}
+        </tbody>
+      </table></div>
+      <p class="muted small" style="margin:0;padding:14px 24px 18px;border-top:1px solid var(--line-soft)">{% translate "Un ticket est ouvert en P4. Vous pouvez le passer en P3 à la création ou ensuite ; le passage en P2 ou P1 est décidé par Aptitude." %}</p>
+      {% else %}<div class="empty"><strong>{% translate "Aucun engagement de service" %}</strong>{% translate "Ce contrat n'a pas encore de type de contrat associé." %}</div>{% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head" style="padding-bottom:14px"><h2>{% translate "Solutions couvertes" %}</h2><span class="muted small">{{ solutions|length }}</span></div>
+      {% if solutions %}
+      <div class="table-wrap"><table>
+        <thead><tr><th>{% translate "Solution" %}</th><th>{% translate "Catégorie" %}</th><th>{% translate "Modèle ou version" %}</th><th>{% translate "Emplacement" %}</th></tr></thead>
+        <tbody>{% for s in solutions %}
+          <tr><td><strong>{{ s.name }}</strong>{% if s.vendor %}<span class="secondary">{{ s.vendor }}</span>{% endif %}{% if not s.is_active %} <span class="tag">{% translate "retirée" %}</span>{% endif %}</td>
+            <td>{{ s.get_category_display }}</td><td>{{ s.serial_or_version|default:"—" }}</td><td>{{ s.location|default:"—" }}</td></tr>
+        {% endfor %}</tbody>
+      </table></div>
+      {% else %}<div class="empty"><strong>{% translate "Aucune solution enregistrée" %}</strong>{% translate "Les équipements et services couverts apparaîtront ici." %}</div>{% endif %}
+    </section>
+  </div>
+
+  <aside class="stack">
+    <section class="panel"><div class="panel-body">
+      <h2>{% translate "Couverture" %}</h2>
+      {% with s=coverage_now.state %}
+      <div class="coverage {% if s == 'always' or s == 'open' %}ok{% endif %}">
+        <span class="dot {% if s == 'always' or s == 'open' %}pulse{% endif %}"></span>
+        <div>
+          {% if s == "always" %}<div class="state">{% translate "Couvert en permanence" %}</div><p>{% translate "Vous pouvez ouvrir un ticket à toute heure." %}</p>
+          {% elif s == "open" %}<div class="state">{% translate "Heures ouvrées en cours" %}</div><p>{% translate "Vous pouvez ouvrir un ticket maintenant." %}</p>
+          {% elif s == "closed" %}<div class="state">{% translate "Hors heures ouvrées" %}</div><p>{% translate "Création de ticket possible à partir du" %} <strong>{{ coverage_now.next_open|date:"l j F à G\hi" }}</strong>.</p>
+          {% else %}<div class="state">{% translate "Sans SLA" %}</div>{% endif %}
+        </div>
+      </div>
+      {% endwith %}
+      <dl class="facts" style="margin-top:20px">
+        <dt>{% translate "Référence" %}</dt><dd>{{ contract.reference }}</dd>
+        <dt>{% translate "Type" %}</dt><dd>{{ contract.contract_type|default:"—" }}</dd>
+        <dt>{% translate "Début" %}</dt><dd>{{ contract.start_date|date:"j F Y" }}</dd>
+        <dt>{% translate "Fin" %}</dt><dd>{% if contract.end_date %}{{ contract.end_date|date:"j F Y" }}{% else %}{% translate "Sans date de fin" %}{% endif %}</dd>
+      </dl>
+    </div></section>
+
+    {% if upcoming_holidays %}
+    <section class="panel"><div class="panel-body">
+      <h2>{% translate "Prochains jours fériés" %}</h2>
+      <p class="muted small" style="margin:-6px 0 12px">{% translate "Aucun délai ne court ces jours-là." %}</p>
+      <dl class="facts">{% for h in upcoming_holidays %}<dt>{{ h.date|date:"D j M" }}</dt><dd>{{ h.name }}</dd>{% endfor %}</dl>
+    </div></section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

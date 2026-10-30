@@ -1,0 +1,70 @@
+{% extends "base.html" %}{% load i18n static %}
+{% block title %}{% translate "Tickets" %}{% endblock %}
+{% block content %}
+<div class="page-head" style="margin-bottom:18px">
+  <div>
+    <h1>{% if user.is_aptitude %}{% translate "Tickets" %}{% else %}{% translate "Mes tickets" %}{% endif %}</h1>
+    <p class="lead">{% if user.is_aptitude %}{% translate "Triés par échéance : les délais les plus proches d'abord." %}{% else %}{% blocktranslate with org=user.organisation %}Les demandes de {{ org }} sur les contrats auxquels vous avez accès.{% endblocktranslate %}{% endif %}</p>
+  </div>
+  {% if can_create %}<a class="btn btn-primary" href="{% url 'ticket_create' %}">{% include "icons/plus.svg" %}{% translate "Nouveau ticket" %}</a>{% endif %}
+</div>
+
+<form method="get" class="filters" role="search">
+  <input type="hidden" name="vue" value="{{ tab }}">
+  <label class="sr-only" for="q">{% translate "Rechercher" %}</label>
+  <input id="q" type="search" name="q" value="{{ q }}" placeholder="{% translate 'Référence, titre ou solution' %}">
+  <label class="sr-only" for="prio">{% translate "Priorité" %}</label>
+  <select id="prio" name="priorite" onchange="this.form.submit()">
+    <option value="">{% translate "Toutes les priorités" %}</option>
+    {% for v, l in priorities %}<option value="{{ v }}" {% if prio == v|stringformat:"s" %}selected{% endif %}>{{ l }}</option>{% endfor %}
+  </select>
+  {% if user.is_aptitude %}
+  <label class="sr-only" for="who">{% translate "Assigné" %}</label>
+  <select id="who" name="assigne" onchange="this.form.submit()">
+    <option value="">{% translate "Tous les assignés" %}</option>
+    <option value="moi" {% if who == 'moi' %}selected{% endif %}>{% translate "Mes tickets" %}</option>
+    <option value="personne" {% if who == 'personne' %}selected{% endif %}>{% translate "Non assignés" %}</option>
+  </select>
+  <label class="sr-only" for="client">{% translate "Client" %}</label>
+  <select id="client" name="client" onchange="this.form.submit()">
+    <option value="">{% translate "Tous les clients" %}</option>
+    {% for c in clients %}<option value="{{ c.pk }}" {% if client_id == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
+  </select>
+  {% endif %}
+</form>
+
+<nav class="tabs" aria-label="{% translate 'Statuts' %}">
+  {% for key, label, n in tabs %}
+  <a href="?vue={{ key }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if prio %}&priorite={{ prio }}{% endif %}{% if who %}&assigne={{ who }}{% endif %}{% if client_id %}&client={{ client_id }}{% endif %}" {% if key == tab %}aria-current="true"{% endif %}>{{ label }} <span class="n">{{ n }}</span></a>
+  {% endfor %}
+</nav>
+
+<section class="panel">
+  {% if tickets %}
+  <div class="table-wrap"><table>
+    <thead><tr>
+      <th>{% translate "Ticket" %}</th>
+      <th>{% translate "Statut" %}</th>
+      <th>{% translate "Priorité" %}</th>
+      <th class="hide-sm">{% if user.is_aptitude %}{% translate "Client et contrat" %}{% else %}{% translate "Contrat" %}{% endif %}</th>
+      {% if user.is_aptitude %}<th class="hide-sm">{% translate "Assigné" %}</th>{% endif %}
+      <th>{% translate "Échéance" %}</th>
+    </tr></thead>
+    <tbody>{% for t in tickets %}
+      <tr>
+        <td class="ticket-cell"><span class="mono ref">{{ t.reference }}, {% translate "mis à jour" %} {{ t.updated_at|date:"d/m H:i" }}</span><a class="primary" href="{% url 'ticket_detail' t.reference %}">{{ t.title }}</a>
+          <span class="t-summary">{{ t.description|truncatechars:120 }}</span></td>
+        <td><span class="st st-{{ t.status }}">{{ t.get_status_display }}</span>{% if t.out_of_coverage and user.is_aptitude %}<span class="secondary small">{% translate "hors couverture" %}</span>{% endif %}</td>
+        <td><span class="prio prio-{{ t.priority }}">P{{ t.priority }}</span></td>
+        <td class="hide-sm" style="min-width:150px">{% if user.is_aptitude %}<div style="white-space:nowrap">{{ t.contract.client }}</div><span class="secondary">{{ t.contract.title }}</span>{% else %}{{ t.contract.title }}{% endif %}</td>
+        {% if user.is_aptitude %}<td class="hide-sm">{% if t.assignee %}{{ t.assignee.display_name }}{% else %}<span class="unassigned">{% translate "Non assigné" %}</span>{% endif %}</td>{% endif %}
+        <td style="min-width:170px">{% include "tickets/_sla.html" with s=t.sla %}</td>
+      </tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <div class="empty"><img src="{% static 'img/mark.png' %}" alt=""><strong>{% translate "Aucun ticket ici" %}</strong>
+    {% if q or prio or who or client_id %}{% translate "Aucun ticket ne correspond à ces filtres." %}{% elif can_create %}{% translate "Ouvrez un ticket pour signaler un incident ou faire une demande." %}{% endif %}</div>
+  {% endif %}
+</section>
+{% endblock %}

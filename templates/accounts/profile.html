@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% load i18n %}
+{% block title %}{% translate "Mon profil" %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div style="display:flex;gap:16px;align-items:center">
+    <span class="avatar {% if user.is_client %}client{% endif %}" style="width:52px;height:52px;font-size:18px" aria-hidden="true">{{ user.initials }}</span>
+    <div><h1>{{ user.display_name }}</h1><p class="lead" style="margin-top:2px">{{ user.get_profile_display }}, {{ user.organisation }}</p></div>
+  </div>
+</div>
+<div class="split">
+  <form method="post" class="panel" novalidate>{% csrf_token %}
+    <div class="form-section"><h2>{% translate "Coordonnées" %}</h2>
+      <div class="form-grid">{% include "_form_fields.html" %}</div></div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">{% translate "Enregistrer" %}</button></div>
+  </form>
+  <section class="panel"><div class="panel-body">
+    <h2>{% translate "Sécurité" %}</h2>
+    <dl class="facts">
+      <dt>{% translate "Email de connexion" %}</dt><dd>{{ user.email }}</dd>
+      <dt>{% translate "Double authentification" %}</dt><dd>{% if has_mfa %}<span class="tag ok">{% translate "Activée" %}</span>{% else %}<span class="tag warn">{% translate "Non activée" %}</span>{% endif %}</dd>
+      <dt>{% translate "Dernière connexion" %}</dt><dd>{{ user.last_login|date:"j F Y, G\hi"|default:"—" }}</dd>
+    </dl>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:20px">
+      {% if not has_mfa %}<a class="btn btn-primary" href="{% url 'mfa_setup' %}">{% include "icons/shield.svg" %}{% translate "Activer la double authentification" %}</a>{% endif %}
+      <a class="btn btn-secondary" href="{% url 'password_change' %}">{% translate "Changer de mot de passe" %}</a>
+    </div>
+  </div></section>
+</div>
+{% endblock %}

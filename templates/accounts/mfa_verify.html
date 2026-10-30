@@ -1,0 +1,15 @@
+{% extends "auth_base.html" %}{% load i18n %}
+{% block title %}{% translate "Vérification" %}{% endblock %}
+{% block auth %}
+<h1>{% translate "Vérification en deux étapes" %}</h1>
+<p class="intro">{% blocktranslate with email=user.email %}Saisissez le code de votre application d'authentification pour {{ email }}.{% endblocktranslate %}</p>
+<form method="post" novalidate>{% csrf_token %}
+  {% include "_form_fields.html" with extra_class="otp" %}
+  <input type="hidden" name="next" value="{{ next }}">
+  <button class="btn btn-primary btn-block" type="submit">{% translate "Vérifier" %}</button>
+</form>
+<div class="below">
+  <span class="muted small">{% translate "Téléphone perdu ? Contactez votre administrateur Aptitude." %}</span>
+  <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="linkbtn">{% translate "Se déconnecter" %}</button></form>
+</div>
+{% endblock %}

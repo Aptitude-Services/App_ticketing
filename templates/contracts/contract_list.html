@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% load i18n static %}
+{% block title %}{% translate "Contrats" %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{% translate "Contrats" %}</h1>
+    <p class="lead">{% translate "Chaque contrat précise les solutions couvertes et les délais d'intervention qui s'y appliquent." %}</p></div>
+</div>
+
+<form method="get" class="filters" role="search">
+  <div class="seg">
+    <a href="?statut=active{% if q %}&q={{ q|urlencode }}{% endif %}" {% if status == 'active' %}aria-current="true"{% endif %}>{% translate "Actifs" %}</a>
+    <a href="?statut=all{% if q %}&q={{ q|urlencode }}{% endif %}" {% if status == 'all' %}aria-current="true"{% endif %}>{% translate "Tous" %}</a>
+    <a href="?statut=expired{% if q %}&q={{ q|urlencode }}{% endif %}" {% if status == 'expired' %}aria-current="true"{% endif %}>{% translate "Expirés" %}</a>
+  </div>
+  <input type="hidden" name="statut" value="{{ status }}">
+  <label class="sr-only" for="q">{% translate "Rechercher" %}</label>
+  <input id="q" type="search" name="q" value="{{ q }}" placeholder="{% if user.is_aptitude %}{% translate 'Référence, intitulé ou client' %}{% else %}{% translate 'Référence ou intitulé' %}{% endif %}">
+</form>
+
+<section class="panel">
+  {% if contracts %}
+    {% include "contracts/_contract_table.html" with show_status=True %}
+  {% else %}
+    <div class="empty"><img src="{% static 'img/mark.png' %}" alt=""><strong>{% translate "Aucun contrat trouvé" %}</strong>{% if q %}{% translate "Essayez une autre recherche ou affichez tous les statuts." %}{% endif %}</div>
+  {% endif %}
+</section>
+{% endblock %}

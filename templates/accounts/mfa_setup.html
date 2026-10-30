@@ -1,0 +1,18 @@
+{% extends "auth_base.html" %}{% load i18n %}
+{% block title %}{% translate "Double authentification" %}{% endblock %}
+{% block auth %}
+<h1>{% translate "Sécurisez votre compte" %}</h1>
+<p class="intro">{% if user.mfa_required %}{% translate "La double authentification est obligatoire pour les comptes Aptitude." %}{% else %}{% translate "Ajoutez un code temporaire à votre mot de passe." %}{% endif %}</p>
+<ol class="steps">
+  <li>{% translate "Ouvrez Microsoft Authenticator ou Google Authenticator." %}</li>
+  <li>{% translate "Scannez le QR code ci-dessous." %}</li>
+  <li>{% translate "Saisissez le code à 6 chiffres affiché." %}</li>
+</ol>
+<img class="qr" src="{{ qr }}" alt="{% translate 'QR code à scanner avec votre application' %}">
+<details class="manual"><summary>{% translate "Impossible de scanner ? Saisir la clé à la main" %}</summary><code class="secret">{{ secret }}</code></details>
+<form method="post" novalidate>{% csrf_token %}
+  {% include "_form_fields.html" with extra_class="otp" %}
+  <button class="btn btn-primary btn-block" type="submit">{% translate "Activer la double authentification" %}</button>
+</form>
+<div class="below"><form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="linkbtn">{% translate "Se déconnecter" %}</button></form></div>
+{% endblock %}

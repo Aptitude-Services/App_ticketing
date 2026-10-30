@@ -1,0 +1,20 @@
+{% load i18n %}<div class="table-wrap"><table>
+  <thead><tr>
+    <th>{% translate "Contrat" %}</th>
+    {% if user.is_aptitude %}<th class="hide-sm">{% translate "Client" %}</th>{% endif %}
+    <th>{% translate "Couverture maintenant" %}</th>
+    <th class="num hide-sm">{% translate "Solutions" %}</th>
+    <th class="hide-sm">{% translate "Échéance" %}</th>
+    {% if show_status %}<th>{% translate "Statut" %}</th>{% endif %}
+  </tr></thead>
+  <tbody>{% for c in contracts %}
+    <tr>
+      <td><a class="primary" href="{% url 'contract_detail' c.pk %}">{{ c.title }}</a><span class="secondary">{{ c.reference }} · {{ c.contract_type|default:"—" }}</span></td>
+      {% if user.is_aptitude %}<td class="hide-sm">{{ c.client }}</td>{% endif %}
+      <td>{% include "contracts/_coverage_tag.html" with status=c.coverage_now %}</td>
+      <td class="num hide-sm">{{ c.n_solutions }}</td>
+      <td class="hide-sm">{% if c.end_date %}{{ c.end_date|date:"j M Y" }}{% else %}<span class="muted">{% translate "Sans fin" %}</span>{% endif %}</td>
+      {% if show_status %}<td><span class="tag {% if c.status == 'active' %}ok{% endif %}">{{ c.get_status_display }}</span></td>{% endif %}
+    </tr>{% endfor %}
+  </tbody>
+</table></div>

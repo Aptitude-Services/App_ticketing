@@ -1,0 +1,132 @@
+{% load static i18n %}<!doctype html>
+{% get_current_language as LANG %}
+<html lang="{{ LANG }}" data-theme="{% if user.is_authenticated %}{{ user.theme }}{% else %}system{% endif %}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{% translate "Support" %}{% endblock %} · Aptitude</title>
+  <script>
+    // Résout « comme mon système » avant l'affichage, pour éviter un flash de thème.
+    (function () {
+      var r = document.documentElement;
+      if (r.dataset.theme === "system") {
+        r.dataset.pref = "system";
+        r.dataset.theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+    })();
+  </script>
+  <link rel="icon" href="{% static 'img/favicon.ico' %}" sizes="any">
+  <link rel="icon" type="image/png" href="{% static 'img/favicon-32.png' %}">
+  <link rel="apple-touch-icon" href="{% static 'img/apple-touch-icon.png' %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body class="{% if user.is_authenticated and user.is_aptitude %}is-console{% else %}is-portal{% endif %}">
+{% block body %}
+{% with section=request.resolver_match.url_name %}
+{% if user.is_aptitude %}
+<div class="console">
+  <header class="c-top">
+    <a class="logo" href="{% url 'dashboard' %}"><img class="light-only" src="{% static 'img/logo.png' %}" alt="Aptitude"><img class="dark-only" src="{% static 'img/logo-white.png' %}" alt="Aptitude"></a>
+    <span class="badge">{% translate "Support" %}</span>
+    <form class="c-search" method="get" action="{% url 'ticket_list' %}" role="search">
+      {% include "icons/search.svg" %}
+      <label class="sr-only" for="global-q">{% translate "Rechercher" %}</label>
+      <input id="global-q" type="search" name="q" value="{{ request.GET.q }}" placeholder="{% translate 'Rechercher un ticket par référence, titre ou solution' %}">
+      <input type="hidden" name="vue" value="tous">
+    </form>
+    <div class="c-actions">
+      {% include "_theme_toggle.html" with cls="c-icon" %}
+      <a class="c-me" href="{% url 'my_profile' %}"><span class="avatar" aria-hidden="true">{{ user.initials }}</span><span class="hide-sm">{{ user.display_name }}</span></a>
+    </div>
+  </header>
+  <aside class="c-side" aria-label="{% translate 'Navigation principale' %}">
+    <nav>
+      <a href="{% url 'dashboard' %}" {% if section == 'dashboard' %}aria-current="page"{% endif %}>{% include "icons/home.svg" %}{% translate "Accueil" %}</a>
+      <div class="grp">{% translate "Supervision" %}</div>
+      <a href="{% url 'ticket_list' %}" {% if section == 'ticket_list' or section == 'ticket_detail' or section == 'ticket_create' %}aria-current="page"{% endif %}>{% include "icons/ticket.svg" %}{% translate "Tickets" %}<span class="count">{{ nav_open_tickets }}</span></a>
+      <a href="{% url 'contract_list' %}" {% if section == 'contract_list' or section == 'contract_detail' %}aria-current="page"{% endif %}>{% include "icons/contract.svg" %}{% translate "Contrats" %}</a>
+      {% if user.can_manage_users %}
+      <div class="grp">{% translate "Clients" %}</div>
+      <a href="{% url 'user_list' %}" {% if section == 'user_list' or section == 'user_create' or section == 'user_update' %}aria-current="page"{% endif %}>{% include "icons/users.svg" %}{% translate "Utilisateurs" %}</a>
+      {% endif %}
+      {% if user.is_staff %}
+      <div class="grp">{% translate "Configuration" %}</div>
+      <a href="{% url 'admin:sla_sla_changelist' %}">{% include "icons/clock.svg" %}{% translate "SLA et jours fériés" %}</a>
+      <a href="{% url 'admin:index' %}">{% include "icons/settings.svg" %}{% translate "Administration" %}</a>
+      {% endif %}
+    </nav>
+    <div class="side-foot">
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">{% include "icons/logout.svg" %}{% translate "Se déconnecter" %}</button></form>
+    </div>
+  </aside>
+  <main class="c-main" id="contenu">
+{% else %}
+<div class="app">
+  <aside class="sidebar" aria-label="{% translate 'Navigation principale' %}">
+    <a class="logo" href="{% url 'dashboard' %}"><img src="{% static 'img/logo-white.png' %}" alt="Aptitude"></a>
+    <div class="product">{% translate "Portail de support" %}</div>
+    <nav>
+      <a href="{% url 'dashboard' %}" {% if section == 'dashboard' %}aria-current="page"{% endif %}>{% include "icons/home.svg" %}{% translate "Accueil" %}</a>
+      <a href="{% url 'ticket_list' %}" {% if section == 'ticket_list' or section == 'ticket_detail' or section == 'ticket_create' %}aria-current="page"{% endif %}>{% include "icons/ticket.svg" %}<span style="flex:1">{% translate "Mes tickets" %}</span>{% if nav_waiting_me %}<span class="nav-badge" title="{% translate 'En attente de votre réponse' %}">{{ nav_waiting_me }}</span>{% endif %}</a>
+      <a href="{% url 'contract_list' %}" {% if section == 'contract_list' or section == 'contract_detail' %}aria-current="page"{% endif %}>{% include "icons/contract.svg" %}{% translate "Contrats" %}</a>
+      {% if user.can_manage_users %}
+      <a href="{% url 'user_list' %}" {% if section == 'user_list' or section == 'user_create' or section == 'user_update' %}aria-current="page"{% endif %}>{% include "icons/users.svg" %}{% translate "Utilisateurs" %}</a>
+      {% endif %}
+    </nav>
+    <div class="me">
+      <span class="avatar client" aria-hidden="true">{{ user.initials }}</span>
+      <div>
+        <a href="{% url 'my_profile' %}">{{ user.display_name }}</a>
+        <small title="{{ user.organisation }}">{{ user.organisation }}</small>
+      </div>
+      {% include "_theme_toggle.html" with cls="icon-btn" %}
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}
+        <button class="icon-btn" type="submit" title="{% translate 'Se déconnecter' %}"><span class="sr-only">{% translate "Se déconnecter" %}</span>{% include "icons/logout.svg" %}</button>
+      </form>
+    </div>
+  </aside>
+  <div>
+    <header class="mobilebar">
+      <a href="{% url 'dashboard' %}"><img src="{% static 'img/logo-white.png' %}" alt="Aptitude"></a>
+      <nav>
+        <a href="{% url 'dashboard' %}" {% if section == 'dashboard' %}aria-current="page"{% endif %}>{% translate "Accueil" %}</a>
+        <a href="{% url 'ticket_list' %}" {% if section == 'ticket_list' or section == 'ticket_detail' %}aria-current="page"{% endif %}>{% translate "Tickets" %}</a>
+        <a href="{% url 'my_profile' %}" {% if section == 'my_profile' %}aria-current="page"{% endif %}>{% translate "Profil" %}</a>
+      </nav>
+    </header>
+    <main class="content" id="contenu">
+{% endif %}
+      {% if messages %}<ul class="messages">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}
+      {% block content %}{% endblock %}
+      {% if not user.is_aptitude %}
+      <footer class="foot">
+        <span>Aptitude Services · {% translate "Abidjan, Côte d'Ivoire" %}</span>
+        <span><a href="mailto:support@aptitudes.net">support@aptitudes.net</a></span>
+      </footer>
+      {% endif %}
+    </main>
+{% if not user.is_aptitude %}  </div>{% endif %}
+</div>
+{% endwith %}
+<script>
+  // Bascule clair / sombre : effet immédiat, puis enregistrement dans le profil.
+  document.querySelectorAll("[data-theme-toggle]").forEach(function (btn) {
+    btn.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      var r = document.documentElement;
+      var next = r.dataset.theme === "dark" ? "light" : "dark";
+      r.dataset.theme = next;
+      delete r.dataset.pref;
+      var form = btn.closest("form");
+      var data = new FormData(form);
+      data.set("theme", next);
+      fetch(form.action, { method: "POST", body: data, headers: { "X-Requested-With": "fetch" } });
+    });
+  });
+</script>
+{% endblock %}
+</body>
+</html>

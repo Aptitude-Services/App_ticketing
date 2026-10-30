@@ -1,0 +1,44 @@
+# Aptitude Support — essai en local (mode démo, sans HTTPS ni Traefik)
+# Usage : docker compose -f docker-compose.local.yml -p aptitude-local up -d --build
+# Ne pas utiliser en production : voir docker-compose.yml et la procédure de mise en production.
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    # Réglages email facultatifs (vrai envoi) : voir .env.local
+    env_file:
+      - path: .env.local
+        required: false
+    environment:
+      DJANGO_DEBUG: "1"
+      DJANGO_SECRET_KEY: local-demo-only-not-for-production
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      DJANGO_CSRF_TRUSTED_ORIGINS: http://localhost:8000,http://127.0.0.1:8000
+      AXES_PROXY_COUNT: "0"
+      # Sans .env.local, les emails (invitations) s'affichent dans les journaux : docker compose ... logs web
+      DATABASE_URL: postgres://aptitude:aptitude-local@db:5432/aptitude_support
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: aptitude_support
+      POSTGRES_USER: aptitude
+      POSTGRES_PASSWORD: aptitude-local
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aptitude -d aptitude_support"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+  media:

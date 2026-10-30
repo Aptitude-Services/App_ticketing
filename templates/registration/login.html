@@ -1,0 +1,12 @@
+{% extends "auth_base.html" %}{% load i18n %}
+{% block title %}{% translate "Connexion" %}{% endblock %}
+{% block auth %}
+<h1>{% translate "Connexion" %}</h1>
+<p class="intro">{% translate "Accédez à votre espace avec votre email professionnel." %}</p>
+<form method="post" novalidate>{% csrf_token %}
+  {% include "_form_fields.html" %}
+  <input type="hidden" name="next" value="{{ next }}">
+  <button class="btn btn-primary btn-block" type="submit">{% translate "Se connecter" %}</button>
+</form>
+<div class="below"><a href="{% url 'password_reset' %}">{% translate "Mot de passe oublié ?" %}</a></div>
+{% endblock %}

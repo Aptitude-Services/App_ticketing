@@ -1,0 +1,67 @@
+{% extends "base.html" %}{% load i18n %}
+{% block title %}{% if creating %}{% translate "Inviter un utilisateur" %}{% else %}{{ target.display_name }}{% endif %}{% endblock %}
+{% block content %}
+<p class="crumb"><a href="{% url 'user_list' %}">{% translate "Utilisateurs" %}</a></p>
+<div class="page-head"><div>
+  <h1>{% if creating %}{% translate "Inviter un utilisateur" %}{% else %}{{ target.display_name }}{% endif %}</h1>
+  <p class="lead">{% if creating %}{% translate "La personne recevra un email pour choisir son mot de passe." %}{% else %}{{ target.email }}{% endif %}</p>
+</div></div>
+
+<form method="post" class="panel" style="max-width:820px" novalidate>{% csrf_token %}
+  {% if form.non_field_errors %}<div style="padding:20px 24px 0"><div class="form-alert">{{ form.non_field_errors }}</div></div>{% endif %}
+
+  <div class="form-section">
+    <h2>{% translate "Identité" %}</h2>
+    <div class="form-grid">
+      {% for name in form %}{% if name.name == "email" or name.name == "phone" or name.name == "first_name" or name.name == "last_name" or name.name == "language" or name.name == "organisation" %}
+      <div class="form-row"><label for="{{ name.id_for_label }}">{{ name.label }}</label>{{ name }}{% if name.help_text %}<div class="help">{{ name.help_text }}</div>{% endif %}{{ name.errors }}</div>
+      {% endif %}{% endfor %}
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h2>{% translate "Droits" %}</h2>
+    <p class="muted">{% translate "Lecture seule : consulte contrats et tickets. Lecture et écriture : ouvre et suit des tickets. Admin client : gère aussi les utilisateurs." %}</p>
+    <div class="form-grid"><div class="form-row"><label for="{{ form.profile.id_for_label }}">{{ form.profile.label }}</label>{{ form.profile }}{{ form.profile.errors }}</div></div>
+  </div>
+
+  <div class="form-section">
+    <h2>{% translate "Accès aux contrats" %}</h2>
+    <p class="muted">{% translate "Par défaut, la personne voit tous les contrats de l'organisation. Décochez pour choisir." %}</p>
+    <div class="form-row"><label class="check">{{ form.all_contracts }}<span>{{ form.all_contracts.label|capfirst }}</span></label>{{ form.all_contracts.errors }}</div>
+    <div class="form-row choices" id="contract-choices">
+      <label>{{ form.contracts.label }}</label>
+      {% if form.contracts.field.queryset.exists %}{{ form.contracts }}{% else %}<p class="muted small" style="margin:0">{% translate "Aucun contrat disponible pour cette organisation." %}</p>{% endif %}
+      {{ form.contracts.errors }}
+    </div>
+  </div>
+
+  {% if not creating %}
+  <div class="form-section">
+    <h2>{% translate "Statut du compte" %}</h2>
+    <div class="form-row"><label class="check">{{ form.is_active }}<span>{% translate "Compte actif" %}<span class="help">{% translate "Un compte désactivé ne peut plus se connecter ; son historique est conservé." %}</span></span></label>{{ form.is_active.errors }}</div>
+  </div>
+  {% else %}<input type="hidden" name="is_active" value="on">{% endif %}
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">{% if creating %}{% translate "Envoyer l'invitation" %}{% else %}{% translate "Enregistrer les modifications" %}{% endif %}</button>
+    <a class="btn btn-secondary" href="{% url 'user_list' %}">{% translate "Annuler" %}</a>
+  </div>
+</form>
+<script>
+  // Masque la liste des contrats quand l'accès à tous est coché (le serveur reste la référence).
+  (function () {
+    var box = document.getElementById("{{ form.all_contracts.id_for_label }}");
+    var list = document.getElementById("contract-choices");
+    var profile = document.getElementById("{{ form.profile.id_for_label }}");
+    if (!box || !list) return;
+    function sync() {
+      var assigned = profile && profile.value === "tech_assigned";
+      list.hidden = box.checked && !assigned;
+    }
+    box.addEventListener("change", sync);
+    if (profile) profile.addEventListener("change", sync);
+    sync();
+  })();
+</script>
+{% endblock %}

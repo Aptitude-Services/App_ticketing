@@ -1,0 +1,31 @@
+{% extends "admin/base.html" %}{% load static i18n %}
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} · Aptitude{% endblock %}
+{% block extrastyle %}{{ block.super }}
+<link rel="icon" href="{% static 'img/favicon.ico' %}" sizes="any">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root, html[data-theme="light"] {
+    --primary: #1F2D3D; --secondary: #2A3B4F; --accent: #F58436;
+    --primary-fg: #fff; --header-color: #fff; --header-branding-color: #fff;
+    --header-bg: #1F2D3D; --header-link-color: #fff;
+    --breadcrumbs-bg: #2A3B4F; --breadcrumbs-link-fg: #fff; --breadcrumbs-fg: #C9D2DC;
+    --link-fg: #A85A25; --link-hover-color: #E46F1F; --link-selected-fg: #A85A25;
+    --button-bg: #1F2D3D; --button-hover-bg: #2A3B4F;
+    --default-button-bg: #F58436; --default-button-hover-bg: #E46F1F;
+    --selected-row: #FEF1E7;
+    --font-family-primary: "Montserrat", system-ui, sans-serif;
+  }
+  #branding h1 { display: flex; align-items: center; gap: 12px; margin: 0; }
+  #branding h1 img { height: 26px; display: block; }
+  #branding h1 span { font-size: 14px; font-weight: 500; color: #93A1B2; }
+  .button.default, input[type=submit].default, .submit-row input.default { color: #1F2D3D; font-weight: 600; }
+  #header { padding-top: 14px; padding-bottom: 14px; }
+  .module h2, .module caption, .inline-group h2 { background: #1F2D3D; }
+</style>
+{% endblock %}
+{% block branding %}
+<div id="site-name"><a href="{% url 'admin:index' %}"><h1 id="site-name-inner"><img src="{% static 'img/logo-white.png' %}" alt="Aptitude"><span>{% translate "Administration du support" %}</span></h1></a></div>
+{% if user.is_anonymous %}{% include "admin/color_theme_toggle.html" %}{% endif %}
+{% endblock %}
+{% block nav-global %}{% endblock %}

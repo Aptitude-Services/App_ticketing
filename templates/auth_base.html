@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% load static i18n %}
+{% block body %}
+<div class="auth">
+  <section class="auth-brand" aria-hidden="true">
+    <div class="logo"><img src="{% static 'img/logo-white.png' %}" alt=""></div>
+    <img class="mark" src="{% static 'img/mark.png' %}" alt="">
+    <div class="pitch">
+      <h1>{% translate "Votre support Aptitude, au même endroit." %}</h1>
+      <p>{% translate "Suivez vos contrats, vos engagements de service et vos demandes d'intervention." %}</p>
+    </div>
+    <div class="contact">{% translate "Une urgence ?" %} <a href="mailto:support@aptitudes.net">support@aptitudes.net</a></div>
+  </section>
+  <section class="auth-form">
+    <div class="auth-card">
+      <div class="logo-mobile"><img src="{% static 'img/logo.png' %}" alt="Aptitude"></div>
+      {% if messages %}<ul class="messages">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}
+      {% block auth %}{% endblock %}
+    </div>
+  </section>
+</div>
+{% endblock %}

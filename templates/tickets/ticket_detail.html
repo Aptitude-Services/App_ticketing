@@ -1,0 +1,120 @@
+{% extends "base.html" %}{% load i18n %}
+{% block title %}{{ t.reference }}{% endblock %}
+{% block content %}
+<p class="crumb"><a href="{% url 'ticket_list' %}">{% if user.is_aptitude %}{% translate "Tickets" %}{% else %}{% translate "Mes tickets" %}{% endif %}</a></p>
+<div class="page-head" style="margin-bottom:20px">
+  <div>
+    <p class="mono" style="margin:0 0 4px;color:var(--muted)">{{ t.reference }}</p>
+    <h1>{{ t.title }}</h1>
+    <p class="lead" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <span class="st st-{{ t.status }}">{{ t.get_status_display }}</span>
+      <span class="prio prio-{{ t.priority }}">P{{ t.priority }}</span>
+      <span>{% if user.is_aptitude %}{{ t.contract.client }}, {% endif %}<a href="{% url 'contract_detail' t.contract.pk %}">{{ t.contract.title }}</a></span>
+      {% if t.out_of_coverage and user.is_aptitude %}<span class="tag warn">{% translate "Créé hors couverture" %}</span>{% endif %}
+    </p>
+  </div>
+</div>
+
+{% if t.status == "waiting_client" and user.is_client %}
+<div class="banner">{% include "icons/clock.svg" %}<div class="grow"><strong>{% translate "L'équipe Aptitude attend votre réponse." %}</strong> {% translate "Le délai d'intervention est suspendu ; il reprend dès votre message." %}</div></div>
+{% elif t.status == "waiting_prereq" %}
+<div class="banner warn">{% include "icons/clock.svg" %}<div class="grow"><strong>{% translate "Priorité très élevée en attente de prérequis." %}</strong> {% translate "La prise en charge est actée dès qu'une sauvegarde saine de l'environnement impacté est disponible et que le devis est validé. Le délai de résolution de 8 h démarre à ce moment-là." %}</div></div>
+{% endif %}
+
+<div class="t-layout">
+  <div class="thread">
+    <article class="msg {% if t.requester.is_client %}from-client{% else %}from-aptitude{% endif %}">
+      <header><span class="avatar sm {% if t.requester.is_client %}client{% endif %}" aria-hidden="true">{{ t.requester.initials }}</span>
+        <span class="who">{{ t.requester.display_name }}</span><span class="muted small">{{ t.requester.organisation }}</span>
+        <time class="mono" datetime="{{ t.created_at|date:'c' }}">{{ t.created_at|date:"d/m/Y H:i" }}</time></header>
+      <div class="body">{{ t.description }}</div>
+      {% if t.created_by != t.requester %}<p class="muted small" style="margin:10px 0 0">{% blocktranslate with who=t.created_by.display_name %}Ouvert par {{ who }} pour le compte du demandeur.{% endblocktranslate %}</p>{% endif %}
+    </article>
+
+    {% for item in timeline %}
+      {% if item.type == "comment" %}{% with c=item.c %}
+      <article class="msg {% if c.is_internal %}internal{% elif c.author.is_client %}from-client{% else %}from-aptitude{% endif %}">
+        <header><span class="avatar sm {% if c.author.is_client %}client{% endif %}" aria-hidden="true">{{ c.author.initials }}</span>
+          <span class="who">{{ c.author.display_name }}</span><span class="muted small">{{ c.author.organisation }}</span>
+          {% if c.is_internal %}<span class="tag warn">{% translate "Note interne" %}</span>{% endif %}
+          <time class="mono" datetime="{{ c.created_at|date:'c' }}">{{ c.created_at|date:"d/m/Y H:i" }}</time></header>
+        {% if c.body %}<div class="body">{{ c.body }}</div>{% endif %}
+        {% if c.attachments.all %}<div class="files">{% for a in c.attachments.all %}<a class="file" href="{% url 'attachment_download' t.reference a.pk %}">{% include "icons/clip.svg" %}{{ a.name }} <span class="muted">{{ a.size|filesizeformat }}</span></a>{% endfor %}</div>{% endif %}
+      </article>
+      {% endwith %}{% else %}
+      <div class="evt"><span class="dot"></span><span>{% if item.e.actor %}<strong>{{ item.e.actor.display_name }}</strong> {% endif %}{{ item.text }} <span class="mono">{{ item.at|date:"d/m H:i" }}</span></span></div>
+      {% endif %}
+    {% endfor %}
+
+    {% if comment_form %}
+    <form class="msg reply" method="post" action="{% url 'ticket_comment' t.reference %}" enctype="multipart/form-data">{% csrf_token %}
+      <label class="sr-only" for="reply-body">{% translate "Votre message" %}</label>
+      <textarea id="reply-body" name="body" rows="4" placeholder="{% if user.is_client %}{% translate 'Répondre à l’équipe Aptitude' %}{% else %}{% translate 'Répondre au client, ou ajouter une note interne' %}{% endif %}"></textarea>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:12px">
+        <label class="small" style="display:inline-flex;gap:8px;align-items:center">{% include "icons/clip.svg" %}<input type="file" name="files" multiple></label>
+        {% if comment_form.internal %}<label class="check small"><input type="checkbox" name="internal"><span>{% translate "Note interne (invisible du client)" %}</span></label>{% endif %}
+        <button class="btn btn-primary" type="submit" style="margin-left:auto">{% translate "Envoyer" %}</button>
+      </div>
+      {% if user.is_client and t.status == "resolved" %}<p class="muted small" style="margin:10px 0 0">{% translate "Répondre rouvre le ticket." %}</p>{% endif %}
+    </form>
+    {% elif t.status == "closed" %}<p class="muted small" style="padding:0 6px">{% translate "Ticket clos. Pour un nouveau problème, ouvrez un nouveau ticket." %}</p>{% endif %}
+  </div>
+
+  <aside class="stack">
+    <section class="panel"><div class="panel-body">
+      <h2>{% translate "Délai d'intervention" %}</h2>
+      <div style="margin-bottom:14px">{% include "tickets/_sla.html" with s=sla %}</div>
+      <dl class="facts">
+        {% if target %}<dt>{% translate "Engagement" %}</dt><dd>{% widthratio target.response_minutes 60 1 %} h / {% widthratio target.resolution_minutes 60 1 %} h ({{ t.contract.sla.get_coverage_display }})</dd>{% endif %}
+        {% if t.response_due and not t.acknowledged_at %}<dt>{% translate "Prise en charge avant" %}</dt><dd class="mono">{{ t.response_due|date:"d/m/Y H:i" }}</dd>{% endif %}
+        {% if t.acknowledged_at %}<dt>{% translate "Pris en charge" %}</dt><dd class="mono">{{ t.acknowledged_at|date:"d/m/Y H:i" }}{% if t.response_breached %} <span class="tag err">{% translate "en retard" %}</span>{% endif %}</dd>{% endif %}
+        {% if t.resolution_due and t.is_open and not t.is_paused %}<dt>{% translate "Résolution avant" %}</dt><dd class="mono">{{ t.resolution_due|date:"d/m/Y H:i" }}</dd>{% endif %}
+        {% if t.resolved_at %}<dt>{% translate "Résolu" %}</dt><dd class="mono">{{ t.resolved_at|date:"d/m/Y H:i" }}{% if t.resolution_breached %} <span class="tag err">{% translate "en retard" %}</span>{% endif %}</dd>{% endif %}
+      </dl>
+    </div></section>
+
+    {% if statuses or priorities or assignees %}
+    <section class="panel"><div class="panel-body">
+      <h2>{% translate "Actions" %}</h2>
+      {% if statuses %}
+      <form class="side-form" method="post" action="{% url 'ticket_status' t.reference %}">{% csrf_token %}
+        <label for="st-sel" class="small" style="font-weight:600">{% translate "Statut" %}</label>
+        <select id="st-sel" name="status">{% for v, l in statuses %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+        <button class="btn btn-secondary" type="submit">{% if user.is_client %}{% translate "Rouvrir le ticket" %}{% else %}{% translate "Changer le statut" %}{% endif %}</button>
+      </form>
+      {% endif %}
+      {% if priorities %}{% if statuses %}<hr class="side-sep">{% endif %}
+      <form class="side-form" method="post" action="{% url 'ticket_priority' t.reference %}">{% csrf_token %}
+        <label for="pr-sel" class="small" style="font-weight:600">{% translate "Priorité" %}</label>
+        <select id="pr-sel" name="priority">{% for v, l in priorities %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
+        {% if user.is_aptitude %}<label for="pr-just" class="sr-only">{% translate "Justification" %}</label>
+        <textarea id="pr-just" name="justification" rows="2" placeholder="{% translate 'Justification (obligatoire pour P1 et P2)' %}"></textarea>{% endif %}
+        <button class="btn btn-secondary" type="submit">{% if user.is_client %}{% translate "Escalader en P3" %}{% else %}{% translate "Changer la priorité" %}{% endif %}</button>
+      </form>
+      {% endif %}
+      {% if assignees %}<hr class="side-sep">
+      <form class="side-form" method="post" action="{% url 'ticket_assign' t.reference %}">{% csrf_token %}
+        <label for="as-sel" class="small" style="font-weight:600">{% translate "Assigné à" %}</label>
+        <select id="as-sel" name="assignee"><option value="">{% translate "Personne" %}</option>{% for u in assignees %}<option value="{{ u.pk }}" {% if t.assignee_id == u.pk %}selected{% endif %}>{{ u.display_name }}</option>{% endfor %}</select>
+        <button class="btn btn-secondary" type="submit">{% translate "Assigner" %}</button>
+      </form>
+      {% endif %}
+    </div></section>
+    {% endif %}
+
+    <section class="panel"><div class="panel-body">
+      <h2>{% translate "Détails" %}</h2>
+      <dl class="facts">
+        <dt>{% translate "Demandeur" %}</dt><dd>{{ t.requester.display_name }}</dd>
+        {% if user.is_aptitude %}<dt>{% translate "Assigné à" %}</dt><dd>{% if t.assignee %}{{ t.assignee.display_name }}{% else %}<span class="unassigned">{% translate "Personne" %}</span>{% endif %}</dd>{% endif %}
+        <dt>{% translate "Canal" %}</dt><dd>{{ t.get_channel_display }}</dd>
+        <dt>{% translate "Ouvert le" %}</dt><dd class="mono">{{ t.created_at|date:"d/m/Y H:i" }}</dd>
+      </dl>
+      {% if solutions %}<h3 style="margin-top:18px">{% translate "Solutions concernées" %}</h3>
+      <ul style="margin:0;padding-left:18px;font-size:14px">{% for s in solutions %}<li>{{ s.name }} <span class="muted small">{{ s.get_category_display }}</span></li>{% endfor %}</ul>{% endif %}
+      {% if attachments %}<h3 style="margin-top:18px">{% translate "Pièces jointes" %}</h3>
+      <div class="files" style="margin-top:6px">{% for a in attachments %}<a class="file" href="{% url 'attachment_download' t.reference a.pk %}">{% include "icons/clip.svg" %}{{ a.name }}</a>{% endfor %}</div>{% endif %}
+    </div></section>
+  </aside>
+</div>
+{% endblock %}

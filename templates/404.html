@@ -1,0 +1,7 @@
+{% extends "auth_base.html" %}{% load i18n %}
+{% block title %}{% translate "Page introuvable" %}{% endblock %}
+{% block auth %}
+<h1>{% translate "Page introuvable" %}</h1>
+<p class="intro">{% translate "Cette page n'existe pas, ou vous n'avez pas accès à son contenu." %}</p>
+<a class="btn btn-primary btn-block" href="/">{% translate "Revenir à l'accueil" %}</a>
+{% endblock %}

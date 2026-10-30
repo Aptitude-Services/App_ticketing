@@ -1,0 +1,11 @@
+{% load i18n %}{% autoescape off %}{% translate "Bonjour," %}
+
+{% translate "Un compte vous a été créé sur le portail de support Aptitude." %}
+{% translate "Pour définir votre mot de passe, ouvrez ce lien :" %}
+
+{{ protocol }}://{{ domain }}{% url 'password_reset_confirm' uidb64=uid token=token %}
+
+{% translate "Votre identifiant :" %} {{ user.email }}
+
+{% translate "L'équipe Aptitude Services" %}
+{% endautoescape %}

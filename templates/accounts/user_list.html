@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% load i18n %}
+{% block title %}{% translate "Utilisateurs" %}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{% translate "Utilisateurs" %}</h1>
+    <p class="lead">{% if user.is_client %}{% blocktranslate with org=user.organisation %}Les comptes de {{ org }}. Chaque personne ne voit que les contrats que vous lui ouvrez.{% endblocktranslate %}{% else %}{% translate "Les comptes que vous pouvez gérer." %}{% endif %}</p></div>
+  <a class="btn btn-primary" href="{% url 'user_create' %}">{% include "icons/plus.svg" %}{% translate "Inviter un utilisateur" %}</a>
+</div>
+<section class="panel"><div class="table-wrap"><table>
+  <thead><tr><th>{% translate "Personne" %}</th>{% if user.is_aptitude %}<th>{% translate "Organisation" %}</th>{% endif %}<th>{% translate "Profil" %}</th><th>{% translate "Contrats ouverts" %}</th><th>{% translate "Dernière connexion" %}</th><th>{% translate "Statut" %}</th><th><span class="sr-only">{% translate "Actions" %}</span></th></tr></thead>
+  <tbody>{% for u in users %}
+    <tr>
+      <td><div style="display:flex;gap:12px;align-items:center"><span class="avatar sm {% if u.is_client %}client{% endif %}" aria-hidden="true">{{ u.initials }}</span>
+        <div><a class="primary" href="{% url 'user_update' u.pk %}">{{ u.display_name }}</a><span class="secondary">{{ u.email }}</span></div></div></td>
+      {% if user.is_aptitude %}<td>{{ u.organisation }}</td>{% endif %}
+      <td>{{ u.get_profile_display }}</td>
+      <td>{% if u.sees_all_contracts or u.is_client and u.all_contracts or u.profile == 'client_admin' %}<span class="muted">{% translate "Tous" %}</span>{% else %}{% for a in u.contract_accesses.all %}<span class="tag outline" title="{{ a.contract.title }}">{{ a.contract.reference }}</span> {% empty %}<span class="tag warn">{% translate "Aucun" %}</span>{% endfor %}{% endif %}</td>
+      <td>{% if u.last_login %}{{ u.last_login|date:"j M Y" }}{% else %}<span class="muted">{% translate "Invitation envoyée" %}</span>{% endif %}</td>
+      <td>{% if u.is_active %}<span class="tag ok">{% translate "Actif" %}</span>{% else %}<span class="tag">{% translate "Désactivé" %}</span>{% endif %}</td>
+      <td class="num"><a class="small" href="{% url 'user_update' u.pk %}">{% translate "Modifier" %}</a></td>
+    </tr>{% empty %}<tr><td colspan="7"><div class="empty"><strong>{% translate "Aucun utilisateur" %}</strong>{% translate "Invitez une première personne pour lui donner accès au portail." %}</div></td></tr>{% endfor %}
+  </tbody>
+</table></div></section>
+{% endblock %}

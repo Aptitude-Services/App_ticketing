@@ -128,9 +128,15 @@ class ContractAccess(models.Model):
         return f"{self.user} → {self.contract.reference}"
 
     def clean(self):
-        if not (self.user_id and self.contract_id):
+        if not self.user_id:
             return
-        if self.user.is_client and self.contract.client_id != self.user.organisation_id:
+        # À la création d'un contrat dans l'administration, le contrat n'a pas encore d'identifiant :
+        # on contrôle quand même l'accès sur le contrat en cours de saisie.
+        try:
+            contract = self.contract
+        except Contract.DoesNotExist:
+            return
+        if self.user.is_client and contract.client_id != self.user.organisation_id:
             raise ValidationError(_("Un utilisateur client ne peut accéder qu'aux contrats de son organisation."))
         if self.user.is_aptitude and self.user.profile != Profile.TECH_ASSIGNED:
             raise ValidationError(_("Seuls les profils « Engineer (assigned contracts) » reçoivent des affectations."))

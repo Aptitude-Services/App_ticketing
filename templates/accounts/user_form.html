@@ -21,7 +21,7 @@
 
   <div class="form-section">
     <h2>{% translate "Droits" %}</h2>
-    <p class="muted">{% translate "Lecture seule : consulte contrats et tickets. Lecture et écriture : ouvre et suit des tickets. Admin client : gère aussi les utilisateurs." %}</p>
+    <p class="muted">{% translate "Client (read only) : consulte contrats et tickets. Client (read & write) : ouvre et suit des tickets. Client Admin : gère aussi les utilisateurs." %}</p>
     <div class="form-grid"><div class="form-row"><label for="{{ form.profile.id_for_label }}">{{ form.profile.label }}</label>{{ form.profile }}{{ form.profile.errors }}</div></div>
   </div>
 

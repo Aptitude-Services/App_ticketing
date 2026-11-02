@@ -18,7 +18,7 @@ class UserManageForm(forms.ModelForm):
     contracts = forms.ModelMultipleChoiceField(
         label=_("Contrats autorisés"), queryset=Contract.objects.none(), required=False,
         widget=forms.CheckboxSelectMultiple,
-        help_text=_("Utilisé si l'accès est limité, ou pour un technicien « contrats affectés »."),
+        help_text=_("Utilisé si l'accès est limité, ou pour un profil « Engineer (assigned contracts) »."),
     )
 
     class Meta:
@@ -69,7 +69,7 @@ class UserManageForm(forms.ModelForm):
                 if not org.is_aptitude and contract.client_id != org.pk:
                     raise forms.ValidationError(_("Un contrat sélectionné n'appartient pas à cette organisation."))
             if org.is_aptitude and contracts and profile != Profile.TECH_ASSIGNED:
-                self.add_error("contracts", _("Seuls les techniciens « contrats affectés » reçoivent des affectations."))
+                self.add_error("contracts", _("Seuls les profils « Engineer (assigned contracts) » reçoivent des affectations."))
 
         if profile == Profile.CLIENT_ADMIN:
             data["all_contracts"] = True

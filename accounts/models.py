@@ -38,13 +38,13 @@ class Organisation(models.Model):
 
 
 class Profile(models.TextChoices):
-    APTITUDE_ADMIN = "aptitude_admin", _("Admin Aptitude")
-    APTITUDE_MANAGER = "aptitude_manager", _("Manager Aptitude")
-    TECH_ALL = "tech_all", _("Technicien (tous contrats)")
-    TECH_ASSIGNED = "tech_assigned", _("Technicien (contrats affectés)")
-    CLIENT_ADMIN = "client_admin", _("Admin client")
-    CLIENT_RW = "client_rw", _("Client lecture + écriture")
-    CLIENT_RO = "client_ro", _("Client lecture seule")
+    APTITUDE_ADMIN = "aptitude_admin", "Administrator"
+    APTITUDE_MANAGER = "aptitude_manager", "Manager"
+    TECH_ALL = "tech_all", "Engineer (all contracts)"
+    TECH_ASSIGNED = "tech_assigned", "Engineer (assigned contracts)"
+    CLIENT_ADMIN = "client_admin", "Client Admin"
+    CLIENT_RW = "client_rw", "Client (read & write)"
+    CLIENT_RO = "client_ro", "Client (read only)"
 
 
 APTITUDE_PROFILES = {Profile.APTITUDE_ADMIN, Profile.APTITUDE_MANAGER, Profile.TECH_ALL, Profile.TECH_ASSIGNED}

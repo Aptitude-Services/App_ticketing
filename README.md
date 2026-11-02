@@ -10,7 +10,7 @@ Le jalon 1 pose le socle (comptes, profils, cloisonnement, MFA, audit) ; le jalo
 | Organisations | Aptitude et clients, domaines email, activation |
 | Utilisateurs | Connexion par email, 7 profils, langue FR/EN, invitation par email |
 | Cloisonnement | `accounts/permissions.py` : point unique qui décide de ce qu'un utilisateur voit |
-| Accès contrats | Technicien « contrats affectés » et utilisateur client limité par son admin |
+| Accès contrats | Engineer (assigned contracts) et utilisateur client limité par son admin |
 | Gestion par l'admin client | Création et modification des comptes de son organisation, limitation par contrat, protection du dernier admin |
 | MFA | TOTP obligatoire pour Aptitude, optionnelle pour les clients (exigée dès qu'elle est activée) |
 | Sécurité | Verrouillage après 5 échecs (30 min), sessions de 8 h, cookies sécurisés, HSTS, `/gestion` filtrable par IP |
@@ -65,13 +65,13 @@ Les fêtes fixes et celles liées à Pâques sont calculées. Les fêtes musulma
 
 | Profil | Contrats visibles | Gère les utilisateurs |
 | --- | --- | --- |
-| Admin Aptitude | Tous | Tous |
-| Manager Aptitude | Tous | Comptes clients |
-| Technicien (tous contrats) | Tous | Non |
-| Technicien (contrats affectés) | Ceux affectés | Non |
-| Admin client | Tous ceux de son organisation | Son organisation |
-| Client lecture + écriture | Ceux de son organisation, ou une sélection | Non |
-| Client lecture seule | Ceux de son organisation, ou une sélection | Non |
+| Administrator | Tous | Tous |
+| Manager | Tous | Comptes clients |
+| Engineer (all contracts) | Tous | Non |
+| Engineer (assigned contracts) | Ceux affectés | Non |
+| Client Admin | Tous ceux de son organisation | Son organisation |
+| Client (read & write) | Ceux de son organisation, ou une sélection | Non |
+| Client (read only) | Ceux de son organisation, ou une sélection | Non |
 
 ## Démarrer en local
 

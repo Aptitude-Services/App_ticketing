@@ -5,7 +5,7 @@ Aucun filtrage « à la main » ailleurs dans le code.
 """
 from django.db.models import QuerySet
 
-from .models import APTITUDE_PROFILES, CLIENT_PROFILES, Organisation, Profile, User
+from .models import APTITUDE_PROFILES, CLIENT_PROFILES, STANDBY_PROFILES, Organisation, Profile, User
 
 
 def _active(user) -> bool:
@@ -66,7 +66,7 @@ def assignable_profiles(actor) -> list:
     if not _active(actor):
         return []
     if actor.profile == Profile.APTITUDE_ADMIN:
-        return [p for p in Profile if p in APTITUDE_PROFILES | CLIENT_PROFILES]
+        return [p for p in Profile if p in (APTITUDE_PROFILES | CLIENT_PROFILES) - STANDBY_PROFILES]
     if actor.profile in {Profile.APTITUDE_MANAGER, Profile.CLIENT_ADMIN}:
         return [p for p in Profile if p in CLIENT_PROFILES]
     return []

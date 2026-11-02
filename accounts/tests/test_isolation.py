@@ -172,6 +172,18 @@ def test_user_creation_is_audited_and_sends_invitation(client, world, mailoutbox
     assert len(mailoutbox) == 1 and "nouveau@a.ci" in mailoutbox[0].to
 
 
+def test_standby_profile_is_not_offered(world):
+    offered = {value for value, _label in UserManageForm(actor=world["apt_admin"]).fields["profile"].choices}
+    assert Profile.TECH_ALL in offered
+    assert Profile.TECH_ASSIGNED not in offered
+
+
+def test_user_with_standby_profile_stays_editable(world):
+    user = world["tech_assigned"]
+    form = UserManageForm(instance=user, actor=world["apt_admin"])
+    assert Profile.TECH_ASSIGNED in {value for value, _label in form.fields["profile"].choices}
+
+
 def test_profile_must_match_organisation_kind(world):
     with pytest.raises(Exception):
         User.objects.create_user("x@a.ci", "Motdepasse-tres-long-1", organisation=world["orgs"]["a"], profile=Profile.TECH_ALL)

@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
 
-from .models import AuditEvent, Organisation, User
+from .models import STANDBY_PROFILES, AuditEvent, Organisation, User
 
 
 @admin.register(Organisation)
@@ -30,6 +30,15 @@ class UserAdmin(BaseUserAdmin):
         (None, {"classes": ("wide",), "fields": ("email", "organisation", "profile", "password1", "password2")}),
     )
     filter_horizontal = ()
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        field = form.base_fields.get("profile")
+        if field:
+            # Profils en réserve masqués, sauf celui que porte déjà le compte modifié.
+            keep = {obj.profile} if obj else set()
+            field.choices = [c for c in field.choices if c[0] not in STANDBY_PROFILES or c[0] in keep]
+        return form
 
 
 @admin.register(AuditEvent)

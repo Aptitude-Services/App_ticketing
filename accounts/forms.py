@@ -18,7 +18,7 @@ class UserManageForm(forms.ModelForm):
     contracts = forms.ModelMultipleChoiceField(
         label=_("Contrats autorisés"), queryset=Contract.objects.none(), required=False,
         widget=forms.CheckboxSelectMultiple,
-        help_text=_("Utilisé si l'accès est limité, ou pour un profil « Engineer (assigned contracts) »."),
+        help_text=_("Utilisé si l'accès est limité, ou pour un profil « Engineer (restricted) »."),
     )
 
     class Meta:
@@ -28,7 +28,11 @@ class UserManageForm(forms.ModelForm):
     def __init__(self, *args, actor, **kwargs):
         super().__init__(*args, **kwargs)
         self.actor = actor
-        self.fields["profile"].choices = [(p.value, p.label) for p in permissions.assignable_profiles(actor)]
+        choices = [(p.value, p.label) for p in permissions.assignable_profiles(actor)]
+        if self.instance.pk and self.instance.profile not in {value for value, _label in choices}:
+            # Profil en réserve déjà porté par ce compte : on le garde dans la liste pour pouvoir enregistrer.
+            choices.append((self.instance.profile, self.instance.get_profile_display()))
+        self.fields["profile"].choices = choices
         if not self.instance.pk:
             self.fields["profile"].initial = Profile.CLIENT_RW
         orgs = permissions.manageable_organisations(actor)
@@ -69,7 +73,7 @@ class UserManageForm(forms.ModelForm):
                 if not org.is_aptitude and contract.client_id != org.pk:
                     raise forms.ValidationError(_("Un contrat sélectionné n'appartient pas à cette organisation."))
             if org.is_aptitude and contracts and profile != Profile.TECH_ASSIGNED:
-                self.add_error("contracts", _("Seuls les profils « Engineer (assigned contracts) » reçoivent des affectations."))
+                self.add_error("contracts", _("Seuls les profils « Engineer (restricted) » reçoivent des affectations."))
 
         if profile == Profile.CLIENT_ADMIN:
             data["all_contracts"] = True

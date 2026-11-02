@@ -139,7 +139,7 @@ class ContractAccess(models.Model):
         if self.user.is_client and contract.client_id != self.user.organisation_id:
             raise ValidationError(_("Un utilisateur client ne peut accéder qu'aux contrats de son organisation."))
         if self.user.is_aptitude and self.user.profile != Profile.TECH_ASSIGNED:
-            raise ValidationError(_("Seuls les profils « Engineer (assigned contracts) » reçoivent des affectations."))
+            raise ValidationError(_("Seuls les profils « Engineer (restricted) » reçoivent des affectations."))
 
     def save(self, *args, **kwargs):
         self.full_clean()

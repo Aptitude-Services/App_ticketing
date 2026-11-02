@@ -51,7 +51,7 @@ class SLA(models.Model):
     day_end = models.TimeField(_("fin de journée"), default=datetime.time(17, 0))
     working_days = models.CharField(
         _("jours ouvrés"), max_length=20, default="0,1,2,3,4",
-        help_text=_("0 = lundi … 6 = dimanche, séparés par des virgules. Utilisé en 8x5 uniquement."),
+        help_text=_("Utilisé en 8x5 uniquement. Stocké de 0 (lundi) à 6 (dimanche), saisi par cases à cocher."),
     )
     created_at = models.DateTimeField(auto_now_add=True)
 

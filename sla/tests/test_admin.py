@@ -23,6 +23,14 @@ def test_8x5_requires_at_least_one_day():
     assert "working_days" in form.errors
 
 
+def test_8x5_accepts_at_most_five_days():
+    form = SLAForm({**BASE, "coverage": "8x5", "working_days": ["0", "1", "2", "3", "4", "5"]})
+    assert not form.is_valid()
+    assert "working_days" in form.errors
+    form = SLAForm({**BASE, "coverage": "8x5", "working_days": ["1", "2", "3", "4", "5"]})
+    assert form.is_valid(), form.errors
+
+
 def test_24x7_needs_no_working_days():
     form = SLAForm({**BASE, "coverage": "24x7"})
     assert form.is_valid(), form.errors

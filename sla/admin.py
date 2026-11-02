@@ -10,6 +10,7 @@ WEEKDAYS = [
     ("4", _("Vendredi")), ("5", _("Samedi")), ("6", _("Dimanche")),
 ]
 SHORT_DAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
+MAX_WORKING_DAYS = 5  # 8x5 : 5 jours ouvrés au plus (même limite dans static/js/sla_admin.js)
 
 
 class SLAForm(forms.ModelForm):
@@ -37,6 +38,8 @@ class SLAForm(forms.ModelForm):
             data["working_days"] = "0,1,2,3,4"
         elif not data.get("working_days"):
             self.add_error("working_days", _("Cochez au moins un jour ouvré."))
+        elif len(data["working_days"].split(",")) > MAX_WORKING_DAYS:
+            self.add_error("working_days", _("En 8x5, cochez 5 jours ouvrés au plus."))
         return data
 
 

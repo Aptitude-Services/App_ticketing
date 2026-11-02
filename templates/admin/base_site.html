@@ -22,7 +22,32 @@
   .button.default, input[type=submit].default, .submit-row input.default { color: #1F2D3D; font-weight: 600; }
   #header { padding-top: 14px; padding-bottom: 14px; }
   .module h2, .module caption, .inline-group h2 { background: #1F2D3D; }
+  /* Zone utilisateur de l'en-tête, même style que la console */
+  #user-tools.apt-user { display: flex; align-items: center; gap: 10px; margin: 0; text-transform: none; letter-spacing: 0; font-size: 13.5px; }
+  #user-tools.apt-user form { margin: 0; display: flex; }
+  #user-tools.apt-user .c-icon, #user-tools.apt-user .theme-toggle {
+    display: grid; place-items: center; width: 34px; height: 34px; padding: 0; margin: 0; border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.04); color: #C9D2DC; cursor: pointer; text-decoration: none;
+  }
+  #user-tools.apt-user .c-icon:hover, #user-tools.apt-user .theme-toggle:hover { color: #fff; border-color: rgba(255,255,255,.35); background: rgba(255,255,255,.08); }
+  #user-tools.apt-user .c-icon svg { width: 17px; height: 17px; }
+  #user-tools.apt-user .theme-toggle svg { width: 17px; height: 17px; fill: currentColor; }
+  #user-tools.apt-user .c-me { display: flex; align-items: center; gap: 10px; margin-left: 6px; padding-left: 16px; border-left: 1px solid rgba(255,255,255,.14); border-bottom: 0; color: #fff; font-weight: 600; text-decoration: none; white-space: nowrap; }
+  #user-tools.apt-user .c-me .avatar { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: #F58436; color: #1F2D3D; }
+  #user-tools.apt-user .c-me small { display: block; color: #93A1B2; font-size: 11.5px; font-weight: 500; }
+  #user-tools.apt-user .c-logout:hover { color: #F58436; border-color: rgba(245,132,54,.6); }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 </style>
+{% endblock %}
+{% block usertools %}
+{% if has_permission %}
+<div id="user-tools" class="apt-user">
+  {% if site_url %}<a class="c-icon" href="{{ site_url }}" title="{% translate 'Retour au portail' %}"><span class="sr-only">{% translate "Retour au portail" %}</span>{% include "icons/home.svg" %}</a>{% endif %}
+  {% include "admin/color_theme_toggle.html" %}
+  <a class="c-me" href="{% url 'my_profile' %}" title="{% translate 'Mon profil' %}"><span class="avatar" aria-hidden="true">{{ user.initials }}</span><span>{{ user.display_name }}<small>{{ user.get_profile_display }}</small></span></a>
+  <form id="logout-form" method="post" action="{% url 'admin:logout' %}">{% csrf_token %}<button type="submit" class="c-icon c-logout" title="{% translate 'Se déconnecter' %}"><span class="sr-only">{% translate "Se déconnecter" %}</span>{% include "icons/logout.svg" %}</button></form>
+</div>
+{% endif %}
 {% endblock %}
 {% block branding %}
 <div id="site-name"><a href="{% url 'admin:index' %}"><h1 id="site-name-inner"><img src="{% static 'img/logo-white.png' %}" alt="Aptitude"><span>{% translate "Administration du support" %}</span></h1></a></div>

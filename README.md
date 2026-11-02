@@ -1,6 +1,6 @@
 # Aptitude Support — jalons 1 à 3
 
-Application de gestion de tickets client d'Aptitude Services (Django 5.1, PostgreSQL 16, Docker).
+Application de gestion de tickets client d'Aptitude Services (Django 5.2 LTS, PostgreSQL 16, Docker).
 Le jalon 1 pose le socle (comptes, profils, cloisonnement, MFA, audit) ; le jalon 2 ajoute le référentiel contractuel et le moteur SLA.
 
 ## Ce que contient le jalon 1

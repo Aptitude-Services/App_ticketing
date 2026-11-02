@@ -7,8 +7,9 @@ from .models import AuditEvent, Organisation, User
 
 @admin.register(Organisation)
 class OrganisationAdmin(admin.ModelAdmin):
-    list_display = ("name", "kind", "is_active", "email_domains")
-    list_filter = ("kind", "is_active")
+    list_display = ("name", "kind", "client_type", "is_active", "email_domains")
+    list_filter = ("kind", "client_type", "is_active")
+    fields = ("name", "kind", "client_type", "email_domains", "is_active")
     search_fields = ("name", "email_domains")
 
 

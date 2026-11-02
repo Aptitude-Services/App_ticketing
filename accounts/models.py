@@ -12,8 +12,18 @@ class Organisation(models.Model):
         APTITUDE = "aptitude", _("Aptitude")
         CLIENT = "client", _("Client")
 
+    class ClientType(models.TextChoices):
+        SME = "sme", _("PME – non critique")
+        STRUCTURED_SME = "structured_sme", _("PME structurée")
+        CRITICAL_IS = "critical_is", _("SI critique")
+        CRITICAL_INFRA = "critical_infra", _("Banque, Telco, Infrastructure critique")
+
     name = models.CharField(_("nom"), max_length=200, unique=True)
     kind = models.CharField(_("type"), max_length=20, choices=Kind.choices, default=Kind.CLIENT)
+    client_type = models.CharField(
+        _("type de client"), max_length=20, choices=ClientType.choices, blank=True,
+        help_text=_("Obligatoire pour une organisation cliente ; vide pour Aptitude."),
+    )
     is_active = models.BooleanField(_("active"), default=True)
     email_domains = models.CharField(
         _("domaines email"), max_length=500, blank=True,
@@ -28,6 +38,13 @@ class Organisation(models.Model):
 
     def __str__(self):
         return self.name
+
+    def clean(self):
+        super().clean()
+        if self.kind == self.Kind.CLIENT and not self.client_type:
+            raise ValidationError({"client_type": _("Choisissez le type de client.")})
+        if self.kind == self.Kind.APTITUDE and self.client_type:
+            raise ValidationError({"client_type": _("Aptitude n'a pas de type de client.")})
 
     @property
     def is_aptitude(self):

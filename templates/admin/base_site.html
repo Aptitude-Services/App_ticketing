@@ -31,9 +31,16 @@
   }
   #user-tools.apt-user .c-icon:hover, #user-tools.apt-user .theme-toggle:hover { color: #fff; border-color: rgba(255,255,255,.35); background: rgba(255,255,255,.08); }
   #user-tools.apt-user .c-icon svg { width: 17px; height: 17px; }
-  /* L'icône Django contient un carré de fond peint avec « color » : on le rend transparent. */
-  #user-tools.apt-user .theme-toggle svg { width: 17px; height: 17px; color: transparent; fill: #C9D2DC; }
-  #user-tools.apt-user .theme-toggle:hover svg { fill: #fff; }
+  /* Bouton de thème : icônes lune/soleil de la console ; le basculement reste celui de Django (theme.js). */
+  #user-tools.apt-user .apt-theme span { display: grid; place-items: center; }
+  #user-tools.apt-user .apt-theme svg { display: block; width: 17px; height: 17px; fill: none; color: inherit; }
+  #user-tools.apt-user .apt-theme .t-sun { display: none; }
+  html[data-theme="dark"] #user-tools.apt-user .apt-theme .t-moon { display: none; }
+  html[data-theme="dark"] #user-tools.apt-user .apt-theme .t-sun { display: grid; }
+  @media (prefers-color-scheme: dark) {
+    html[data-theme="auto"] #user-tools.apt-user .apt-theme .t-moon { display: none; }
+    html[data-theme="auto"] #user-tools.apt-user .apt-theme .t-sun { display: grid; }
+  }
   #user-tools.apt-user .c-me { display: flex; align-items: center; gap: 10px; margin-left: 6px; padding-left: 16px; border-left: 1px solid rgba(255,255,255,.14); border-bottom: 0; color: #fff; font-weight: 600; text-decoration: none; white-space: nowrap; }
   #user-tools.apt-user .c-me .avatar { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: #F58436; color: #1F2D3D; }
   #user-tools.apt-user .c-me small { display: block; color: #93A1B2; font-size: 11.5px; font-weight: 500; }
@@ -45,7 +52,7 @@
 {% if has_permission %}
 <div id="user-tools" class="apt-user">
   {% if site_url %}<a class="c-icon" href="{{ site_url }}" title="{% translate 'Retour au portail' %}"><span class="sr-only">{% translate "Retour au portail" %}</span>{% include "icons/home.svg" %}</a>{% endif %}
-  {% include "admin/color_theme_toggle.html" %}
+  <button type="button" class="c-icon theme-toggle apt-theme" title="{% translate 'Changer de thème (clair ou sombre)' %}"><span class="sr-only">{% translate "Changer de thème (clair ou sombre)" %}</span><span class="t-moon">{% include "icons/moon.svg" %}</span><span class="t-sun">{% include "icons/sun.svg" %}</span></button>
   <a class="c-me" href="{% url 'my_profile' %}" title="{% translate 'Mon profil' %}"><span class="avatar" aria-hidden="true">{{ user.initials }}</span><span>{{ user.display_name }}<small>{{ user.get_profile_display }}</small></span></a>
   <form id="logout-form" method="post" action="{% url 'admin:logout' %}">{% csrf_token %}<button type="submit" class="c-icon c-logout" title="{% translate 'Se déconnecter' %}"><span class="sr-only">{% translate "Se déconnecter" %}</span>{% include "icons/logout.svg" %}</button></form>
 </div>

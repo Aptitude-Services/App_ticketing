@@ -1,10 +1,10 @@
 {% extends "base.html" %}{% load i18n %}
-{% block title %}{% translate "Utilisateurs" %}{% endblock %}
+{% block title %}{% if audience == "equipe" %}{% translate "Équipe interne" %}{% elif user.is_aptitude %}{% translate "Utilisateurs clients" %}{% else %}{% translate "Utilisateurs" %}{% endif %}{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>{% translate "Utilisateurs" %}</h1>
-    <p class="lead">{% if user.is_client %}{% blocktranslate with org=user.organisation %}Les comptes de {{ org }}. Chaque personne ne voit que les contrats que vous lui ouvrez.{% endblocktranslate %}{% else %}{% translate "Les comptes que vous pouvez gérer." %}{% endif %}</p></div>
-  <a class="btn btn-primary" href="{% url 'user_create' %}">{% include "icons/plus.svg" %}{% translate "Inviter un utilisateur" %}</a>
+  <div><h1>{% if audience == "equipe" %}{% translate "Équipe interne" %}{% elif user.is_aptitude %}{% translate "Utilisateurs clients" %}{% else %}{% translate "Utilisateurs" %}{% endif %}</h1>
+    <p class="lead">{% if user.is_client %}{% blocktranslate with org=user.organisation %}Les comptes de {{ org }}. Chaque personne ne voit que les contrats que vous lui ouvrez.{% endblocktranslate %}{% elif audience == "equipe" %}{% translate "Les comptes des collaborateurs d'Aptitude : Super Admin, Manager, Engineer." %}{% else %}{% translate "Les comptes des clients : Client Admin, Client User, Client Viewer." %}{% endif %}</p></div>
+  <a class="btn btn-primary" href="{% url 'user_create' %}{% if audience == 'equipe' %}?type=equipe{% endif %}">{% include "icons/plus.svg" %}{% if audience == "equipe" %}{% translate "Inviter un collaborateur" %}{% elif user.is_aptitude %}{% translate "Inviter un client" %}{% else %}{% translate "Inviter un utilisateur" %}{% endif %}</a>
 </div>
 <section class="panel"><div class="table-wrap"><table>
   <thead><tr><th>{% translate "Personne" %}</th>{% if user.is_aptitude %}<th>{% translate "Organisation" %}</th>{% endif %}<th>{% translate "Profil" %}</th><th>{% translate "Contrats ouverts" %}</th><th>{% translate "Dernière connexion" %}</th><th>{% translate "Statut" %}</th><th><span class="sr-only">{% translate "Actions" %}</span></th></tr></thead>

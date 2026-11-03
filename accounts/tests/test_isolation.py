@@ -267,3 +267,33 @@ def test_contract_requires_type(world):
     c = Contract(reference="X-1", title="Sans type", client=world["orgs"]["a"], start_date=datetime.date(2026, 1, 1))
     with pytest.raises(ValidationError):
         c.full_clean()
+
+
+# --- Comptes : équipe interne et clients séparés ------------------------------------------
+
+def _login_aptitude(client, user):
+    from django_otp import DEVICE_ID_SESSION_KEY
+    TOTPDevice.objects.create(user=user, name="app", confirmed=True)
+    client.force_login(user)
+    session = client.session
+    session[DEVICE_ID_SESSION_KEY] = user.totpdevice_set.first().persistent_id
+    session.save()
+
+
+def _listed(client, url):
+    return sorted(u.email for u in client.get(url).context["users"])
+
+
+def test_super_admin_sees_team_and_clients_separately(client, world):
+    _login_aptitude(client, world["apt_admin"])
+    team = _listed(client, reverse("user_list") + "?type=equipe")
+    clients = _listed(client, reverse("user_list"))
+    assert team and all(e.endswith("@aptitudes.net") for e in team)
+    assert clients and not any(e.endswith("@aptitudes.net") for e in clients)
+    assert "admin@b.ci" in clients
+
+
+def test_manager_only_gets_the_client_list(client, world):
+    _login_aptitude(client, world["apt_manager"])
+    assert _listed(client, reverse("user_list") + "?type=equipe") == _listed(client, reverse("user_list"))
+    assert not any(e.endswith("@aptitudes.net") for e in _listed(client, reverse("user_list")))

@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% load i18n %}
 {% block title %}{% if creating %}{% translate "Inviter un utilisateur" %}{% else %}{{ target.display_name }}{% endif %}{% endblock %}
 {% block content %}
-<p class="crumb"><a href="{% url 'user_list' %}">{% translate "Utilisateurs" %}</a></p>
+<p class="crumb">{% if audience == "equipe" %}<a href="{% url 'user_list' %}?type=equipe">{% translate "Équipe interne" %}</a>{% elif user.is_aptitude %}<a href="{% url 'user_list' %}">{% translate "Clients" %}</a>{% else %}<a href="{% url 'user_list' %}">{% translate "Utilisateurs" %}</a>{% endif %}</p>
 <div class="page-head"><div>
   <h1>{% if creating %}{% translate "Inviter un utilisateur" %}{% else %}{{ target.display_name }}{% endif %}</h1>
   <p class="lead">{% if creating %}{% translate "La personne recevra un email pour choisir son mot de passe." %}{% else %}{{ target.email }}{% endif %}</p>

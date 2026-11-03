@@ -13,6 +13,7 @@ from django.utils import translation
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import gettext as _
 from django.views.decorators.http import require_http_methods
@@ -22,7 +23,7 @@ from django_otp.plugins.otp_totp.models import TOTPDevice
 from . import permissions
 from .audit import record
 from .forms import ProfileForm, TokenForm, UserManageForm
-from .models import AuditEvent, User
+from .models import AuditEvent, Organisation, Profile, User
 
 
 def _require_user_manager(request):
@@ -30,26 +31,50 @@ def _require_user_manager(request):
         raise Http404
 
 
+def _audience(request):
+    """« equipe » (comptes Aptitude) ou « clients » ; seul le Super Admin gère l'équipe interne."""
+    if request.user.is_client:
+        return "clients"
+    wanted = request.GET.get("type", "clients")
+    if wanted == "equipe" and request.user.profile == Profile.APTITUDE_ADMIN:
+        return "equipe"
+    return "clients"
+
+
+def _back_to_list(user):
+    """Revient à la liste de l'équipe interne ou des clients, selon le compte traité."""
+    url = reverse("user_list")
+    return redirect(f"{url}?type=equipe" if user.is_aptitude else url)
+
+
 @login_required
 def user_list(request):
     _require_user_manager(request)
+    audience = _audience(request)
     users = permissions.manageable_users(request.user).prefetch_related("contract_accesses__contract")
-    return render(request, "accounts/user_list.html", {"users": users})
+    if request.user.is_aptitude:
+        kind = Organisation.Kind.APTITUDE if audience == "equipe" else Organisation.Kind.CLIENT
+        users = users.filter(organisation__kind=kind)
+    return render(request, "accounts/user_list.html", {"users": users, "audience": audience})
 
 
 @login_required
 @require_http_methods(["GET", "POST"])
 def user_create(request):
     _require_user_manager(request)
+    audience = _audience(request)
     form = UserManageForm(request.POST or None, actor=request.user)
+    if request.method == "GET" and audience == "equipe":
+        form.initial.update(organisation=Organisation.objects.filter(kind=Organisation.Kind.APTITUDE).first(),
+                            profile=Profile.TECH_ALL)
     if request.method == "POST" and form.is_valid():
         user = form.save()
         _send_invitation(request, user)
         record(request, AuditEvent.Action.USER_CREATED, target_user=user,
                details={"profile": user.profile, "organisation": user.organisation.name})
         messages.success(request, _("Utilisateur créé. Un email d'invitation lui a été envoyé."))
-        return redirect("user_list")
-    return render(request, "accounts/user_form.html", {"form": form, "creating": True})
+        return _back_to_list(user)
+    return render(request, "accounts/user_form.html", {"form": form, "creating": True, "audience": audience})
 
 
 @login_required
@@ -65,8 +90,10 @@ def user_update(request, pk):
         after = {"profile": user.profile, "is_active": user.is_active, "all_contracts": user.all_contracts}
         record(request, AuditEvent.Action.USER_UPDATED, target_user=user, details={"before": before, "after": after})
         messages.success(request, _("Utilisateur mis à jour."))
-        return redirect("user_list")
-    return render(request, "accounts/user_form.html", {"form": form, "creating": False, "target": target})
+        return _back_to_list(user)
+    audience = "equipe" if target.is_aptitude else "clients"
+    return render(request, "accounts/user_form.html",
+                  {"form": form, "creating": False, "target": target, "audience": audience})
 
 
 def _send_invitation(request, user):

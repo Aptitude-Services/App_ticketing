@@ -28,11 +28,8 @@ def category_help():
 class SolutionInline(admin.TabularInline):
     model = Solution
     extra = 0
-    fields = ("category", "other_category", "vendor", "model", "version", "name", "serial_number", "location",
+    fields = ("category", "vendor", "model", "version", "name", "serial_number", "location",
               "license_start", "license_end", "is_active")
-
-    class Media:
-        js = ("js/solution_admin.js",)
 
     def formfield_for_choice_field(self, db_field, request, **kwargs):
         if db_field.name == "category":

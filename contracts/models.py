@@ -93,14 +93,11 @@ class Solution(models.Model):
         "hardware": _("Équipement physique : serveur, pare-feu, switch, routeur, poste, stockage…"),
         "vm": _("Machine virtuelle hébergée sur un hyperviseur (VMware, Hyper-V, Proxmox…)."),
         "cloud": _("Service ou abonnement en ligne : Microsoft 365, Azure, AWS, SaaS…"),
-        "other": _("Tout autre élément : précisez de quoi il s'agit dans le champ « Précision »."),
+        "other": _("Tout autre élément : onduleur, imprimante, téléphonie, service…"),
     }
-    LICENSED_CATEGORIES = {"software", "cloud"}  # catégories qui ont des dates de licence
 
     contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name="solutions", verbose_name=_("contrat"))
     category = models.CharField(_("catégorie"), max_length=20, choices=Category.choices)
-    other_category = models.CharField(_("précision"), max_length=120, blank=True,
-                                      help_text=_("Obligatoire pour la catégorie « Autre »."))
     vendor = models.CharField(_("éditeur"), max_length=120, blank=True)
     model = models.CharField(_("modèle"), max_length=120, blank=True)
     version = models.CharField(_("version"), max_length=120, blank=True)
@@ -123,22 +120,11 @@ class Solution(models.Model):
 
     @property
     def category_label(self):
-        if self.category == self.Category.OTHER and self.other_category:
-            return self.other_category
         return self.get_category_display()
 
     def clean(self):
-        errors = {}
-        if self.category == self.Category.OTHER and not self.other_category.strip():
-            errors["other_category"] = _("Précisez de quoi il s'agit.")
-        if self.category != self.Category.OTHER:
-            self.other_category = ""
-        if self.category not in self.LICENSED_CATEGORIES:
-            self.license_start = self.license_end = None
-        elif self.license_start and self.license_end and self.license_end < self.license_start:
-            errors["license_end"] = _("La fin de licence doit suivre le début.")
-        if errors:
-            raise ValidationError(errors)
+        if self.license_start and self.license_end and self.license_end < self.license_start:
+            raise ValidationError({"license_end": _("La fin de licence doit suivre le début.")})
 
 
 class ContractAccess(models.Model):

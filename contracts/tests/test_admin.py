@@ -66,27 +66,24 @@ def _solution(client, **kw):
     return Solution(contract=contract, name="Élément", **kw)
 
 
-def test_other_category_requires_a_precision(setup):
-    client, _users, _request = setup
-    with pytest.raises(ValidationError) as exc:
-        _solution(client, category="other").full_clean()
-    assert "other_category" in exc.value.message_dict
-    s = _solution(client, category="other", other_category="Onduleur")
-    s.full_clean()
-    assert s.category_label == "Onduleur"
-
-
-def test_license_dates_only_for_software_and_cloud(setup):
+def test_license_dates_are_kept_for_every_category(setup):
     client, _users, _request = setup
     start, end = datetime.date(2026, 1, 1), datetime.date(2027, 1, 1)
-    hw = _solution(client, category="hardware", license_start=start, license_end=end)
-    hw.full_clean()
-    assert (hw.license_start, hw.license_end) == (None, None)
-    sw = _solution(client, category="software", license_start=start, license_end=end)
-    sw.full_clean()
-    assert sw.license_end == end
+    for category in ("software", "hardware", "vm", "cloud", "other"):
+        s = _solution(client, category=category, license_start=start, license_end=end)
+        s.full_clean()
+        assert (s.license_start, s.license_end) == (start, end)
     with pytest.raises(ValidationError):
-        _solution(client, category="cloud", license_start=end, license_end=start).full_clean()
+        _solution(client, category="hardware", license_start=end, license_end=start).full_clean()
+
+
+def test_license_dates_use_the_calendar_widget(setup):
+    _client, _users, request = setup
+    admin = site._registry[Contract]
+    inline = next(i for i in admin.get_inline_instances(request) if i.model is Solution)
+    form = inline.get_formset(request)().empty_form
+    for name in ("license_start", "license_end"):
+        assert "vDateField" in form[name].as_widget()  # champ date de Django : icône calendrier
 
 
 def test_category_options_have_hover_help(setup):

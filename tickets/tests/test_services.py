@@ -108,6 +108,12 @@ def test_client_can_open_in_p3_but_not_p2(w):
         new(w, priority=2)
 
 
+def test_nobody_opens_in_p1_or_p2(w):
+    for priority in (1, 2):
+        with pytest.raises(PermissionDenied):
+            new(w, actor="tech", priority=priority)
+
+
 # --- Priorité et escalade -----------------------------------------------------------------
 
 def test_client_escalates_p4_to_p3_only(w):

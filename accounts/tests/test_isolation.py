@@ -23,9 +23,9 @@ def world():
     ca1 = Contract.objects.create(reference="A-001", title="Réseau A", client=a, start_date=today, contract_type=t)
     ca2 = Contract.objects.create(reference="A-002", title="SOC A", client=a, start_date=today, contract_type=t)
     cb1 = Contract.objects.create(reference="B-001", title="Réseau B", client=b, start_date=today, contract_type=t)
-    Solution.objects.create(contract=ca1, category="network", name="Pare-feu A")
+    Solution.objects.create(contract=ca1, category="hardware", name="Pare-feu A")
     Solution.objects.create(contract=ca1, category="vm", name="VM retirée A", is_active=False)
-    Solution.objects.create(contract=cb1, category="network", name="Pare-feu B")
+    Solution.objects.create(contract=cb1, category="hardware", name="Pare-feu B")
 
     def mk(email, org, profile, **kw):
         return User.objects.create_user(email, "Motdepasse-tres-long-1", organisation=org, profile=profile, **kw)

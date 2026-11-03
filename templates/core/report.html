@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% load i18n static %}
+{% block title %}{{ report.title }}{% endblock %}
+{% block content %}
+<div class="page-head"><div>
+  <h1>{{ report.title }}</h1>
+  <p class="lead">{{ report.lead }}</p>
+</div></div>
+<div class="panel">
+  <div class="empty"><img src="{% static 'img/mark.png' %}" alt=""><strong>{% translate "Rapport à venir" %}</strong>{% translate "Ce rapport sera disponible dans une prochaine version." %}</div>
+</div>
+{% endblock %}

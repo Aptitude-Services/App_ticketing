@@ -26,8 +26,8 @@ def visible_contracts(user) -> QuerySet:
         # Technicien « contrats affectés »
         return qs.filter(accesses__user=user).distinct()
 
-    # Utilisateur client : jamais en dehors de son organisation
-    qs = qs.filter(client_id=user.organisation_id)
+    # Utilisateur client : jamais en dehors de son organisation (et de ses clients finaux pour une ESN)
+    qs = qs.filter(client_id__in=user.organisation.scope_ids())
     if user.profile == Profile.CLIENT_ADMIN or user.all_contracts:
         return qs
     return qs.filter(accesses__user=user).distinct()
@@ -57,7 +57,7 @@ def manageable_users(actor) -> QuerySet:
     if actor.profile == Profile.APTITUDE_MANAGER:
         return qs.filter(organisation__kind=Organisation.Kind.CLIENT)
     if actor.profile == Profile.CLIENT_ADMIN:
-        return qs.filter(organisation_id=actor.organisation_id)
+        return qs.filter(organisation_id__in=actor.organisation.scope_ids())
     return qs.none()
 
 
@@ -82,7 +82,7 @@ def manageable_organisations(actor) -> QuerySet:
     if actor.profile == Profile.APTITUDE_MANAGER:
         return qs.filter(kind=Organisation.Kind.CLIENT)
     if actor.profile == Profile.CLIENT_ADMIN:
-        return qs.filter(pk=actor.organisation_id)
+        return qs.filter(pk__in=actor.organisation.scope_ids())
     return qs.none()
 
 

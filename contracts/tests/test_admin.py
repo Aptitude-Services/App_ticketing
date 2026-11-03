@@ -2,10 +2,11 @@
 import datetime
 
 import pytest
+from django.core.exceptions import ValidationError
 from django.contrib.admin.sites import site
 
 from accounts.models import Organisation, Profile, User
-from contracts.models import Contract, ContractAccess, ContractType
+from contracts.models import Contract, ContractAccess, ContractType, Solution
 
 pytestmark = pytest.mark.django_db
 
@@ -56,6 +57,44 @@ def test_forbidden_access_is_a_form_error_not_a_crash(setup, who):
     contract, formset = _validate(request, _post(client, users[who]))
     assert not formset.is_valid()
     assert formset.errors[0] or formset.non_form_errors()
+
+
+def _solution(client, **kw):
+    contract, _ = Contract.objects.get_or_create(reference="HUD-9", defaults={
+        "title": "x", "client": client, "start_date": datetime.date(2026, 1, 1),
+        "contract_type": ContractType.objects.get(name="Standard 8x5")})
+    return Solution(contract=contract, name="Élément", **kw)
+
+
+def test_other_category_requires_a_precision(setup):
+    client, _users, _request = setup
+    with pytest.raises(ValidationError) as exc:
+        _solution(client, category="other").full_clean()
+    assert "other_category" in exc.value.message_dict
+    s = _solution(client, category="other", other_category="Onduleur")
+    s.full_clean()
+    assert s.category_label == "Onduleur"
+
+
+def test_license_dates_only_for_software_and_cloud(setup):
+    client, _users, _request = setup
+    start, end = datetime.date(2026, 1, 1), datetime.date(2027, 1, 1)
+    hw = _solution(client, category="hardware", license_start=start, license_end=end)
+    hw.full_clean()
+    assert (hw.license_start, hw.license_end) == (None, None)
+    sw = _solution(client, category="software", license_start=start, license_end=end)
+    sw.full_clean()
+    assert sw.license_end == end
+    with pytest.raises(ValidationError):
+        _solution(client, category="cloud", license_start=end, license_end=start).full_clean()
+
+
+def test_category_options_have_hover_help(setup):
+    _client, _users, request = setup
+    admin = site._registry[Contract]
+    inline = next(i for i in admin.get_inline_instances(request) if i.model is Solution)
+    html = inline.get_formset(request)().empty_form.fields["category"].widget.render("category", "")
+    assert 'value="software" title="' in html and 'value="other" title="' in html
 
 
 @pytest.mark.parametrize("who", ["engineer", "client"])

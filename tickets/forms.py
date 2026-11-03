@@ -11,6 +11,16 @@ class MultipleFileInput(forms.ClearableFileInput):
     allow_multiple_selected = True
 
 
+class CreationPrioritySelect(forms.Select):
+    """P1 et P2 affichés mais grisés : on ne les atteint que par escalade, avec justification."""
+
+    def create_option(self, name, value, *args, **kwargs):
+        option = super().create_option(name, value, *args, **kwargs)
+        if str(value) in {str(p) for p in S.ESCALATION_ONLY_PRIORITIES}:
+            option["attrs"]["disabled"] = True
+        return option
+
+
 class MultipleFileField(forms.FileField):
     widget = MultipleFileInput
 
@@ -29,9 +39,8 @@ class TicketCreateForm(forms.Form):
                             widget=forms.TextInput(attrs={"placeholder": _("Ex. : le VPN de l'agence ne se connecte plus")}))
     description = forms.CharField(label=_("Description"), widget=forms.Textarea(attrs={"rows": 6}),
                                   help_text=_("Ce qui se passe, depuis quand, ce qui est impacté, ce que vous avez déjà essayé."))
-    priority = forms.TypedChoiceField(label=_("Priorité"), coerce=int, initial=Priority.P4)
-    justification = forms.CharField(label=_("Justification"), required=False, widget=forms.Textarea(attrs={"rows": 2}),
-                                    help_text=_("Obligatoire pour P1 et P2."))
+    priority = forms.TypedChoiceField(label=_("Priorité"), coerce=int, initial=Priority.P4,
+                                      choices=Priority.choices, widget=CreationPrioritySelect)
     requester = forms.ModelChoiceField(label=_("Pour le compte de"), queryset=None, required=False,
                                        help_text=_("Laisser vide si vous êtes le demandeur."))
     files = MultipleFileField(label=_("Pièces jointes"), required=False,
@@ -46,17 +55,20 @@ class TicketCreateForm(forms.Form):
             (lambda c: f"{c.client} — {c.title} ({c.reference})") if actor.is_aptitude else (lambda c: f"{c.title} ({c.reference})"))
         self.fields["solutions"].queryset = Solution.objects.filter(contract__in=contracts, is_active=True)
         if actor.is_aptitude:
-            self.fields["priority"].choices = Priority.choices
             from accounts.models import User
             self.fields["requester"].queryset = User.objects.filter(
                 is_active=True, organisation__contracts__in=contracts).distinct().order_by("organisation__name", "last_name")
             self.fields["requester"].label_from_instance = lambda u: f"{u.display_name} ({u.organisation})"
         else:
-            self.fields["priority"].choices = [(Priority.P4, _("P4 — Basse")), (Priority.P3, _("P3 — Moyenne"))]
-            del self.fields["justification"]
             del self.fields["requester"]
         if contracts.count() == 1:
             self.fields["contract"].initial = contracts.first()
+
+    def clean_priority(self):
+        priority = self.cleaned_data["priority"]
+        if priority in S.ESCALATION_ONLY_PRIORITIES:
+            raise forms.ValidationError(_("Un ticket s'ouvre en P4 ou en P3. P2 et P1 se décident ensuite, par escalade."))
+        return priority
 
     def clean(self):
         data = super().clean()
@@ -64,7 +76,7 @@ class TicketCreateForm(forms.Form):
         if contract and any(s.contract_id != contract.pk for s in solutions):
             self.add_error("solutions", _("Choisissez uniquement des solutions du contrat sélectionné."))
         requester = data.get("requester")
-        if contract and requester and requester.is_client and requester.organisation_id != contract.client_id:
+        if contract and requester and requester.is_client and contract.client_id not in requester.organisation.scope_ids():
             self.add_error("requester", _("Ce demandeur n'appartient pas au client du contrat."))
         return data
 

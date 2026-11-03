@@ -78,23 +78,37 @@ class Contract(models.Model):
 
 
 class Solution(models.Model):
-    """Élément couvert par un contrat : matériel, logiciel, VM, service…"""
+    """Élément couvert par un contrat : logiciel, matériel, machine virtuelle, cloud ou autre."""
 
     class Category(models.TextChoices):
-        HARDWARE = "hardware", _("Matériel")
-        SOFTWARE = "software", _("Logiciel")
+        SOFTWARE = "software", _("Software")
+        HARDWARE = "hardware", _("Hardware")
         VM = "vm", _("Machine virtuelle")
-        NETWORK = "network", _("Réseau")
-        SECURITY = "security", _("Sécurité")
         CLOUD = "cloud", _("Cloud")
-        SERVICE = "service", _("Service")
+        OTHER = "other", _("Autre")
+
+    # Descriptif affiché au survol de chaque catégorie, pour guider la saisie.
+    CATEGORY_HELP = {
+        "software": _("Logiciel ou licence installé chez le client : antivirus, sauvegarde, SIEM, système…"),
+        "hardware": _("Équipement physique : serveur, pare-feu, switch, routeur, poste, stockage…"),
+        "vm": _("Machine virtuelle hébergée sur un hyperviseur (VMware, Hyper-V, Proxmox…)."),
+        "cloud": _("Service ou abonnement en ligne : Microsoft 365, Azure, AWS, SaaS…"),
+        "other": _("Tout autre élément : précisez de quoi il s'agit dans le champ « Précision »."),
+    }
+    LICENSED_CATEGORIES = {"software", "cloud"}  # catégories qui ont des dates de licence
 
     contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name="solutions", verbose_name=_("contrat"))
     category = models.CharField(_("catégorie"), max_length=20, choices=Category.choices)
+    other_category = models.CharField(_("précision"), max_length=120, blank=True,
+                                      help_text=_("Obligatoire pour la catégorie « Autre »."))
+    vendor = models.CharField(_("éditeur"), max_length=120, blank=True)
+    model = models.CharField(_("modèle"), max_length=120, blank=True)
+    version = models.CharField(_("version"), max_length=120, blank=True)
     name = models.CharField(_("nom"), max_length=200)
-    vendor = models.CharField(_("éditeur ou constructeur"), max_length=120, blank=True)
-    serial_or_version = models.CharField(_("n° de série ou version"), max_length=120, blank=True)
+    serial_number = models.CharField(_("n° de série"), max_length=120, blank=True)
     location = models.CharField(_("localisation"), max_length=200, blank=True)
+    license_start = models.DateField(_("début de licence"), null=True, blank=True)
+    license_end = models.DateField(_("fin de licence"), null=True, blank=True)
     notes = models.TextField(_("notes"), blank=True)
     is_active = models.BooleanField(_("active"), default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -105,7 +119,26 @@ class Solution(models.Model):
         verbose_name_plural = _("solutions")
 
     def __str__(self):
-        return f"{self.name} ({self.get_category_display()})"
+        return f"{self.name} ({self.category_label})"
+
+    @property
+    def category_label(self):
+        if self.category == self.Category.OTHER and self.other_category:
+            return self.other_category
+        return self.get_category_display()
+
+    def clean(self):
+        errors = {}
+        if self.category == self.Category.OTHER and not self.other_category.strip():
+            errors["other_category"] = _("Précisez de quoi il s'agit.")
+        if self.category != self.Category.OTHER:
+            self.other_category = ""
+        if self.category not in self.LICENSED_CATEGORIES:
+            self.license_start = self.license_end = None
+        elif self.license_start and self.license_end and self.license_end < self.license_start:
+            errors["license_end"] = _("La fin de licence doit suivre le début.")
+        if errors:
+            raise ValidationError(errors)
 
 
 class ContractAccess(models.Model):
@@ -136,7 +169,7 @@ class ContractAccess(models.Model):
             contract = self.contract
         except Contract.DoesNotExist:
             return
-        if self.user.is_client and contract.client_id != self.user.organisation_id:
+        if self.user.is_client and contract.client_id not in self.user.organisation.scope_ids():
             raise ValidationError(_("Un utilisateur client ne peut accéder qu'aux contrats de son organisation."))
         if self.user.is_aptitude and self.user.profile != Profile.TECH_ASSIGNED:
             raise ValidationError(_("Seuls les profils « Engineer (restricted) » reçoivent des affectations."))

@@ -94,8 +94,7 @@ def ticket_create(request):
         d = form.cleaned_data
         try:
             ticket = S.create_ticket(user, d["contract"], d["title"], d["description"], d["solutions"],
-                                     priority=d["priority"], requester=d.get("requester"),
-                                     justification=d.get("justification", ""))
+                                     priority=d["priority"], requester=d.get("requester"))
             if d["files"]:
                 S.add_comment(user, ticket, "", files=d["files"])
         except (ValidationError, PermissionDenied) as e:

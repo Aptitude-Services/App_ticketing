@@ -19,6 +19,9 @@ from sla.models import CLIENT_MAX_PRIORITY, PRIORITIES_REQUIRING_JUSTIFICATION, 
 
 from .models import OPEN_STATUSES, Attachment, Channel, Comment, Event, Status, Ticket, TicketSequence
 
+# Priorités interdites à l'ouverture : elles ne s'atteignent que par escalade justifiée.
+ESCALATION_ONLY_PRIORITIES = PRIORITIES_REQUIRING_JUSTIFICATION
+
 RISK_THRESHOLD = 0.75
 AUTO_CLOSE_AFTER = datetime.timedelta(days=1)
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
@@ -113,13 +116,13 @@ def _resume(ticket, now):
 
 @transaction.atomic
 def create_ticket(actor, contract, title, description, solutions=(), priority=Priority.P4, channel=Channel.PORTAL,
-                  requester=None, justification="", now=None):
+                  requester=None, now=None):
     now = now or timezone.now()
     _require(can_write(actor))
     _require(writable_contracts(actor).filter(pk=contract.pk).exists(), _("Contrat non accessible."))
     priority = int(priority)
-    if actor.is_client:
-        _require(priority in (Priority.P3, Priority.P4), _("Un client peut ouvrir un ticket en P4 ou en P3."))
+    # Tout ticket s'ouvre en P4 ou P3 ; P2 et P1 s'obtiennent ensuite par escalade justifiée.
+    _require(priority not in ESCALATION_ONLY_PRIORITIES, _("Un ticket s'ouvre en P4 ou en P3."))
 
     sla = contract.sla
     out_of_coverage = False
@@ -134,22 +137,19 @@ def create_ticket(actor, contract, title, description, solutions=(), priority=Pr
             raise ValidationError(_("Une solution sélectionnée n'appartient pas à ce contrat."))
 
     requester = requester or actor
-    if requester.is_client and requester.organisation_id != contract.client_id:
+    if requester.is_client and contract.client_id not in requester.organisation.scope_ids():
         raise ValidationError(_("Le demandeur doit appartenir au client du contrat."))
 
-    initial = Priority.P4 if priority in PRIORITIES_REQUIRING_JUSTIFICATION else priority
-    ticket = Ticket(contract=contract, title=title.strip(), description=description.strip(), priority=initial,
+    ticket = Ticket(contract=contract, title=title.strip(), description=description.strip(), priority=priority,
                     channel=channel, requester=requester, created_by=actor, out_of_coverage=out_of_coverage,
                     created_at=now, updated_at=now, reference=TicketSequence.next_reference(timezone.localtime(now).year))
     _set_deadlines(ticket, now)
     ticket.full_clean(exclude=["solutions"])
     ticket.save()
     ticket.solutions.set(solutions)
-    _event(ticket, actor, Event.Kind.CREATED, at=now, priority=initial, channel=channel, out_of_coverage=out_of_coverage)
+    _event(ticket, actor, Event.Kind.CREATED, at=now, priority=priority, channel=channel, out_of_coverage=out_of_coverage)
     if out_of_coverage:
         _event(ticket, actor, Event.Kind.SLA, at=now, internal=True, note="created_out_of_coverage")
-    if priority != initial:
-        change_priority(actor, ticket, priority, justification, now=now)
     return ticket
 
 

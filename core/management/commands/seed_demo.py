@@ -29,16 +29,16 @@ class Command(BaseCommand):
         c2, _ = Contract.objects.get_or_create(reference="BL-2026-02", defaults={"title": "SOC managé", "client": a, "start_date": d, "contract_type": t24})
         c3, _ = Contract.objects.get_or_create(reference="CR-2026-01", defaults={"title": "Maintenance serveurs", "client": b, "start_date": d, "contract_type": t85})
         solutions = [
-            (c1, "network", "Pare-feu périmétrique", "Fortinet", "FortiGate 100F", "Siège, Plateau"),
-            (c1, "network", "Cœur de réseau", "Cisco", "Catalyst 9300", "Siège, Plateau"),
-            (c2, "security", "SIEM", "Wazuh", "4.9", "Datacenter Aptitude"),
-            (c2, "vm", "Collecteur de journaux", "", "Ubuntu 24.04", "Datacenter Aptitude"),
-            (c3, "hardware", "Serveur de fichiers", "Dell", "PowerEdge R650", "Clinique, salle serveur"),
-            (c3, "software", "Sauvegarde", "Veeam", "12.2", "Clinique, salle serveur"),
+            (c1, "hardware", "Pare-feu périmétrique", "Fortinet", "FortiGate 100F", "7.4", "Siège, Plateau"),
+            (c1, "hardware", "Cœur de réseau", "Cisco", "Catalyst 9300", "17.9", "Siège, Plateau"),
+            (c2, "software", "SIEM", "Wazuh", "", "4.9", "Datacenter Aptitude"),
+            (c2, "vm", "Collecteur de journaux", "", "", "Ubuntu 24.04", "Datacenter Aptitude"),
+            (c3, "hardware", "Serveur de fichiers", "Dell", "PowerEdge R650", "", "Clinique, salle serveur"),
+            (c3, "software", "Sauvegarde", "Veeam", "", "12.2", "Clinique, salle serveur"),
         ]
-        for contract, cat, name, vendor, version, loc in solutions:
+        for contract, cat, name, vendor, model, version, loc in solutions:
             Solution.objects.get_or_create(contract=contract, name=name, defaults={
-                "category": cat, "vendor": vendor, "serial_or_version": version, "location": loc})
+                "category": cat, "vendor": vendor, "model": model, "version": version, "location": loc})
         accounts = [
             ("admin@aptitudes.net", "Arnaud", "Kouadio", apt, Profile.APTITUDE_ADMIN, True),
             ("tech@aptitudes.net", "Moussa", "Traoré", apt, Profile.TECH_ALL, True),

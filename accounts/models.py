@@ -24,6 +24,16 @@ class Organisation(models.Model):
         _("type de client"), max_length=20, choices=ClientType.choices, blank=True,
         help_text=_("Obligatoire pour une organisation cliente ; vide pour Aptitude."),
     )
+    manages_end_clients = models.BooleanField(
+        _("gère des clients finaux"), default=False,
+        help_text=_("ESN, revendeur ou intégrateur partenaire : ses utilisateurs voient et gèrent aussi "
+                    "les contrats, tickets et comptes de ses clients finaux."),
+    )
+    parent = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.PROTECT, related_name="end_clients",
+        limit_choices_to={"manages_end_clients": True}, verbose_name=_("rattachée à (ESN)"),
+        help_text=_("Pour un client final : l'ESN qui le gère."),
+    )
     is_active = models.BooleanField(_("active"), default=True)
     email_domains = models.CharField(
         _("domaines email"), max_length=500, blank=True,
@@ -45,10 +55,28 @@ class Organisation(models.Model):
             raise ValidationError({"client_type": _("Choisissez le type de client.")})
         if self.kind == self.Kind.APTITUDE and self.client_type:
             raise ValidationError({"client_type": _("Aptitude n'a pas de type de client.")})
+        if self.kind == self.Kind.APTITUDE and (self.manages_end_clients or self.parent_id):
+            raise ValidationError(_("Aptitude ne gère pas de clients finaux et n'est rattachée à aucune ESN."))
+        if self.parent_id:
+            if self.parent_id == self.pk:
+                raise ValidationError({"parent": _("Une organisation ne peut pas être rattachée à elle-même.")})
+            if not self.parent.manages_end_clients:
+                raise ValidationError({"parent": _("Cette organisation ne gère pas de clients finaux.")})
+            if self.manages_end_clients:
+                raise ValidationError({"parent": _("Une ESN ne peut pas être elle-même rattachée à une autre ESN.")})
+        if self.pk and not self.manages_end_clients and self.end_clients.exists():
+            raise ValidationError({"manages_end_clients": _("Des clients finaux sont encore rattachés à cette ESN.")})
 
     @property
     def is_aptitude(self):
         return self.kind == self.Kind.APTITUDE
+
+    def scope_ids(self):
+        """Organisations dont les données sont accessibles : elle-même, et ses clients finaux si c'est une ESN."""
+        ids = [self.pk]
+        if self.manages_end_clients:
+            ids += list(self.end_clients.values_list("pk", flat=True))
+        return ids
 
     def domain_list(self):
         return [d.strip().lower() for d in self.email_domains.split(",") if d.strip()]

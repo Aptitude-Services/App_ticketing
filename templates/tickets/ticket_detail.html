@@ -111,7 +111,7 @@
         <dt>{% translate "Ouvert le" %}</dt><dd class="mono">{{ t.created_at|date:"d/m/Y H:i" }}</dd>
       </dl>
       {% if solutions %}<h3 style="margin-top:18px">{% translate "Solutions concernées" %}</h3>
-      <ul style="margin:0;padding-left:18px;font-size:14px">{% for s in solutions %}<li>{{ s.name }} <span class="muted small">{{ s.get_category_display }}</span></li>{% endfor %}</ul>{% endif %}
+      <ul style="margin:0;padding-left:18px;font-size:14px">{% for s in solutions %}<li>{{ s.name }} <span class="muted small">{{ s.category_label }}</span></li>{% endfor %}</ul>{% endif %}
       {% if attachments %}<h3 style="margin-top:18px">{% translate "Pièces jointes" %}</h3>
       <div class="files" style="margin-top:6px">{% for a in attachments %}<a class="file" href="{% url 'attachment_download' t.reference a.pk %}">{% include "icons/clip.svg" %}{{ a.name }}</a>{% endfor %}</div>{% endif %}
     </div></section>

@@ -32,8 +32,10 @@ def test_aptitude_has_no_client_type():
     org.full_clean()
 
 
-def test_admin_form_asks_for_client_type(rf):
-    form_class = site._registry[Organisation].get_form(rf.get("/"))
+def test_admin_form_asks_for_client_type(rf, admin_user):
+    request = rf.get("/")
+    request.user = admin_user
+    form_class = site._registry[Organisation].get_form(request)
     data = {"name": "PME Y", "kind": "client", "client_type": "", "email_domains": "", "is_active": "on"}
     form = form_class(data)
     assert not form.is_valid()

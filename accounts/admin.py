@@ -7,9 +7,9 @@ from .models import STANDBY_PROFILES, AuditEvent, Organisation, User
 
 @admin.register(Organisation)
 class OrganisationAdmin(admin.ModelAdmin):
-    list_display = ("name", "kind", "client_type", "is_active", "email_domains")
-    list_filter = ("kind", "client_type", "is_active")
-    fields = ("name", "kind", "client_type", "email_domains", "is_active")
+    list_display = ("name", "kind", "client_type", "manages_end_clients", "parent", "is_active", "email_domains")
+    list_filter = ("kind", "client_type", "manages_end_clients", "is_active")
+    fields = ("name", "kind", "client_type", "manages_end_clients", "parent", "email_domains", "is_active")
     search_fields = ("name", "email_domains")
 
 

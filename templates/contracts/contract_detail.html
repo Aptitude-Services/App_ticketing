@@ -42,7 +42,7 @@
         <thead><tr><th>{% translate "Solution" %}</th><th>{% translate "Catégorie" %}</th><th>{% translate "Modèle ou version" %}</th><th>{% translate "Emplacement" %}</th></tr></thead>
         <tbody>{% for s in solutions %}
           <tr><td><strong>{{ s.name }}</strong>{% if s.vendor %}<span class="secondary">{{ s.vendor }}</span>{% endif %}{% if not s.is_active %} <span class="tag">{% translate "retirée" %}</span>{% endif %}</td>
-            <td>{{ s.get_category_display }}</td><td>{{ s.serial_or_version|default:"—" }}</td><td>{{ s.location|default:"—" }}</td></tr>
+            <td>{{ s.category_label }}</td><td>{% if s.model or s.version %}{{ s.model }} {{ s.version }}{% else %}—{% endif %}{% if s.serial_number %}<span class="secondary">{{ s.serial_number }}</span>{% endif %}{% if s.license_end %}<span class="secondary">{% translate "Licence jusqu'au" %} {{ s.license_end|date:"d/m/Y" }}</span>{% endif %}</td><td>{{ s.location|default:"—" }}</td></tr>
         {% endfor %}</tbody>
       </table></div>
       {% else %}<div class="empty"><strong>{% translate "Aucune solution enregistrée" %}</strong>{% translate "Les équipements et services couverts apparaîtront ici." %}</div>{% endif %}

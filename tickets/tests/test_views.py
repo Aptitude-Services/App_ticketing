@@ -117,3 +117,27 @@ def test_theme_preference_is_saved(client, w):  # noqa: F811
     w["a_rw"].refresh_from_db()
     assert w["a_rw"].theme == "dark"
     assert 'data-theme="dark"' in client.get(reverse("dashboard")).content.decode()
+
+
+# --- Priorité à l'ouverture et menu Rapports ---------------------------------------------
+
+def test_creation_form_greys_out_p1_and_p2(client, w, frozen):  # noqa: F811
+    login_aptitude(client, w["tech"])
+    html = client.get(reverse("ticket_create")).content.decode()
+    assert '<option value="1" disabled' in html and '<option value="2" disabled' in html
+    assert '<option value="3"' in html and 'value="3" disabled' not in html
+
+
+def test_aptitude_cannot_open_ticket_in_p2(client, w, frozen):  # noqa: F811
+    login_aptitude(client, w["tech"])
+    client.post(reverse("ticket_create"), {"contract": w["c85"].pk, "title": "x", "description": "y", "priority": 2})
+    assert not Ticket.objects.exists()
+
+
+def test_report_pages_are_for_aptitude_only(client, w):  # noqa: F811
+    login_aptitude(client, w["tech"])
+    for kind in ("preventif", "curatif", "trimestriel"):
+        assert client.get(reverse("report", args=[kind])).status_code == 200
+    assert client.get(reverse("report", args=["inconnu"])).status_code == 404
+    client.force_login(w["a_rw"])
+    assert client.get(reverse("report", args=["curatif"])).status_code == 404

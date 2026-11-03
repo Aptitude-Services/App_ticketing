@@ -60,8 +60,8 @@ class Profile(models.TextChoices):
     TECH_ALL = "tech_all", "Engineer"
     TECH_ASSIGNED = "tech_assigned", "Engineer (restricted)"
     CLIENT_ADMIN = "client_admin", "Client Admin"
-    CLIENT_RW = "client_rw", "Client (read & write)"
-    CLIENT_RO = "client_ro", "Client (read only)"
+    CLIENT_RW = "client_rw", "Client User"
+    CLIENT_RO = "client_ro", "Client Viewer"
 
 
 # Profils en réserve : gardés dans le code, mais plus proposés à l'attribution.

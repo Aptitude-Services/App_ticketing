@@ -70,8 +70,8 @@ Les fêtes fixes et celles liées à Pâques sont calculées. Les fêtes musulma
 | Engineer | Tous | Non |
 | Engineer (restricted) — en réserve, non proposé | Ceux affectés | Non |
 | Client Admin | Tous ceux de son organisation | Son organisation |
-| Client (read & write) | Ceux de son organisation, ou une sélection | Non |
-| Client (read only) | Ceux de son organisation, ou une sélection | Non |
+| Client User | Ceux de son organisation, ou une sélection | Non |
+| Client Viewer | Ceux de son organisation, ou une sélection | Non |
 
 ## Démarrer en local
 

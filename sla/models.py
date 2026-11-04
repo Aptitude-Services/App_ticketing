@@ -87,6 +87,10 @@ class SLA(models.Model):
 class SLATarget(models.Model):
     sla = models.ForeignKey(SLA, on_delete=models.CASCADE, related_name="targets")
     priority = models.PositiveSmallIntegerField(_("priorité"), choices=Priority.choices)
+    reply_minutes = models.PositiveIntegerField(
+        _("délai de réponse (minutes)"), null=True, blank=True,
+        help_text=_("Premier retour au client après l'ouverture du ticket."),
+    )
     response_minutes = models.PositiveIntegerField(_("prise en charge (minutes)"))
     resolution_minutes = models.PositiveIntegerField(_("résolution (minutes)"))
 
@@ -102,6 +106,8 @@ class SLATarget(models.Model):
     def clean(self):
         if self.response_minutes and self.resolution_minutes and self.response_minutes > self.resolution_minutes:
             raise ValidationError(_("La prise en charge ne peut pas dépasser la résolution."))
+        if self.reply_minutes and self.resolution_minutes and self.reply_minutes > self.resolution_minutes:
+            raise ValidationError(_("Le délai de réponse ne peut pas dépasser la résolution."))
 
 
 class Holiday(models.Model):

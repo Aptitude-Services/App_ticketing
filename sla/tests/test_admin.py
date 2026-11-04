@@ -46,3 +46,19 @@ def test_list_shows_day_names():
     admin = SLAAdmin(SLA, None)
     assert admin.jours(SLA.objects.get(name="SLA 8x5")) == "Lun, Mar, Mer, Jeu, Ven"
     assert str(admin.jours(SLA.objects.get(name="SLA 24x7"))) == "7 j / 7"
+
+
+def test_targets_show_reply_delay_first():
+    from sla.admin import SLATargetInline
+    assert SLATargetInline.fields[:2] == ("priority", "reply_minutes")
+
+
+def test_reply_delay_is_optional_but_bounded():
+    from django.core.exceptions import ValidationError
+    from sla.models import SLATarget
+    target = SLA.objects.get(name="SLA 8x5").targets.get(priority=4)
+    target.full_clean()  # vide : accepté
+    target.reply_minutes = target.resolution_minutes + 1
+    with pytest.raises(ValidationError):
+        target.full_clean()
+    assert SLATarget._meta.get_field("reply_minutes").verbose_name == "délai de réponse (minutes)"

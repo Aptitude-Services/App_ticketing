@@ -26,6 +26,8 @@
           <tr class="sla-row">
             <td><div style="display:flex;gap:12px;align-items:flex-start"><span class="prio prio-{{ row.target.priority }}">P{{ row.target.priority }}</span>
               <div><strong>{{ row.name }}</strong><div class="def">{{ row.definition }}</div></div></div></td>
+            <td class="num">{% if row.target.reply_minutes %}<span class="hours">{% widthratio row.target.reply_minutes 60 1 %} h</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td class="num">{% if row.target.reply_minutes %}<span class="hours">{% widthratio row.target.reply_minutes 60 1 %} h</span>{% else %}<span class="muted">—</span>{% endif %}</td>
             <td class="num"><span class="hours">{% widthratio row.target.response_minutes 60 1 %} h</span></td>
             <td class="num"><span class="hours">{% widthratio row.target.resolution_minutes 60 1 %} h</span></td>
           </tr>{% endfor %}

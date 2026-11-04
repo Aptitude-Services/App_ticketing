@@ -47,6 +47,7 @@ class SLATargetInline(admin.TabularInline):
     model = SLATarget
     extra = 0
     max_num = 4
+    fields = ("priority", "reply_minutes", "response_minutes", "resolution_minutes")
 
 
 @admin.register(SLA)

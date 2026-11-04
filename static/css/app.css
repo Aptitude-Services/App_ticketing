@@ -369,14 +369,35 @@ body.is-console { background: var(--console-bg); }
 .is-console .content { padding: 0; }
 .is-console h1 { font-size: 22px; }
 
+/* Mobile : menu de la console en tiroir (bouton ☰), recherche dans le tiroir */
+.c-burger, .c-backdrop, .c-side-search { display: none; }
 @media (max-width: 900px) {
-  .console { grid-template-columns: 1fr; }
-  .c-side { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
-  .c-side nav { flex-direction: row; flex-wrap: wrap; }
-  .c-side .grp, .c-side .side-foot { display: none; }
-  .c-search { display: none; }
-  .c-main { padding: 20px 16px 48px; }
+  .console { grid-template-columns: 1fr; grid-template-rows: 56px minmax(0, 1fr); background: var(--console-bg); }
+  .c-top { padding: 0 12px; gap: 10px; padding-top: env(safe-area-inset-top); }
+  .c-burger { display: grid; }
+  .c-top .badge, .c-search, .c-install { display: none; }
+  .c-side {
+    position: fixed; top: 0; left: 0; bottom: 0; width: min(300px, 84vw); height: 100%; z-index: 30;
+    border-right: 1px solid var(--line); box-shadow: 0 10px 40px rgba(0, 0, 0, .25);
+    transform: translateX(-105%); transition: transform .22s ease; padding-top: calc(14px + env(safe-area-inset-top));
+  }
+  .drawer-open .c-side { transform: none; }
+  .c-backdrop { display: block; position: fixed; inset: 0; background: rgba(15, 23, 32, .45); z-index: 25; opacity: 0; pointer-events: none; transition: opacity .22s ease; }
+  .c-backdrop[hidden] { display: block; }
+  .drawer-open .c-backdrop { opacity: 1; pointer-events: auto; }
+  .drawer-open { overflow: hidden; }
+  .c-side a { padding: 11px 12px; font-size: 15px; }
+  .c-side-search { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; background: var(--field); border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; color: var(--faint); }
+  .c-side-search svg { width: 16px; height: 16px; flex: none; }
+  .c-side-search input { border: 0; background: none; font: inherit; font-size: 15px; flex: 1; padding: 10px 0; color: var(--ink); outline: none; min-width: 0; }
+  .c-main { padding: 18px 14px calc(48px + env(safe-area-inset-bottom)); }
+  .page-head { flex-direction: column; align-items: stretch; gap: 12px; }
+  .page-head .btn { justify-content: center; }
+  .table-wrap { -webkit-overflow-scrolling: touch; }
 }
+@media (prefers-reduced-motion: reduce) { .c-side, .c-backdrop { transition: none; } }
+/* Application installée : pas de rebond de page, couleur de fond de la barre système */
+@media (display-mode: standalone) { html, body { overscroll-behavior-y: none; } }
 
 /* Indicateurs avec tendance */
 .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; margin-bottom: 16px; }

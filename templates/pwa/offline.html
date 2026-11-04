@@ -1,0 +1,26 @@
+{% load static i18n %}<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1F2D3D">
+  <title>{% translate "Hors ligne" %} · Aptitude</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <style>
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--night, #1F2D3D); color: #fff; font-family: "Montserrat", system-ui, sans-serif; text-align: center; padding: 24px; box-sizing: border-box; }
+    .box { max-width: 360px; }
+    .box img { height: 30px; margin-bottom: 28px; }
+    h1 { font-size: 22px; margin: 0 0 10px; color: #fff; }
+    p { color: #B8C3CF; margin: 0 0 24px; line-height: 1.5; }
+    button { background: #F58436; color: #1F2D3D; border: 0; border-radius: 8px; padding: 12px 22px; font: inherit; font-weight: 700; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <img src="{% static 'img/logo-white.png' %}" alt="Aptitude">
+    <h1>{% translate "Pas de connexion" %}</h1>
+    <p>{% translate "L'application a besoin du réseau pour afficher vos tickets. Vérifiez votre connexion (ou le VPN d'Aptitude), puis réessayez." %}</p>
+    <button type="button" onclick="location.reload()">{% translate "Réessayer" %}</button>
+  </div>
+</body>
+</html>

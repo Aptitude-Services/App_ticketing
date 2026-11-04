@@ -3,7 +3,7 @@ from django.urls import reverse
 from django.utils import translation
 from django_otp.plugins.otp_totp.models import TOTPDevice
 
-EXEMPT_PREFIXES = ("/static/", "/favicon.ico")
+EXEMPT_PREFIXES = ("/static/", "/favicon.ico", "/manifest.webmanifest", "/sw.js", "/hors-ligne/")
 EXEMPT_URL_NAMES = ("login", "logout", "mfa_setup", "mfa_verify", "password_reset", "password_reset_done",
                     "password_reset_confirm", "password_reset_complete", "set_language")
 

@@ -18,6 +18,12 @@
   <link rel="icon" href="{% static 'img/favicon.ico' %}" sizes="any">
   <link rel="icon" type="image/png" href="{% static 'img/favicon-32.png' %}">
   <link rel="apple-touch-icon" href="{% static 'img/apple-touch-icon.png' %}">
+  <link rel="manifest" href="{% url 'pwa_manifest' %}">
+  <meta name="theme-color" content="#1F2D3D">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Aptitude">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -29,6 +35,7 @@
 {% if user.is_aptitude %}
 <div class="console">
   <header class="c-top">
+    <button type="button" class="c-icon c-burger" data-drawer-toggle aria-controls="console-nav" aria-expanded="false" title="{% translate 'Menu' %}"><span class="sr-only">{% translate "Ouvrir le menu" %}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     <a class="logo" href="{% url 'dashboard' %}"><img class="light-only" src="{% static 'img/logo.png' %}" alt="Aptitude"><img class="dark-only" src="{% static 'img/logo-white.png' %}" alt="Aptitude"></a>
     <span class="badge">{% translate "Support" %}</span>
     <form class="c-search" method="get" action="{% url 'ticket_list' %}" role="search">
@@ -38,11 +45,19 @@
       <input type="hidden" name="vue" value="tous">
     </form>
     <div class="c-actions">
+      <button type="button" class="btn btn-secondary c-install" data-install-app hidden>{% translate "Installer l'application" %}</button>
       {% include "_theme_toggle.html" with cls="c-icon" %}
       <a class="c-me" href="{% url 'my_profile' %}"><span class="avatar" aria-hidden="true">{{ user.initials }}</span><span class="hide-sm">{{ user.display_name }}</span></a>
     </div>
   </header>
-  <aside class="c-side" aria-label="{% translate 'Navigation principale' %}">
+  <div class="c-backdrop" data-drawer-backdrop hidden></div>
+  <aside class="c-side" id="console-nav" aria-label="{% translate 'Navigation principale' %}">
+    <form class="c-side-search" method="get" action="{% url 'ticket_list' %}" role="search">
+      {% include "icons/search.svg" %}
+      <label class="sr-only" for="side-q">{% translate "Rechercher" %}</label>
+      <input id="side-q" type="search" name="q" placeholder="{% translate 'Rechercher un ticket' %}">
+      <input type="hidden" name="vue" value="tous">
+    </form>
     <nav>
       <a href="{% url 'dashboard' %}" {% if section == 'dashboard' %}aria-current="page"{% endif %}>{% include "icons/home.svg" %}{% translate "Accueil" %}</a>
       <div class="grp">{% translate "Supervision" %}</div>
@@ -134,5 +149,6 @@
   });
 </script>
 {% endblock %}
+<script src="{% static 'js/mobile.js' %}" defer></script>
 </body>
 </html>

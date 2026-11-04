@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import include, path
 
 from core.mail_views import mail_settings, mail_test
+from core.pwa_views import manifest, offline, service_worker
 from core.report_views import report
 from core.views import dashboard
 
@@ -10,6 +11,9 @@ admin.site.site_title = "Aptitude Support"
 
 urlpatterns = [
     path("", dashboard, name="dashboard"),
+    path("manifest.webmanifest", manifest, name="pwa_manifest"),
+    path("sw.js", service_worker, name="service_worker"),
+    path("hors-ligne/", offline, name="offline"),
     path("compte/", include("accounts.urls")),
     path("contrats/", include("contracts.urls")),
     path("tickets/", include("tickets.urls")),

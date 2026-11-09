@@ -7,4 +7,7 @@ __pycache__/
 staticfiles/
 media/
 .git/
-certs/
+# Clés et autorité interne (docker/certs/creer-certificat.sh) : jamais dans l'image.
+# Les certificats publics de certs/ (ex. postfix-mail.crt) restent disponibles au build.
+certs/ca/
+certs/*.key

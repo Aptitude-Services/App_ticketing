@@ -87,6 +87,8 @@ def category_help():
 class SolutionInline(admin.TabularInline):
     model = Solution
     extra = 0
+    # Ajoute au-dessus du tableau l'import Excel et le modèle de fichier à télécharger.
+    template = "admin/contracts/contract/solution_inline.html"
     fields = ("category", "vendor", "model", "name", "serial_number", "location",
               "license_start", "license_end", "is_active")
 
@@ -242,10 +244,61 @@ class ContractAdmin(admin.ModelAdmin):
     def get_urls(self):
         urls = super().get_urls()
         custom = [
+            path("modele-import-solutions.xlsx",
+                 self.admin_site.admin_view(self.import_template_view), name="contracts_contract_import_template"),
             path("<path:object_id>/import-solutions/",
                  self.admin_site.admin_view(self.import_solutions_view), name="contracts_contract_import_solutions"),
         ]
         return custom + urls
+
+    IMPORT_COLUMNS = ("Catégorie", "Nom", "Éditeur", "Modèle", "N° de série", "Localisation",
+                      "Début de licence", "Fin de licence", "Notes", "Actif")
+
+    def import_template_view(self, request):
+        """Modèle Excel prêt à remplir : colonnes reconnues par l'import, une ligne d'exemple
+        et la liste des catégories acceptées."""
+        import io
+
+        from django.core.exceptions import PermissionDenied
+        from django.http import HttpResponse
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill
+
+        if not self.has_view_permission(request):
+            raise PermissionDenied
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Solutions"
+        ws.append(self.IMPORT_COLUMNS)
+        ws.append(["Matériel", "Pare-feu siège", "Fortinet", "FortiGate 100F", "FG100F0000000",
+                   "Salle serveurs Plateau", "01/01/2026", "31/12/2026", "Exemple : à remplacer", "Oui"])
+        header_fill = PatternFill("solid", fgColor="1F2A44")
+        for cell in ws[1]:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = header_fill
+        for col, width in zip("ABCDEFGHIJ", (14, 28, 18, 20, 18, 24, 16, 16, 28, 8)):
+            ws.column_dimensions[col].width = width
+        ws.freeze_panes = "A2"
+
+        cats = wb.create_sheet("Catégories acceptées")
+        cats.append(["Valeur à saisir", "Équivalents acceptés"])
+        for value, aliases in (("Logiciel", "software"), ("Matériel", "hardware, materiel"),
+                               ("Machine virtuelle", "vm, virtual machine"), ("Cloud", "saas"),
+                               ("Autre", "other")):
+            cats.append([value, aliases])
+        for cell in cats[1]:
+            cell.font = Font(bold=True)
+        cats.column_dimensions["A"].width = 20
+        cats.column_dimensions["B"].width = 28
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        response = HttpResponse(
+            buf.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response["Content-Disposition"] = 'attachment; filename="modele-import-solutions.xlsx"'
+        return response
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)

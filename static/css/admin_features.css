@@ -237,3 +237,25 @@
 .field-partner_esns .selector-clearall {
     display: none !important;
 }
+
+/* Contrat : accès à l'import Excel au-dessus du tableau des solutions. */
+.solutions-import-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px 18px;
+    margin: 18px 0 8px;
+    padding: 10px 14px;
+    border: 1px dashed var(--border-color, #ccc);
+    border-radius: 8px;
+    background: var(--darkened-bg, #f8f8f8);
+}
+.solutions-import-bar .button {
+    margin: 0;
+}
+.solutions-import-hint {
+    color: var(--body-quiet-color, #666);
+}
+.solutions-import-template {
+    font-weight: 600;
+}

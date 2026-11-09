@@ -1,0 +1,11 @@
+{% load i18n %}
+{# Tableau des solutions du contrat, précédé de l'accès à l'import Excel. #}
+<div class="solutions-import-bar">
+  {% if original.pk %}
+    <a class="button" href="{% url 'admin:contracts_contract_import_solutions' original.pk %}">{% translate "Importer depuis Excel" %}</a>
+  {% else %}
+    <span class="solutions-import-hint">{% translate "Pour importer des solutions depuis Excel, enregistrez d'abord le contrat (« Enregistrer et continuer les modifications »)." %}</span>
+  {% endif %}
+  <a class="solutions-import-template" href="{% url 'admin:contracts_contract_import_template' %}">{% translate "Télécharger le modèle Excel" %}</a>
+</div>
+{% include "admin/edit_inline/tabular.html" %}

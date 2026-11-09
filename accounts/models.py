@@ -1,8 +1,26 @@
+import base64
+import mimetypes
+
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.core.exceptions import ValidationError
+from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+
+
+def file_data_uri(field_file):
+    """Contenu d'une image enregistrée sous forme de data URI ("" si absente ou illisible)."""
+    if not field_file:
+        return ""
+    try:
+        with field_file.open("rb") as fh:
+            raw = fh.read()
+    except (OSError, ValueError):
+        return ""
+    name = field_file.name.lower()
+    mime = "image/svg+xml" if name.endswith(".svg") else (mimetypes.guess_type(name)[0] or "image/png")
+    return f"data:{mime};base64,{base64.b64encode(raw).decode('ascii')}"
 
 
 class Organisation(models.Model):
@@ -64,7 +82,12 @@ class Organisation(models.Model):
     kind = models.CharField(_("type"), max_length=20, choices=Kind.choices, default=Kind.CLIENT)
     activity_sector = models.CharField(
         _("secteur d'activité"), max_length=30, choices=ActivitySector.choices, blank=True,
-        help_text=_("Obligatoire pour un client ESN ou un client final ; vide pour Aptitude."),
+        help_text=_("Demandé pour un client final uniquement (ni pour une ESN, ni pour Aptitude)."),
+    )
+    logo = models.FileField(
+        _("logo"), upload_to="logos/", blank=True,
+        validators=[FileExtensionValidator(["png", "jpg", "jpeg", "svg", "webp", "gif"])],
+        help_text=_("Logo de l'ESN, repris en tête des rapports envoyés à ses clients finaux (PNG, JPG, SVG)."),
     )
     end_clients = models.ManyToManyField(
         "self", symmetrical=False, blank=True, related_name="partner_esns",
@@ -103,8 +126,7 @@ class Organisation(models.Model):
             self.code = self.code.strip().upper()
             if not CODE_RE.match(self.code):
                 raise ValidationError({"code": _("De 2 à 8 lettres (sans accent) ou chiffres, ex. HUD.")})
-        client_kinds = {self.Kind.CLIENT, self.Kind.END_CLIENT}
-        if self.kind in client_kinds and not self.activity_sector:
+        if self.kind == self.Kind.END_CLIENT and not self.activity_sector:
             raise ValidationError({"activity_sector": _("Choisissez le secteur d'activité.")})
         if self.kind == self.Kind.APTITUDE and self.activity_sector:
             raise ValidationError({"activity_sector": _("Aptitude n'a pas de secteur d'activité.")})
@@ -150,6 +172,11 @@ class Organisation(models.Model):
         if self.is_end_client and contract.pk:
             return contract.end_clients.filter(pk=self.pk).exists()
         return False
+
+    def logo_data_uri(self):
+        """Logo embarqué dans la page (data URI) : le rapport s'imprime et s'envoie sans
+        dépendre du service des fichiers médias. Chaîne vide s'il n'y a pas de logo."""
+        return file_data_uri(self.logo)
 
     def domain_list(self):
         return [d.strip().lower() for d in self.email_domains.split(",") if d.strip()]
@@ -209,6 +236,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     language = models.CharField(_("langue"), max_length=5, choices=[("fr", "Français"), ("en", "English")], default="fr")
     theme = models.CharField(_("thème"), max_length=10, default="system",
                              choices=[("system", _("Comme mon système")), ("light", _("Clair")), ("dark", _("Sombre"))])
+    manager = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="team_members",
+        limit_choices_to={"profile__in": ["aptitude_admin", "aptitude_manager"]},
+        verbose_name=_("supérieur hiérarchique"),
+        help_text=_("Valide les rapports d'intervention rédigés par cet utilisateur avant leur envoi au client."),
+    )
     all_contracts = models.BooleanField(
         _("accès à tous les contrats de l'organisation"), default=True,
         help_text=_("Décocher pour limiter l'utilisateur aux contrats sélectionnés."),

@@ -353,3 +353,29 @@ class ContractAccess(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+class LicenseNotice(models.Model):
+    """Trace d'une alerte d'expiration de licence envoyée à l'ESN.
+
+    Évite d'envoyer deux fois la même alerte : une par solution, par date de fin
+    de licence et par seuil (60, 30, 15, 7 jours, puis jour d'expiration).
+    Un envoi manuel (depuis l'administration) est tracé à part (manual=True) et
+    n'empêche pas les alertes automatiques suivantes.
+    """
+
+    solution = models.ForeignKey(Solution, on_delete=models.CASCADE, related_name="license_notices")
+    license_end = models.DateField(_("fin de licence"))
+    threshold = models.PositiveSmallIntegerField(_("seuil (jours)"))
+    manual = models.BooleanField(_("envoi manuel"), default=False)
+    recipients = models.TextField(_("destinataires"), blank=True)
+    sent_at = models.DateTimeField(_("envoyée le"), auto_now_add=True)
+    sent_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+
+    class Meta:
+        ordering = ["-sent_at"]
+        verbose_name = _("alerte d'expiration de licence")
+        verbose_name_plural = _("alertes d'expiration de licence")
+
+    def __str__(self):
+        return f"{self.solution} — {self.license_end:%d/%m/%Y} (J-{self.threshold})"

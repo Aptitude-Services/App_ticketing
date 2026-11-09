@@ -1,0 +1,22 @@
+{% load i18n report_tags %}<div class="sign">
+  <div class="card">
+    <span class="lbl">{% translate "Intervenant" %}</span>
+    <div class="who">{{ report.author.display_name }}</div>
+    <div class="muted">{{ m.technician_title|default:"" }}</div>
+    <div class="stamp">{% if report.submitted_at %}<strong>{% translate "Rédigé" %}</strong> {% translate "et soumis le" %} {{ report.submitted_at|date:"d/m/Y à H:i" }}{% else %}<span class="muted">{% translate "Non soumis" %}</span>{% endif %}</div>
+  </div>
+  <div class="card">
+    <span class="lbl">{% translate "Validation hiérarchique" %}</span>
+    <div class="who">{{ report.validator.display_name|default:"—" }}</div>
+    <div class="muted">{% if report.validator %}{{ report.validator.get_profile_display }}{% endif %}</div>
+    <div class="stamp">{% if report.validated_at %}<strong>{% translate "Validé électroniquement" %}</strong> {% translate "le" %} {{ report.validated_at|date:"d/m/Y à H:i" }}{% else %}<span class="muted">{% translate "En attente de validation" %}</span>{% endif %}</div>
+  </div>
+  <div class="card">
+    <span class="lbl">{% translate "Représentant du client" %}</span>
+    <div class="who">{% if report.client_validated_by %}{{ report.client_validated_by.display_name }}{% else %}{{ m.client_rep_name|default:"—" }}{% endif %}</div>
+    <div class="muted">{{ m.client_rep_title|default:"" }}</div>
+    <div class="stamp">{% if report.client_validated_at %}<strong>{% translate "Validé électroniquement" %}</strong> {% translate "le" %} {{ report.client_validated_at|date:"d/m/Y à H:i" }}{% else %}<span class="muted">{% translate "En attente de confirmation" %}</span>{% endif %}</div>
+  </div>
+</div>
+{% if m.annexes %}<div style="margin-top:12px"><span class="lbl">{% translate "Annexes jointes" %}</span><div class="tags">{% for a in m.annexes %}<span class="tag"><strong>A{{ forloop.counter }}</strong> {{ a.0 }}</span>{% endfor %}</div></div>{% endif %}
+<p class="hash">{% if report.fingerprint %}{% translate "Empreinte des données du rapport (SHA-256)" %} : <span class="mono">{{ fingerprint_short }}</span>. {% translate "Après validation, le rapport est verrouillé : toute modification crée une nouvelle version." %}{% else %}{% translate "Rapport non encore validé : son contenu peut évoluer." %}{% endif %}</p>

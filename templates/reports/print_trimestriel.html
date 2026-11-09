@@ -1,0 +1,138 @@
+{% extends "reports/_doc_base.html" %}{% load i18n report_tags %}
+{% block doc_label %}{% translate "Rapport trimestriel de maintenance" %}{% endblock %}
+{% block body %}
+<div class="hero">
+  <div class="kicker">{% translate "Rapport trimestriel · Support et maintenance" %}</div>
+  <h1>{{ report.quarter_label }} — {{ auto.end_client|default:auto.esn }}</h1>
+  <div class="sub">{% translate "Période du" %} {{ auto.period_start|day }} {% translate "au" %} {{ auto.period_end|day }} · {% translate "Contrat" %} {{ auto.contract_ref }}</div>
+  <div class="chips">
+    <span class="chip {% if report.is_locked %}ok{% endif %}">{{ report.get_status_display }}</span>
+    <span class="chip">{% translate "Réf." %} {{ report.reference }}</span>
+    <span class="chip">{% translate "Rédigé le" %} {{ report.created_at|date:"d/m/Y" }}</span>
+    {% if report.validated_at %}<span class="chip">{% translate "Validé le" %} {{ report.validated_at|date:"d/m/Y" }}</span>{% endif %}
+  </div>
+</div>
+
+<section class="s"><h2><span class="n">1</span>{% translate "Informations générales" %}</h2>
+  <div class="card"><div class="grid">
+    <div><span class="lbl">{% translate "Client (partenaire ESN)" %}</span>{{ auto.esn }}</div>
+    <div><span class="lbl">{% translate "Client final" %}</span>{{ auto.end_client|default:"—" }}</div>
+    <div><span class="lbl">{% translate "Contrat" %}</span>{{ auto.contract_ref }}{% if auto.contract_desc %} · {{ auto.contract_desc }}{% endif %}</div>
+    <div><span class="lbl">{% translate "Période couverte" %}</span>{{ report.quarter_label }} ({{ auto.period_start|day }} – {{ auto.period_end|day }})</div>
+  </div>
+  {% if auto.sites %}<div style="margin-top:10px"><span class="lbl">{% translate "Sites concernés" %}</span><div class="tags">{% for s in auto.sites %}<span class="tag">{{ s.name }} · {{ s.count }} {% translate "rapport(s)" %}</span>{% endfor %}</div></div>{% endif %}
+  </div>
+</section>
+
+<section class="s"><h2><span class="n">2</span>{% translate "Synthèse exécutive" %}</h2>
+  {% if m.headline %}<div class="card soft" style="font-weight:700;margin-bottom:10px">{{ m.headline }}</div>{% endif %}
+  <div class="grid-4">
+    <div class="card kpi"><div class="v {% if avail_ok %}ok{% elif avail is not None %}ko{% endif %}">{% if m.availability %}{{ m.availability }} %{% else %}—{% endif %}</div><div class="l">{% translate "Disponibilité des services critiques" %}</div><div class="muted">{% translate "Objectif" %} {{ m.availability_target|default:"—" }} %</div></div>
+    <div class="card kpi"><div class="v">{{ auto.tickets_resolved }} <small>/ {{ auto.tickets_total }}</small></div><div class="l">{% translate "Tickets résolus" %}</div><div class="muted">{{ auto.tickets_open }} {% translate "encore ouverts" %}</div></div>
+    <div class="card kpi"><div class="v {% if resolution_ok %}ok{% elif auto.resolution_pct is not None %}warn{% endif %}">{{ auto.resolution_pct|fr_number }} %</div><div class="l">{% translate "Résolution dans les délais" %}</div><div class="muted">{% translate "Objectif" %} {{ m.resolution_target|default:"—" }} %</div></div>
+    <div class="card kpi"><div class="v">{{ auto.visits_done }} <small>/ {{ m.visits_planned|default:auto.visits_done }}</small></div><div class="l">{% translate "Visites préventives réalisées" %}</div>{% if m.visits_note %}<div class="muted">{{ m.visits_note }}</div>{% endif %}</div>
+  </div>
+  <div class="grid" style="margin-top:10px">
+    <div class="card"><h3>{% translate "Faits marquants" %}</h3>{% for r in m.highlights %}<div>✔ {{ r.0 }}</div>{% empty %}<div class="muted">—</div>{% endfor %}</div>
+    <div class="card"><h3>{% translate "Points d'attention" %}</h3>{% for r in m.attention %}<div>▲ {{ r.0 }}</div>{% empty %}<div class="muted">—</div>{% endfor %}</div>
+  </div>
+</section>
+
+<section class="s"><h2><span class="n">3</span>{% translate "Bilan des maintenances préventives" %}</h2>
+  <div class="grid-4">
+    <div class="card kpi"><div class="v">{{ m.visits_planned|default:auto.visits_done }}</div><div class="l">{% translate "Interventions planifiées" %}</div></div>
+    <div class="card kpi"><div class="v ok">{{ auto.visits_done }}</div><div class="l">{% translate "Réalisées" %}</div></div>
+    <div class="card kpi"><div class="v">{{ auto.controls.total|default:0 }}</div><div class="l">{% translate "Contrôles effectués" %}</div><div class="muted">{{ auto.controls.ok|default:0 }} {% translate "conformes" %}</div></div>
+    <div class="card kpi"><div class="v warn">{{ auto.anomalies }}</div><div class="l">{% translate "Anomalies relevées" %}</div></div>
+  </div>
+  {% if auto.visits %}
+  <div class="grid" style="margin-top:10px">
+    <div class="card"><h3>{% translate "Résultat des contrôles par visite" %}</h3>
+      {% for v in auto.visits %}<div style="margin:8px 0"><div class="row-between"><span><strong>{{ v.site }}</strong> · {{ v.date|day }}</span><span class="muted">{{ v.total }} {% translate "contrôles" %}</span></div>
+      <div class="stack" style="margin-top:4px"><span class="ok" style="width:{{ v.pct_ok }}%"></span><span class="warn" style="width:{{ v.pct_watch }}%"></span><span class="ko" style="width:{{ v.pct_ko }}%"></span><span class="na" style="width:{{ v.pct_na }}%"></span></div></div>{% endfor %}
+      <div class="legend"><span><i style="background:var(--ok)"></i>{% translate "Conforme" %}</span><span><i style="background:#c08a3a"></i>{% translate "À surveiller" %}</span><span><i style="background:var(--ko)"></i>{% translate "Non conforme" %}</span><span><i style="background:#c3c8cf"></i>N/A</span></div>
+    </div>
+    <div class="card"><h3>{% translate "Santé du parc par site" %}</h3>
+      <div class="table-scroll"><table><thead><tr><th></th>{% for c in auto.health_columns %}<th class="c">{{ c }}</th>{% endfor %}</tr></thead><tbody>
+      {% for h in auto.health %}<tr><td><strong>{{ h.site }}</strong></td>{% for s in h.states %}<td class="c"><span class="pill {{ s|tone }}">{{ s }}</span></td>{% endfor %}</tr>{% endfor %}
+      </tbody></table></div>
+    </div>
+  </div>{% else %}<p class="muted">{% translate "Aucun rapport préventif validé sur la période." %}</p>{% endif %}
+</section>
+
+<section class="s"><h2><span class="n">4</span>{% translate "Bilan des maintenances curatives" %}</h2>
+  <div class="grid-5">
+    <div class="card kpi"><div class="v">{{ auto.tickets_total }}</div><div class="l">{% translate "Ouverts" %}</div></div>
+    <div class="card kpi"><div class="v ok">{{ auto.tickets_resolved }}</div><div class="l">{% translate "Résolus" %}</div></div>
+    <div class="card kpi"><div class="v warn">{{ auto.tickets_in_progress }}</div><div class="l">{% translate "En cours" %}</div></div>
+    <div class="card kpi"><div class="v info">{{ auto.tickets_waiting_client }}</div><div class="l">{% translate "Attente client" %}</div></div>
+    <div class="card kpi"><div class="v info">{{ auto.tickets_waiting_prereq }}</div><div class="l">{% translate "Attente prérequis" %}</div></div>
+  </div>
+  <div class="grid" style="margin-top:10px">
+    <div class="card"><h3>{% translate "Tickets ouverts et résolus par mois" %}</h3>
+      <div class="bars" style="margin-top:22px">{% for x in auto.months %}<div class="m"><div class="pair"><div class="b" style="height:{{ x.h_opened }}%"><span>{{ x.opened }}</span></div><div class="b alt" style="height:{{ x.h_resolved }}%"><span>{{ x.resolved }}</span></div></div></div>{% endfor %}</div>
+      <div style="display:flex;justify-content:space-around;font-size:11px;color:var(--muted)">{% for x in auto.months %}<span>{{ x.label }}</span>{% endfor %}</div>
+      <div class="legend"><span><i style="background:var(--accent)"></i>{% translate "Ouverts" %}</span><span><i style="background:#a9b1bb"></i>{% translate "Résolus" %}</span></div>
+    </div>
+    <div class="card"><h3>{% translate "Tickets par priorité" %}</h3>
+      <table><thead><tr><th>{% translate "Priorité" %}</th><th class="c">{% translate "Ouverts" %}</th><th class="c">{% translate "Résolus" %}</th></tr></thead><tbody>
+      {% for p in auto.priorities %}<tr><td>{{ p.label }}</td><td class="c">{{ p.opened }}</td><td class="c">{{ p.resolved }}</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+</section>
+
+<section class="s"><h2><span class="n">5</span>{% translate "Respect des engagements" %}</h2>
+  <div class="grid-3">
+    {% for g in gauges %}<div class="card"><div class="row-between"><span>{{ g.label }}</span><strong class="v {% if g.ok %}ok{% elif g.value is not None %}ko{% endif %}">{% if g.value is not None %}{{ g.value|fr_number }} %{% else %}—{% endif %}</strong></div>
+      <div class="track"><span class="{% if g.ok %}ok{% else %}ko{% endif %}" style="width:{{ g.width }}%"></span>{% if g.mark is not None %}<i class="mark" style="left:{{ g.mark }}%"></i>{% endif %}</div>
+      <div class="row-between muted"><span>{% translate "Objectif" %} {{ g.target|default:"—" }} %</span><span>{% if g.value is None %}—{% elif g.ok %}{% translate "Atteint" %}{% else %}{% translate "Sous l'objectif" %}{% endif %}</span></div></div>{% endfor %}
+  </div>
+  <div class="table-scroll" style="margin-top:10px"><table><thead><tr><th>{% translate "Priorité" %}</th><th class="c">{% translate "Prise en charge : cible" %}</th><th class="c">{% translate "Moyenne" %}</th><th class="c">{% translate "Résolution : cible" %}</th><th class="c">{% translate "Moyenne" %}</th><th class="c">{% translate "Dans les délais" %}</th></tr></thead><tbody>
+  {% for p in auto.priorities %}<tr><td>{{ p.label }}</td><td class="c">{{ p.target_response }}</td><td class="c">{{ p.avg_response }}</td><td class="c">{{ p.target_resolution }}</td><td class="c">{{ p.avg_resolution }}</td><td class="c"><strong>{{ p.on_time }} / {{ p.resolved }}</strong></td></tr>{% endfor %}
+  </tbody></table></div>
+  <div class="grid" style="margin-top:10px">
+    <div class="card"><h3>{% translate "Disponibilité par mois" %}{% if m.availability_target %} ({% translate "objectif" %} {{ m.availability_target }} %){% endif %}</h3>
+      {% for r in months_avail %}<div style="margin:6px 0"><div class="row-between"><span>{{ r.label }}</span><strong class="v {% if r.ok %}ok{% else %}ko{% endif %}" style="font-size:13px">{{ r.raw }} %</strong></div><div class="track"><span class="{% if r.ok %}ok{% else %}ko{% endif %}" style="width:{{ r.width }}%"></span></div></div>{% empty %}<div class="muted">—</div>{% endfor %}
+    </div>
+    <div class="card"><h3>{% translate "Dépassements du trimestre" %}</h3>{% for r in m.overruns %}<div>▲ {{ r.0 }}</div>{% empty %}<div class="muted">{% translate "Aucun dépassement signalé." %}</div>{% endfor %}</div>
+  </div>
+</section>
+
+<section class="s"><h2><span class="n">6</span>{% translate "Analyse des incidents" %}</h2>
+  <div class="grid">
+    <div class="card"><h3>{% translate "Équipements les plus concernés" %}</h3>{% for e in auto.equipment %}<div class="hbar"><span>{{ e.name }}</span><div class="track"><span style="width:{{ e.pct }}%"></span></div><strong>{{ e.count }}</strong></div>{% empty %}<div class="muted">—</div>{% endfor %}</div>
+    <div class="card"><h3>{% translate "Causes identifiées" %}</h3>{% for c in auto.causes %}<div class="hbar"><span>{{ c.name }}</span><div class="track"><span style="width:{{ c.pct }}%"></span></div><strong>{{ c.count }}</strong></div>{% empty %}<div class="muted">{% translate "Aucun rapport curatif validé sur la période." %}</div>{% endfor %}</div>
+  </div>
+  {% if m.recurring %}<div class="card" style="margin-top:10px"><h3>{% translate "Incidents récurrents" %}</h3>{% for r in m.recurring %}<div style="margin:6px 0"><strong>{{ r.0 }}</strong>{% if r.1 %} <span class="pill warn">{{ r.1 }} {% translate "fois" %}</span>{% endif %}<div class="muted">{{ r.2 }}</div></div>{% endfor %}</div>{% endif %}
+</section>
+
+<section class="s"><h2><span class="n">7</span>{% translate "Actions réalisées" %}</h2>
+  {% if m.done_kpis %}<div class="grid-4">{% for r in m.done_kpis %}<div class="card soft kpi"><div class="v">{{ r.0 }}</div><div class="l">{{ r.1 }}</div></div>{% endfor %}</div>{% endif %}
+  <div style="margin-top:8px">{% for r in m.done_actions %}<div>✔ {{ r.0 }}</div>{% empty %}<div class="muted">—</div>{% endfor %}</div>
+</section>
+
+<section class="s"><h2><span class="n">8</span>{% translate "Actions en attente" %}</h2>
+  <table><thead><tr><th>{% translate "Action ou anomalie" %}</th><th>{% translate "Attendue de" %}</th><th>{% translate "Situation" %}</th></tr></thead><tbody>
+  {% for r in m.pending %}<tr><td>{{ r.0 }}</td><td>{{ r.1 }}</td><td><span class="pill info">{{ r.2|default:"—" }}</span></td></tr>{% empty %}<tr><td colspan="3" class="muted">{% translate "Aucune action en attente." %}</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+
+<section class="s"><h2><span class="n">9</span>{% translate "Recommandations" %}</h2>
+  <div class="grid">
+    <div class="card"><h3>{% translate "Priorisation : impact et effort" %}</h3>
+      <div class="matrix"><span></span><strong class="c">{% translate "Effort faible" %}</strong><strong>{% translate "Effort moyen" %}</strong><strong>{% translate "Effort élevé" %}</strong>
+      {% for row in matrix %}<strong>{{ row.label }}</strong>{% for cell in row.cells %}<div class="cell{% if forloop.first and forloop.parentloop.first %} hi{% endif %}">{% for n in cell %}<span class="dotn">{{ n }}</span>{% endfor %}</div>{% endfor %}{% endfor %}</div>
+    </div>
+    <div class="card"><h3>{% translate "Mesures proposées pour le trimestre suivant" %}</h3>{% for r in m.recommendations %}<div style="margin:6px 0"><span class="dotn">{{ forloop.counter }}</span> <strong>{{ r.0 }}</strong><div class="muted">{{ r.1 }}</div></div>{% empty %}<div class="muted">—</div>{% endfor %}</div>
+  </div>
+</section>
+
+<section class="s"><h2><span class="n">10</span>{% translate "Plan d'action" %}</h2>
+  <div class="table-scroll"><table><thead><tr><th>{% translate "Action" %}</th><th class="c">{% translate "Priorité" %}</th><th>{% translate "Responsable" %}</th><th>{% translate "Échéance" %}</th><th>{% translate "Statut" %}</th></tr></thead><tbody>
+  {% for r in m.action_plan %}<tr><td>{{ r.0 }}</td><td class="c"><span class="pill {{ r.1|tone }}">{{ r.1|default:"—" }}</span></td><td>{{ r.2 }}</td><td>{{ r.3 }}</td><td>{{ r.4 }}</td></tr>{% empty %}<tr><td colspan="5" class="muted">—</td></tr>{% endfor %}
+  </tbody></table></div>
+  <div style="margin-top:14px">{% include "reports/_signatures.html" %}</div>
+  <p class="hash">{% translate "Données consolidées à partir des tickets et des rapports d'intervention validés de la période" %}{% if auto.curative_reports or auto.preventive_reports %} ({{ auto.curative_reports|length }} {% translate "curatif(s)" %}, {{ auto.preventive_reports|length }} {% translate "préventif(s)" %}){% endif %}.</p>
+</section>
+{% endblock %}

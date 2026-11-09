@@ -134,10 +134,13 @@ def test_aptitude_cannot_open_ticket_in_p2(client, w, frozen):  # noqa: F811
     assert not Ticket.objects.exists()
 
 
-def test_report_pages_are_for_aptitude_only(client, w):  # noqa: F811
+def test_report_pages_writing_is_for_aptitude_only(client, w):  # noqa: F811
     login_aptitude(client, w["tech"])
     for kind in ("preventif", "curatif", "trimestriel"):
         assert client.get(reverse("report", args=[kind])).status_code == 200
+        assert client.get(reverse("report_create", args=[kind])).status_code == 200
     assert client.get(reverse("report", args=["inconnu"])).status_code == 404
+    # Le client consulte les rapports qui lui ont été envoyés, mais n'en rédige pas.
     client.force_login(w["a_rw"])
-    assert client.get(reverse("report", args=["curatif"])).status_code == 404
+    assert client.get(reverse("report", args=["tous"])).status_code == 200
+    assert client.get(reverse("report_create", args=["curatif"])).status_code == 403

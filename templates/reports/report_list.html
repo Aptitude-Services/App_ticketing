@@ -1,0 +1,42 @@
+{% extends "base.html" %}{% load i18n static %}
+{% block title %}{{ kind_label }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ kind_label }}</h1><p class="lead">{{ lead }}</p></div>
+  {% if can_create %}<a class="btn btn-primary" href="{% url 'report_create' kind %}">{% include "icons/plus.svg" %}{% translate "Nouveau rapport" %}</a>{% endif %}
+</div>
+
+{% if to_validate %}
+<div class="banner">{% blocktranslate count n=to_validate|length %}{{ n }} rapport attend votre validation.{% plural %}{{ n }} rapports attendent votre validation.{% endblocktranslate %}
+  {% for r in to_validate %}<a href="{% url 'report_detail' r.pk %}" class="mono">{{ r.reference }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+{% endif %}
+
+<form method="get" class="filters" role="search">
+  <div class="seg">{% for key, label, n in tabs %}<a href="?vue={{ key }}{% if q %}&q={{ q|urlencode }}{% endif %}" {% if tab == key %}aria-current="true"{% endif %}>{{ label }} <span class="muted">{{ n }}</span></a>{% endfor %}</div>
+  <input type="hidden" name="vue" value="{{ tab }}">
+  <label class="sr-only" for="q">{% translate "Rechercher" %}</label>
+  <input id="q" type="search" name="q" value="{{ q }}" placeholder="{% translate 'Référence, ESN ou client final' %}">
+</form>
+
+<section class="panel">
+  {% if reports %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>{% translate "Référence" %}</th>{% if kind == 'tous' %}<th>{% translate "Type" %}</th>{% endif %}<th>{% translate "Intitulé" %}</th><th>{% translate "ESN" %}</th><th>{% translate "Client final" %}</th>{% if user.is_aptitude %}<th>{% translate "Rédacteur" %}</th><th>{% translate "Statut" %}</th>{% endif %}<th>{% translate "Date" %}</th></tr></thead>
+    <tbody>{% for r in reports %}
+      <tr>
+        <td><a class="mono" href="{% url 'report_detail' r.pk %}">{{ r.reference }}</a></td>
+        {% if kind == 'tous' %}<td>{{ r.get_kind_display }}</td>{% endif %}
+        <td>{{ r.title|default:"—" }}{% if r.ticket %}<br><small class="muted mono">{{ r.ticket.reference }}</small>{% endif %}{% if r.period_start %}<br><small class="muted">{{ r.quarter_label }}</small>{% endif %}</td>
+        <td>{{ r.contract.client.name }}<br><small class="muted mono">{{ r.contract.reference }}</small></td>
+        <td>{{ r.end_client.name|default:"—" }}</td>
+        {% if user.is_aptitude %}<td>{{ r.author.display_name }}</td>
+        <td><span class="tag">{{ r.get_status_display }}</span></td>{% endif %}
+        <td>{% if r.sent_at %}{{ r.sent_at|date:"d/m/Y" }}{% else %}{{ r.created_at|date:"d/m/Y" }}{% endif %}</td>
+      </tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  <div class="empty"><img src="{% static 'img/mark.png' %}" alt=""><strong>{% translate "Aucun rapport" %}</strong>{% if can_create %}{% translate "Créez le premier rapport : les données du contrat et des tickets seront reprises automatiquement." %}{% endif %}</div>
+  {% endif %}
+</section>
+{% endblock %}

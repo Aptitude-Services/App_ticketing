@@ -270,3 +270,10 @@
 .solutions-import-template {
     font-weight: 600;
 }
+
+/* Logo ESN : aperçu sur la fiche organisation et vignette dans la liste */
+.logo-preview { margin-bottom: 8px; padding: 10px 14px; display: inline-block; border: 1px solid var(--hairline-color, #ddd);
+  border-radius: 8px; background: #fff; }
+.logo-preview[hidden] { display: none; }
+.logo-preview img { display: block; max-height: 56px; max-width: 240px; object-fit: contain; }
+.org-logo-thumb { max-height: 24px; max-width: 80px; object-fit: contain; vertical-align: middle; }

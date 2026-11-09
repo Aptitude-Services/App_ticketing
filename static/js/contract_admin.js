@@ -17,20 +17,37 @@
 
   function rowOf(el) { return el && (el.closest(".form-row") || el.parentElement); }
 
-  // --- Clients finaux : limités à ceux rattachés à l'ESN choisie ---
+  // --- Clients finaux : liste des clients de l'ESN choisie ---
+  // Les options sont reconstruites (et non simplement masquées) : une option
+  // cachée reste sélectionnable au clavier sur certains navigateurs.
   var clientSel = byId("id_client");
   var endClientsSel = byId("id_end_clients");
   if (clientSel && endClientsSel) {
     var esnMap = parseMap(clientSel, "data-end-clients");
+    var allOptions = Array.prototype.map.call(endClientsSel.options, function (o) {
+      return { value: o.value, text: o.text, selected: o.selected };
+    });
+    var initialClient = clientSel.value;
+    var hintEnd = document.createElement("p");
+    hintEnd.className = "fc-hint";
+    endClientsSel.parentNode.insertBefore(hintEnd, endClientsSel);
     function filterEndClients() {
-      var allowed = esnMap[clientSel.value];
-      var opts = endClientsSel.options;
-      for (var i = 0; i < opts.length; i++) {
-        var show = !allowed || allowed.indexOf(parseInt(opts[i].value, 10)) !== -1;
-        opts[i].hidden = !show;
-        opts[i].style.display = show ? "" : "none";
-        if (!show) opts[i].selected = false;
-      }
+      var allowed = clientSel.value ? (esnMap[clientSel.value] || []) : [];
+      var keep = {};
+      Array.prototype.forEach.call(endClientsSel.options, function (o) { keep[o.value] = o.selected; });
+      endClientsSel.innerHTML = "";
+      allOptions.forEach(function (o) {
+        // Un client final déjà couvert reste affiché tant que l'ESN n'a pas changé.
+        var historical = o.selected && clientSel.value === initialClient;
+        if (allowed.indexOf(parseInt(o.value, 10)) === -1 && !historical) return;
+        var opt = new Option(o.text, o.value);
+        opt.selected = o.value in keep ? keep[o.value] : o.selected;
+        endClientsSel.appendChild(opt);
+      });
+      endClientsSel.size = Math.min(Math.max(endClientsSel.options.length, 2), 8);
+      if (!clientSel.value) hintEnd.textContent = "Choisissez d'abord l'ESN : la liste de ses clients finaux s'affichera ici.";
+      else if (!endClientsSel.options.length) hintEnd.textContent = "Cette ESN n'a encore aucun client final rattaché.";
+      else hintEnd.textContent = "Clients finaux de l'ESN choisie (Ctrl/Cmd + clic pour en sélectionner plusieurs).";
     }
     clientSel.addEventListener("change", filterEndClients);
     filterEndClients();

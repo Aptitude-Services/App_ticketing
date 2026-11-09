@@ -1,0 +1,210 @@
+"""Règles des rapports : qui voit, qui rédige, qui valide, envoi au client.
+
+Circuit : Brouillon → (soumission) À valider → (supérieur) Validé → (envoi) Envoyé au client.
+Le supérieur peut renvoyer le rapport « À corriger » avec un motif. Le rédacteur ne
+valide jamais son propre rapport : seul son supérieur hiérarchique (champ « supérieur »
+de sa fiche) ou, à défaut, un Manager / Super Admin d'Aptitude peut le faire.
+Un rapport n'est visible du client qu'une fois envoyé.
+"""
+from django.conf import settings
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.mail import send_mail
+from django.db.models import Q
+from django.urls import reverse
+from django.utils import timezone
+from django.utils.translation import gettext as _
+
+from accounts.models import Profile, User
+from accounts.permissions import visible_contracts
+from contracts.notifications import esn_recipients
+
+from . import builders as B
+from .models import Report
+
+VALIDATOR_PROFILES = {Profile.APTITUDE_ADMIN, Profile.APTITUDE_MANAGER}
+
+
+# --- Visibilité et droits ---------------------------------------------------------------------------
+
+def visible_reports(user):
+    qs = Report.objects.select_related("contract__client", "end_client", "author", "validator", "ticket")
+    contracts = visible_contracts(user)
+    qs = qs.filter(contract__in=contracts)
+    if user.is_aptitude:
+        return qs
+    qs = qs.filter(status=Report.Status.SENT)
+    org = user.organisation
+    if org.is_end_client:
+        qs = qs.filter(Q(end_client=org) | Q(end_client__isnull=True))
+    return qs
+
+
+def can_author(user):
+    return user.is_authenticated and user.is_aptitude
+
+
+def can_edit(user, report):
+    return report.is_editable and user.is_aptitude and (
+        report.author_id == user.pk or user.profile in VALIDATOR_PROFILES)
+
+
+def can_validate(user, report):
+    """Le supérieur du rédacteur ; à défaut de supérieur désigné, un Manager ou Super Admin.
+    Jamais le rédacteur lui-même."""
+    if report.status != Report.Status.SUBMITTED or user.pk == report.author_id:
+        return False
+    if user.profile not in VALIDATOR_PROFILES:
+        return False
+    manager_id = report.author.manager_id
+    return manager_id is None or manager_id == user.pk or user.profile == Profile.APTITUDE_ADMIN
+
+
+def can_send(user, report):
+    return report.status == Report.Status.VALIDATED and user.is_aptitude
+
+
+def can_client_confirm(user, report):
+    return (report.status == Report.Status.SENT and user.is_client and user.can_write_tickets
+            and not report.client_validated_at)
+
+
+def validators_for(report):
+    if report.author.manager_id and report.author.manager.is_active:
+        return [report.author.manager]
+    return list(User.objects.filter(profile__in=VALIDATOR_PROFILES, is_active=True).exclude(pk=report.author_id))
+
+
+def _require(condition, message):
+    if not condition:
+        raise PermissionDenied(message)
+
+
+def _absolute(path):
+    return f"{settings.SITE_URL.rstrip('/')}{path}" if settings.SITE_URL else path
+
+
+# --- Création et données extraites ---------------------------------------------------------------------
+
+def create_report(author, kind, contract, end_client=None, ticket=None, year=None, quarter=None):
+    _require(can_author(author), _("Seule l'équipe Aptitude rédige les rapports."))
+    report = Report(kind=kind, contract=contract, end_client=end_client, ticket=ticket, author=author)
+    data = {}
+    if kind == Report.Kind.CURATIVE:
+        data["title"] = ticket.title
+        data["symptoms"] = ticket.description
+        data["timeline"] = B.ticket_timeline(ticket)
+        data["incident_start"] = B._iso(ticket.created_at)
+        report.title = ticket.title
+    elif kind == Report.Kind.PREVENTIVE:
+        data["equipments"] = B.contract_equipments(contract)
+        data["controls"] = B.default_controls()
+        data["technician"] = author.display_name
+        data["mode"] = "Sur site"
+        report.title = _("Maintenance préventive")
+    else:
+        start, end = B.quarter_bounds(year, quarter)
+        report.period_start, report.period_end = start, end
+        info = B.quarterly_info(contract, end_client, start, end)
+        data["pending"] = info["pending_suggestions"]
+        data["availability_target"] = "99,9"
+        data["resolution_target"] = "95"
+        data["visits_planned"] = len(info["visits"]) or ""
+        report.title = _("Rapport trimestriel %(q)s") % {"q": f"T{quarter} {year}"}
+    report.data = data
+    report.save()
+    return report
+
+
+def auto_data(report):
+    """Données extraites de l'application : figées après validation, calculées en direct avant."""
+    snapshot = report.data.get("snapshot")
+    if snapshot:
+        return snapshot
+    if report.kind == Report.Kind.QUARTERLY:
+        return B.quarterly_info(report.contract, report.end_client, report.period_start, report.period_end)
+    info = B.contract_info(report.contract, report.end_client)
+    if report.ticket_id:
+        info["ticket"] = B.ticket_info(report.ticket)
+    return info
+
+
+# --- Circuit de validation ---------------------------------------------------------------------------
+
+def submit(user, report):
+    _require(can_edit(user, report), _("Ce rapport ne peut pas être soumis."))
+    report.status = Report.Status.SUBMITTED
+    report.submitted_at = timezone.now()
+    report.rejection_comment = ""
+    report.save()
+    validators = validators_for(report)
+    emails = [u.email for u in validators]
+    if emails:
+        url = _absolute(reverse("report_detail", args=[report.pk]))
+        send_mail(
+            _("[Aptitude] Rapport à valider : %(ref)s") % {"ref": report.reference},
+            _("%(who)s a soumis le rapport %(ref)s (%(kind)s, %(esn)s) à votre validation.\n\n%(url)s")
+            % {"who": report.author.display_name, "ref": report.reference, "kind": report.get_kind_display(),
+               "esn": report.esn.name, "url": url},
+            None, emails)
+    return validators
+
+
+def validate(user, report):
+    _require(can_validate(user, report), _("Vous ne pouvez pas valider ce rapport."))
+    data = dict(report.data)
+    data["snapshot"] = auto_data(report)
+    report.data = data
+    report.status = Report.Status.VALIDATED
+    report.validator = user
+    report.validated_at = timezone.now()
+    report.fingerprint = report.compute_fingerprint()
+    report.save()
+
+
+def reject(user, report, comment):
+    _require(report.status == Report.Status.SUBMITTED and user.profile in VALIDATOR_PROFILES
+             and user.pk != report.author_id, _("Vous ne pouvez pas renvoyer ce rapport."))
+    report.status = Report.Status.REJECTED
+    report.rejection_comment = comment
+    report.save()
+    if report.author.email:
+        send_mail(
+            _("[Aptitude] Rapport à corriger : %(ref)s") % {"ref": report.reference},
+            _("%(who)s demande des corrections sur le rapport %(ref)s :\n\n%(c)s\n\n%(url)s")
+            % {"who": user.display_name, "ref": report.reference, "c": comment,
+               "url": _absolute(reverse("report_detail", args=[report.pk]))},
+            None, [report.author.email])
+
+
+def send_to_client(user, report):
+    """Envoi au client ESN (et au client final s'il a des comptes) : uniquement un rapport validé."""
+    _require(can_send(user, report), _("Seul un rapport validé peut partir chez le client."))
+    recipients = list(esn_recipients(report.esn))
+    if report.end_client_id:
+        recipients += [u.email for u in report.end_client.users.filter(is_active=True,
+                                                                      profile=Profile.CLIENT_ADMIN)]
+    recipients = sorted(set(recipients))
+    if not recipients:
+        raise ValidationError(_("Aucun destinataire actif chez %(esn)s : créez d'abord un compte client.")
+                              % {"esn": report.esn.name})
+    url = _absolute(reverse("report_detail", args=[report.pk]))
+    target = report.end_client.name if report.end_client_id else report.esn.name
+    send_mail(
+        _("Rapport %(kind)s %(ref)s — %(target)s") % {"kind": report.get_kind_display().lower(),
+                                                      "ref": report.reference, "target": target},
+        _("Bonjour,\n\nLe rapport %(ref)s (%(kind)s) est disponible sur votre portail de support :\n%(url)s\n\n"
+          "Vous pouvez le consulter, l'imprimer ou l'enregistrer en PDF, et confirmer sa réception.\n")
+        % {"ref": report.reference, "kind": report.get_kind_display(), "url": url},
+        None, recipients)
+    report.status = Report.Status.SENT
+    report.sent_at = timezone.now()
+    report.sent_to = ", ".join(recipients)
+    report.save()
+    return recipients
+
+
+def client_confirm(user, report):
+    _require(can_client_confirm(user, report), _("Confirmation impossible."))
+    report.client_validated_by = user
+    report.client_validated_at = timezone.now()
+    report.save(update_fields=["client_validated_by", "client_validated_at", "updated_at"])

@@ -1,0 +1,177 @@
+{% load i18n static report_tags %}<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ report.reference }} · {{ report.get_kind_display }}</title>
+<link rel="icon" href="{% static 'img/favicon.ico' %}" sizes="any">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Palette volontairement neutre (gris ardoise) : le logo de chaque ESN s'y intègre
+     sans conflit de couleur. Seuls les résultats portent une teinte, désaturée. */
+  :root {
+    --ink: #1f2328; --muted: #5b6470; --faint: #8a929c; --line: #dde1e6; --soft: #f4f5f7; --paper: #fff;
+    --accent: #3b4652; --accent-soft: #eceef1;
+    --ok: #2f6b45; --ok-bg: #e7f0ea; --warn: #8a5a14; --warn-bg: #f5eddf;
+    --ko: #9b2c2c; --ko-bg: #f5e3e3; --info: #2c5f7a; --info-bg: #e2edf3; --na: #6b7280; --na-bg: #eceef1;
+  }
+  * { box-sizing: border-box; }
+  html { background: #e9ebee; }
+  body { margin: 0; font: 13px/1.5 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  .toolbar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+             padding: 10px 16px; background: #fff; border-bottom: 1px solid var(--line); }
+  .toolbar .spacer { flex: 1; }
+  .toolbar a, .toolbar button { font: inherit; font-weight: 600; font-size: 12.5px; padding: 7px 12px; border-radius: 6px;
+             border: 1px solid var(--line); background: #fff; color: var(--ink); text-decoration: none; cursor: pointer; }
+  .toolbar .primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .toolbar form { margin: 0; display: inline-flex; gap: 6px; align-items: center; }
+  .toolbar details { position: relative; }
+  .toolbar details summary { list-style: none; font-weight: 600; font-size: 12.5px; padding: 7px 12px; border-radius: 6px;
+             border: 1px solid var(--line); cursor: pointer; }
+  .toolbar details[open] form { position: absolute; right: 0; top: 40px; background: #fff; border: 1px solid var(--line);
+             border-radius: 8px; padding: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.12); flex-direction: column;
+             align-items: stretch; width: min(360px, 90vw); }
+  .toolbar textarea { font: inherit; width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+  .flash { max-width: 210mm; margin: 12px auto 0; padding: 10px 14px; border-radius: 8px; background: var(--info-bg); color: var(--info); }
+  .flash.error { background: var(--ko-bg); color: var(--ko); }
+  .flash.success { background: var(--ok-bg); color: var(--ok); }
+  .notice { max-width: 210mm; margin: 12px auto 0; padding: 10px 14px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); }
+
+  .doc { position: relative; max-width: 210mm; margin: 16px auto 40px; background: var(--paper); padding: 16mm 15mm 12mm;
+         box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .doc.draft::before { content: "{% translate 'PROJET — NON VALIDÉ' %}"; position: absolute; top: 40%; left: 50%;
+         transform: translate(-50%,-50%) rotate(-24deg); font-size: 54px; font-weight: 700; color: rgba(60,70,82,.07);
+         white-space: nowrap; pointer-events: none; }
+  .doc-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 14px;
+              border-bottom: 1px solid var(--line); }
+  .doc-head img { max-height: 44px; max-width: 200px; object-fit: contain; }
+  .doc-head .brand-name { font-size: 18px; font-weight: 700; letter-spacing: .01em; }
+  .doc-head .right { text-align: right; font-size: 10.5px; color: var(--faint); }
+  .hero { margin: 18px 0 8px; padding-left: 14px; border-left: 3px solid var(--accent); }
+  .kicker { font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+  h1 { font-size: 24px; line-height: 1.2; margin: 4px 0 4px; }
+  .sub { color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }
+  .chip { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px;
+          background: var(--accent-soft); color: var(--accent); }
+  .chip.ok, .pill.ok { background: var(--ok-bg); color: var(--ok); }
+  .chip.warn, .pill.warn { background: var(--warn-bg); color: var(--warn); }
+  .chip.ko, .pill.ko { background: var(--ko-bg); color: var(--ko); }
+  .chip.info, .pill.info { background: var(--info-bg); color: var(--info); }
+  .pill { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 1px 9px; border-radius: 999px;
+          background: var(--na-bg); color: var(--na); white-space: nowrap; }
+
+  section.s { margin-top: 22px; break-inside: avoid-page; }
+  h2 { display: flex; align-items: center; gap: 10px; font-size: 15.5px; margin: 0 0 10px; }
+  h2 .n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 5px; background: var(--accent);
+          color: #fff; font-size: 11px; }
+  h3 { font-size: 12.5px; margin: 0 0 8px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .field label, .lbl { display: block; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+          color: var(--muted); margin-bottom: 3px; }
+  .box { border: 1px solid var(--line); border-radius: 7px; padding: 8px 11px; min-height: 36px; }
+  .box small, .muted { color: var(--muted); font-size: 11.5px; }
+  .card { border: 1px solid var(--line); border-radius: 8px; padding: 11px 13px; break-inside: avoid; }
+  .card.soft { background: var(--soft); border-color: transparent; }
+  .card.bar-left { border-left: 3px solid var(--accent); }
+  .kpi .v { font-size: 22px; font-weight: 700; line-height: 1.1; }
+  .kpi .v small { font-size: 13px; color: var(--muted); font-weight: 500; }
+  .kpi .l { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+  .v.ok { color: var(--ok); } .v.warn { color: var(--warn); } .v.ko { color: var(--ko); } .v.info { color: var(--info); }
+  .row-between { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .track { height: 7px; border-radius: 4px; background: var(--accent-soft); overflow: hidden; margin-top: 8px; position: relative; }
+  .track > span { display: block; height: 100%; background: var(--accent); }
+  .track > span.ok { background: var(--ok); } .track > span.ko { background: var(--ko); } .track > span.warn { background: var(--warn); }
+  .track .mark { position: absolute; top: -3px; width: 2px; height: 13px; background: var(--ink); }
+  .stack { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--accent-soft); }
+  .stack .ok { background: var(--ok); } .stack .warn { background: #c08a3a; } .stack .ko { background: var(--ko); } .stack .na { background: #c3c8cf; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; font-size: 10.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+       background: var(--soft); padding: 7px 9px; border-bottom: 1px solid var(--line); }
+  td { padding: 7px 9px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.c, th.c { text-align: center; } td.r, th.r { text-align: right; }
+  tr.group td { background: var(--soft); font-weight: 700; color: var(--accent); }
+  tr { break-inside: avoid; }
+  .timeline { list-style: none; margin: 0; padding: 0; }
+  .timeline li { display: grid; grid-template-columns: 92px 1fr; gap: 12px; padding: 5px 0; border-left: 2px solid var(--line);
+                 margin-left: 4px; padding-left: 14px; position: relative; }
+  .timeline li::before { content: ""; position: absolute; left: -5px; top: 11px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .timeline .t { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .tags { display: flex; flex-wrap: wrap; gap: 5px; }
+  .tag { border: 1px solid var(--line); border-radius: 5px; padding: 2px 8px; font-size: 11.5px; background: var(--soft); }
+  .sign { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .sign .card .who { font-weight: 700; }
+  .sign .stamp { margin-top: 8px; padding-top: 7px; border-top: 1px dashed var(--line); font-size: 11.5px; }
+  .sign .stamp strong { color: var(--ok); }
+  .bars { display: flex; align-items: flex-end; gap: 22px; height: 130px; padding: 0 6px; border-bottom: 1px solid var(--line); }
+  .bars .m { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+  .bars .pair { display: flex; gap: 5px; align-items: flex-end; height: 100%; }
+  .bars .b { width: 24px; background: var(--accent); border-radius: 3px 3px 0 0; position: relative; }
+  .bars .b.alt { background: #a9b1bb; }
+  .bars .b span { position: absolute; top: -16px; left: 0; right: 0; text-align: center; font-size: 10.5px; font-weight: 700; }
+  .legend { display: flex; gap: 14px; font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  .hbar { display: grid; grid-template-columns: 42% 1fr 28px; gap: 8px; align-items: center; font-size: 11.5px; margin: 4px 0; }
+  .hbar .track { margin: 0; }
+  .matrix { display: grid; grid-template-columns: 90px repeat(3, 1fr); gap: 6px; font-size: 11px; }
+  .matrix .cell { min-height: 64px; border: 1px solid var(--line); border-radius: 6px; padding: 6px; background: var(--soft); }
+  .matrix .cell.hi { background: var(--ok-bg); }
+  .dotn { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff;
+          font-size: 10.5px; font-weight: 700; margin: 2px; }
+  .doc-foot { margin-top: 28px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 10px; color: var(--faint);
+              display: flex; justify-content: space-between; gap: 12px; }
+  .hash { font-size: 10.5px; color: var(--muted); margin-top: 12px; }
+  @media (max-width: 760px) {
+    .doc { padding: 18px 16px; margin: 0; }
+    .grid, .grid-3, .grid-4, .grid-5, .sign { grid-template-columns: 1fr 1fr; }
+    .table-scroll { overflow-x: auto; }
+  }
+  @page { size: A4; margin: 12mm 12mm 14mm; }
+  @media print {
+    html { background: #fff; }
+    .no-print { display: none !important; }
+    .doc { margin: 0; padding: 0; box-shadow: none; max-width: none; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="toolbar no-print">
+  <a href="{% if user.is_aptitude %}{% url 'report' report.kind %}{% else %}{% url 'report' 'tous' %}{% endif %}">← {% translate "Rapports" %}</a>
+  <span class="chip {% if report.status == 'sent' or report.status == 'validated' %}ok{% elif report.status == 'rejected' %}ko{% elif report.status == 'submitted' %}warn{% endif %}">{{ report.get_status_display }}</span>
+  <span class="spacer"></span>
+  {% if can_edit %}<a href="{% url 'report_edit' report.pk %}">{% translate "Modifier" %}</a>
+    <form method="post" action="{% url 'report_action' report.pk 'soumettre' %}">{% csrf_token %}<button class="primary">{% translate "Soumettre à validation" %}</button></form>{% endif %}
+  {% if can_validate %}
+    <details><summary>{% translate "Demander une correction" %}</summary>
+      <form method="post" action="{% url 'report_action' report.pk 'corriger' %}">{% csrf_token %}{{ reject_form.comment }}<button>{% translate "Renvoyer au rédacteur" %}</button></form>
+    </details>
+    <form method="post" action="{% url 'report_action' report.pk 'valider' %}">{% csrf_token %}<button class="primary">{% translate "Valider le rapport" %}</button></form>
+  {% endif %}
+  {% if can_send %}<form method="post" action="{% url 'report_action' report.pk 'envoyer' %}">{% csrf_token %}<button class="primary">{% translate "Envoyer au client" %}</button></form>{% endif %}
+  {% if can_client_confirm %}<form method="post" action="{% url 'report_action' report.pk 'confirmer' %}">{% csrf_token %}<button class="primary">{% translate "Confirmer la réception" %}</button></form>{% endif %}
+  <button type="button" onclick="window.print()">{% translate "Imprimer / PDF" %}</button>
+</div>
+{% for message in messages %}<div class="flash no-print {{ message.tags }}">{{ message }}</div>{% endfor %}
+{% if report.status == 'rejected' and user.is_aptitude %}<div class="notice no-print"><strong>{% translate "Corrections demandées :" %}</strong> {{ report.rejection_comment|linebreaksbr }}</div>{% endif %}
+{% if report.status == 'submitted' and user.is_aptitude and not can_validate %}<div class="notice no-print">{% translate "En attente de validation par le supérieur du rédacteur. Le rapport ne peut pas partir chez le client avant." %}</div>{% endif %}
+
+<article class="doc{% if not report.is_locked %} draft{% endif %}">
+  <header class="doc-head">
+    <div>{% if logo %}<img src="{{ logo }}" alt="{{ esn.name }}">{% else %}<span class="brand-name">{{ esn.name }}</span>{% endif %}</div>
+    <div class="right">{% block doc_label %}{{ report.get_kind_display }}{% endblock %} · <span class="mono">{{ report.reference }}</span></div>
+  </header>
+  {% block body %}{% endblock %}
+  <footer class="doc-foot">
+    <span>{{ esn.name }} — {% translate "Document confidentiel, destiné au client et à ses prestataires désignés." %}{% if auto.provider %} {% translate "Support opéré par" %} {{ auto.provider }}.{% endif %}</span>
+    <span class="mono">{{ report.reference }}</span>
+  </footer>
+</article>
+</body>
+</html>

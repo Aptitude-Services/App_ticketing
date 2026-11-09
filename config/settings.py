@@ -24,6 +24,9 @@ SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-change-me")
 DEBUG = env_bool("DJANGO_DEBUG", False)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", "")
+# Adresse publique du portail, pour les liens des emails envoyés hors requête
+# (tâches planifiées). Vide : première origine de DJANGO_CSRF_TRUSTED_ORIGINS.
+SITE_URL = os.environ.get("SITE_URL", "") or (CSRF_TRUSTED_ORIGINS[0] if CSRF_TRUSTED_ORIGINS else "")
 
 if not DEBUG and SECRET_KEY == "dev-only-change-me":
     raise RuntimeError("DJANGO_SECRET_KEY doit être défini en production.")
@@ -42,6 +45,7 @@ INSTALLED_APPS = [
     "contracts",
     "sla",
     "tickets",
+    "reports",
     "core",
 ]
 

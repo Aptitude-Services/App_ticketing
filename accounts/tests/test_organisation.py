@@ -10,11 +10,9 @@ pytestmark = pytest.mark.django_db
 BANK = Organisation.ActivitySector.BANK
 
 
-def test_client_requires_activity_sector():
-    org = Organisation(name="Banque X", kind=Organisation.Kind.CLIENT)
-    with pytest.raises(ValidationError) as exc:
-        org.full_clean()
-    assert "activity_sector" in exc.value.message_dict
+def test_esn_does_not_require_activity_sector():
+    """Le secteur d'activité se demande au client final, pas à l'ESN."""
+    Organisation(name="ESN X", kind=Organisation.Kind.CLIENT).full_clean()
 
 
 def test_client_with_sector_is_valid():
@@ -39,11 +37,11 @@ def test_aptitude_has_no_activity_sector():
     org.full_clean()
 
 
-def test_admin_form_asks_for_activity_sector(rf, admin_user):
+def test_admin_form_asks_end_client_for_activity_sector(rf, admin_user):
     request = rf.get("/")
     request.user = admin_user
     form_class = site._registry[Organisation].get_form(request)
-    data = {"name": "PME Y", "kind": "client", "activity_sector": "", "email_domains": "", "is_active": "on"}
+    data = {"name": "PME Y", "kind": "end_client", "activity_sector": "", "email_domains": "", "is_active": "on"}
     form = form_class(data)
     assert not form.is_valid()
     assert "activity_sector" in form.errors
@@ -51,6 +49,16 @@ def test_admin_form_asks_for_activity_sector(rf, admin_user):
     form = form_class({**data, "activity_sector": "bank"})
     assert form.is_valid(), form.errors
     assert form.save().activity_sector == "bank"
+
+
+def test_admin_form_ignores_sector_for_esn(rf, admin_user):
+    request = rf.get("/")
+    request.user = admin_user
+    form_class = site._registry[Organisation].get_form(request)
+    form = form_class({"name": "ESN Z", "kind": "client", "activity_sector": "bank", "email_domains": "",
+                       "is_active": "on"})
+    assert form.is_valid(), form.errors
+    assert form.save().activity_sector == ""
 
 
 def test_admin_lists_and_filters_by_sector():
@@ -61,3 +69,61 @@ def test_admin_lists_and_filters_by_sector():
 
 def test_esn_kind_is_labelled_client_esn():
     assert dict(Organisation.Kind.choices)["client"] == "Client ESN"
+
+
+# --- Logo de l'ESN ----------------------------------------------------------------------------------
+
+SVG = b"<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10'/>"
+
+
+@pytest.fixture
+def admin_client_nomfa(client, admin_user, monkeypatch):
+    from accounts.middleware import MFARequiredMiddleware
+    monkeypatch.setattr(MFARequiredMiddleware, "__call__", lambda self, request: self.get_response(request))
+    client.force_login(admin_user)
+    return client
+
+
+def test_create_esn_with_logo(admin_client_nomfa):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from django.urls import reverse
+
+    url = reverse("admin:accounts_organisation_add")
+    page = admin_client_nomfa.get(url).content.decode()
+    assert 'enctype="multipart/form-data"' in page and 'name="logo"' in page
+
+    resp = admin_client_nomfa.post(url, {
+        "name": "ESN Logo", "kind": "client", "activity_sector": "", "email_domains": "", "is_active": "on",
+        "logo": SimpleUploadedFile("esn.svg", SVG, content_type="image/svg+xml"),
+    })
+    assert resp.status_code == 302, resp.content.decode()[:500]
+    esn = Organisation.objects.get(name="ESN Logo")
+    assert esn.logo and esn.logo_data_uri().startswith("data:image/svg+xml;base64,")
+
+    # Aperçu du logo sur la fiche et vignette dans la liste
+    change = admin_client_nomfa.get(reverse("admin:accounts_organisation_change", args=[esn.pk])).content.decode()
+    assert 'class="logo-preview"' in change and "data:image/svg+xml" in change
+    listing = admin_client_nomfa.get(reverse("admin:accounts_organisation_changelist")).content.decode()
+    assert "org-logo-thumb" in listing
+
+
+def test_logo_rejects_non_image(admin_client_nomfa):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from django.urls import reverse
+
+    resp = admin_client_nomfa.post(reverse("admin:accounts_organisation_add"), {
+        "name": "ESN Exe", "kind": "client", "email_domains": "", "is_active": "on",
+        "logo": SimpleUploadedFile("virus.exe", b"MZ"),
+    })
+    assert resp.status_code == 200 and not Organisation.objects.filter(name="ESN Exe").exists()
+
+
+def test_logo_ignored_for_end_client(admin_client_nomfa):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from django.urls import reverse
+
+    admin_client_nomfa.post(reverse("admin:accounts_organisation_add"), {
+        "name": "Final Logo", "kind": "end_client", "activity_sector": "bank", "email_domains": "", "is_active": "on",
+        "logo": SimpleUploadedFile("f.svg", SVG, content_type="image/svg+xml"),
+    })
+    assert not Organisation.objects.get(name="Final Logo").logo

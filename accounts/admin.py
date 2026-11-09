@@ -10,7 +10,7 @@ from django.urls import path
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
-from .models import STANDBY_PROFILES, AuditEvent, Organisation, Profile, User
+from .models import STANDBY_PROFILES, AuditEvent, Organisation, Profile, User, file_data_uri
 
 
 class WrappedFilteredSelectMultiple(FilteredSelectMultiple):
@@ -20,6 +20,17 @@ class WrappedFilteredSelectMultiple(FilteredSelectMultiple):
     def render(self, name, value, attrs=None, renderer=None):
         return format_html('<div class="related-widget-wrapper">{}</div>',
                            super().render(name, value, attrs, renderer))
+
+
+class LogoInput(forms.ClearableFileInput):
+    """Champ logo avec aperçu : le logo enregistré, puis celui choisi avant enregistrement (JS)."""
+
+    def render(self, name, value, attrs=None, renderer=None):
+        attrs = {**(attrs or {}), "accept": ".png,.jpg,.jpeg,.svg,.webp,.gif", "data-logo-input": "1"}
+        src = file_data_uri(value) if value and hasattr(value, "open") else ""
+        preview = format_html(
+            '<div class="logo-preview"{}><img src="{}" alt=""></div>', "" if src else format_html(" hidden"), src)
+        return format_html("{}{}", preview, super().render(name, value, attrs, renderer))
 
 
 class OrganisationForm(forms.ModelForm):
@@ -40,6 +51,7 @@ class OrganisationForm(forms.ModelForm):
         model = Organisation
         # Le code (HUD, BLAG…) est calculé automatiquement depuis le nom : pas de saisie.
         exclude = ["code"]
+        widgets = {"logo": LogoInput}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -52,6 +64,10 @@ class OrganisationForm(forms.ModelForm):
         # « Maintenez appuyé Ctrl… » que l'admin ajoute aux listes multiples).
         for field in self.fields.values():
             field.help_text = ""
+        if "logo" in self.fields:
+            self.fields["logo"].label = _("Logo de l'ESN")
+            self.fields["logo"].help_text = _("PNG, JPG ou SVG, fond transparent de préférence. "
+                                              "Affiché en tête des rapports envoyés à ses clients finaux.")
 
     def clean(self):
         data = super().clean()
@@ -61,8 +77,12 @@ class OrganisationForm(forms.ModelForm):
             data["end_clients"] = Organisation.objects.none()
         if kind != Organisation.Kind.END_CLIENT and "partner_esns" in data:
             data["partner_esns"] = Organisation.objects.none()
-        if kind == Organisation.Kind.APTITUDE:
+        # Le secteur d'activité ne concerne que le client final.
+        if kind != Organisation.Kind.END_CLIENT:
             data["activity_sector"] = ""
+        # Le logo ne concerne que l'ESN (il figure sur les rapports de ses clients finaux).
+        if kind != Organisation.Kind.CLIENT and "logo" in data:
+            data["logo"] = False if self.instance.logo else None
         return data
 
     def save_partner_esns(self, organisation):
@@ -83,11 +103,12 @@ class EndClientForm(forms.ModelForm):
 class OrganisationAdmin(admin.ModelAdmin):
     form = OrganisationForm
     change_form_template = "admin/accounts/organisation/change_form.html"
-    list_display = ("name", "code", "kind", "sector", "nb_end_clients", "is_active", "email_domains")
+    list_display = ("logo_thumb", "name", "code", "kind", "sector", "nb_end_clients", "is_active", "email_domains")
+    list_display_links = ("logo_thumb", "name")
     list_filter = ("kind", "activity_sector", "is_active")
     search_fields = ("name", "email_domains")
     filter_horizontal = ("end_clients",)
-    fields = ("name", "kind", "activity_sector", "end_clients", "partner_esns", "is_active", "email_domains")
+    fields = ("name", "kind", "activity_sector", "logo", "end_clients", "partner_esns", "is_active", "email_domains")
 
     class Media:
         css = {"all": ("css/admin_features.css",)}
@@ -107,7 +128,7 @@ class OrganisationAdmin(admin.ModelAdmin):
         fields = list(super().get_fields(request, obj))
         if self._is_end_client_popup(request):
             # L'ESN d'origine reçoit le nouveau client : pas de rattachements ici.
-            fields = [f for f in fields if f not in ("end_clients", "partner_esns")]
+            fields = [f for f in fields if f not in ("end_clients", "partner_esns", "logo")]
         return fields
 
     def get_form(self, request, obj=None, **kwargs):
@@ -133,6 +154,11 @@ class OrganisationAdmin(admin.ModelAdmin):
         super().save_related(request, form, formsets, change)
         if hasattr(form, "save_partner_esns"):
             form.save_partner_esns(form.instance)
+
+    @admin.display(description=_("logo"))
+    def logo_thumb(self, obj):
+        src = obj.logo_data_uri() if obj.is_esn else ""
+        return format_html('<img src="{}" alt="" class="org-logo-thumb">', src) if src else ""
 
     @admin.display(description=_("secteur d'activité"), ordering="activity_sector")
     def sector(self, obj):
@@ -188,7 +214,7 @@ class UserAdmin(BaseUserAdmin):
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         (_("Identité"), {"fields": ("first_name", "last_name", "phone", "language")}),
-        (_("Rattachement et droits"), {"fields": ("organisation", "profile", "all_contracts", "is_active")}),
+        (_("Rattachement et droits"), {"fields": ("organisation", "profile", "manager", "all_contracts", "is_active")}),
         (_("Dates"), {"fields": ("last_login", "date_joined")}),
     )
     add_fieldsets = (

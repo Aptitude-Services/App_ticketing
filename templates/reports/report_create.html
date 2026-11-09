@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% load i18n %}
+{% block title %}{% translate "Nouveau rapport" %}{% endblock %}
+{% block content %}
+<div class="page-head"><div>
+  <a class="crumb" href="{% url 'report' kind %}">← {{ kind_label }}</a>
+  <h1>{% translate "Nouveau rapport" %} — {{ kind_label|lower }}</h1>
+  <p class="lead">{{ lead }}</p>
+</div></div>
+<section class="panel"><div class="panel-body">
+  <form method="post" class="stack">{% csrf_token %}
+    {% include "_form_fields.html" %}
+    <p class="help">{% if kind == 'curatif' %}{% translate "Le contrat, l'ESN, le client final, les dates, le SLA, le technicien, les solutions et la chronologie sont repris du ticket." %}{% elif kind == 'preventif' %}{% translate "Le contrat, l'ESN, le client final et les équipements couverts sont repris ; une liste de contrôles type est proposée." %}{% else %}{% translate "Les chiffres des tickets et des rapports préventifs et curatifs validés du trimestre sont consolidés automatiquement." %}{% endif %}
+      {% translate "La référence identifie l'ESN et le client final : RPT-TYPE-ESN-CLIENT-ANNÉE-NNN." %}</p>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">{% translate "Créer le brouillon" %}</button></div>
+  </form>
+</div></section>
+{% endblock %}

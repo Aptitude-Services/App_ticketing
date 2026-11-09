@@ -1,0 +1,59 @@
+{% extends "base.html" %}{% load i18n report_tags %}
+{% block title %}{{ report.reference }}{% endblock %}
+{% block content %}
+<div class="page-head"><div>
+  <a class="crumb" href="{% url 'report' report.kind %}">← {{ report.get_kind_display }}</a>
+  <h1 class="mono">{{ report.reference }}</h1>
+  <p class="lead">{{ report.get_status_display }} · {{ report.esn.name }} → {{ report.end_client.name|default:_("sans client final") }}</p>
+</div><a class="btn btn-secondary" href="{% url 'report_detail' report.pk %}">{% translate "Aperçu" %}</a></div>
+
+{% if report.status == 'rejected' %}<div class="form-alert"><strong>{% translate "Corrections demandées :" %}</strong> {{ report.rejection_comment|linebreaksbr }}</div>{% endif %}
+
+<div class="grid-2-1">
+<form method="post" class="stack">{% csrf_token %}
+  {% if form.non_field_errors %}<div class="form-alert">{{ form.non_field_errors }}</div>{% endif %}
+  {% for title, fields in form.sections %}
+  <section class="panel"><div class="panel-head"><h2>{{ title }}</h2></div><div class="panel-body">
+    {% for field in fields %}<div class="form-row">
+      <label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}
+      {% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}
+      {{ field.errors }}
+    </div>{% endfor %}
+  </div></section>
+  {% endfor %}
+  <div class="form-actions">
+    <button class="btn btn-secondary" type="submit" name="save">{% translate "Enregistrer le brouillon" %}</button>
+    <button class="btn btn-secondary" type="submit" name="preview">{% translate "Enregistrer et prévisualiser" %}</button>
+    <button class="btn btn-primary" type="submit" name="submit">{% translate "Soumettre à validation" %}</button>
+  </div>
+</form>
+
+<aside class="stack">
+  <section class="panel"><div class="panel-head"><h2>{% translate "Repris automatiquement" %}</h2></div><div class="panel-body">
+    <dl class="facts">
+      <dt>{% translate "ESN" %}</dt><dd>{{ auto.esn }}</dd>
+      <dt>{% translate "Client final" %}</dt><dd>{{ auto.end_client|default:"—" }}</dd>
+      <dt>{% translate "Contrat" %}</dt><dd class="mono">{{ auto.contract_ref }}</dd>
+      <dt>{% translate "Formule / SLA" %}</dt><dd>{{ auto.contract_desc|default:"—" }}</dd>
+      {% if auto.ticket %}
+      <dt>{% translate "Ticket" %}</dt><dd class="mono">{{ auto.ticket.reference }}</dd>
+      <dt>{% translate "Priorité" %}</dt><dd>{{ auto.ticket.priority_label }}</dd>
+      <dt>{% translate "Signalement" %}</dt><dd>{{ auto.ticket.created_at|dt }}</dd>
+      <dt>{% translate "Prise en charge" %}</dt><dd>{{ auto.ticket.acknowledged_at|dt }}{% if auto.ticket.response %} · {{ auto.ticket.response.elapsed }}{% endif %}</dd>
+      <dt>{% translate "Résolution" %}</dt><dd>{{ auto.ticket.resolved_at|dt }}{% if auto.ticket.resolution %} · {{ auto.ticket.resolution.elapsed }}{% endif %}</dd>
+      <dt>{% translate "Technicien" %}</dt><dd>{{ auto.ticket.assignee|default:"—" }}</dd>
+      <dt>{% translate "Solutions" %}</dt><dd>{{ auto.ticket.solutions|join:", "|default:"—" }}</dd>
+      {% endif %}
+      {% if auto.period_start %}
+      <dt>{% translate "Période" %}</dt><dd>{{ auto.period_start|day }} – {{ auto.period_end|day }}</dd>
+      <dt>{% translate "Tickets" %}</dt><dd>{{ auto.tickets_total }} ({{ auto.tickets_resolved }} {% translate "résolus" %})</dd>
+      <dt>{% translate "Rapports préventifs" %}</dt><dd>{{ auto.preventive_reports|length }}</dd>
+      <dt>{% translate "Rapports curatifs" %}</dt><dd>{{ auto.curative_reports|length }}</dd>
+      {% endif %}
+    </dl>
+    <p class="help">{% translate "Ces données sont figées à la validation du rapport." %}</p>
+  </div></section>
+  <section class="panel"><div class="panel-body"><p class="help">{% translate "Circuit : vous soumettez le rapport ; votre supérieur hiérarchique le valide (ou demande des corrections) ; il peut alors être envoyé au client." %}</p></div></section>
+</aside>
+</div>
+{% endblock %}

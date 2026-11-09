@@ -1,0 +1,77 @@
+{% extends "reports/_doc_base.html" %}{% load i18n report_tags %}
+{% block doc_label %}{% translate "Rapport de maintenance préventive" %}{% endblock %}
+{% block body %}
+<div class="hero">
+  <div class="kicker">{% translate "Rapport d'intervention · Maintenance préventive" %}</div>
+  <h1>{{ auto.end_client|default:auto.esn }}</h1>
+  <div class="sub">{% if m.visit_no %}{% translate "Visite" %} {{ m.visit_no }}{% if m.visit_total %} {% translate "sur" %} {{ m.visit_total }}{% endif %}{% if m.periodicity %} ({{ m.periodicity }}){% endif %} · {% endif %}{% translate "Rédigé le" %} {{ report.created_at|date:"d/m/Y" }}{% if report.validated_at %} · {% translate "Validé le" %} {{ report.validated_at|date:"d/m/Y" }}{% endif %}</div>
+  <div class="chips">
+    <span class="chip {% if report.is_locked %}ok{% endif %}">{{ report.get_status_display }}</span>
+    <span class="chip">{% translate "Réf." %} {{ report.reference }}</span>
+  </div>
+</div>
+
+<section class="s"><h2><span class="n">1</span>{% translate "Contexte de l'intervention" %}</h2>
+  <div class="grid">
+    <div class="field"><label>{% translate "Client" %}</label><div class="box">{{ auto.esn }}<br><small>{% translate "Client final" %} : {{ auto.end_client|default:"—" }}</small></div></div>
+    <div class="field"><label>{% translate "Numéro du contrat d'assistance" %}</label><div class="box">{{ auto.contract_ref }}<br><small>{{ auto.contract_desc }}</small></div></div>
+    <div class="field"><label>{% translate "Référence du ticket" %}</label><div class="box mono">{{ auto.ticket.reference|default:"—" }}</div></div>
+    <div class="field"><label>{% translate "Site concerné" %}</label><div class="box">{{ m.site|default:"—" }}</div></div>
+    <div class="grid" style="gap:10px">
+      <div class="field"><label>{% translate "Planifiée" %}</label><div class="box">{{ m.planned_at|dt }}</div></div>
+      <div class="field"><label>{% translate "Intervention" %}</label><div class="box">{{ m.started_at|dt }}{% if m.ended_at %}<br><small>{% translate "fin" %} {{ m.ended_at|hour }} · {{ m.started_at|duration_between:m.ended_at }}</small>{% endif %}</div></div>
+    </div>
+    <div class="field"><label>{% translate "Technicien(s) intervenant(s)" %}</label><div class="box">{{ m.technician|default:report.author.display_name }}{% if m.technician_title %}, {{ m.technician_title }}{% endif %}<br><small>{{ m.mode|default:"" }}{% if m.level %} · {% translate "niveau" %} {{ m.level }}{% endif %}</small></div></div>
+  </div>
+  <div class="field" style="margin-top:10px"><label>{% translate "Équipements ou services concernés" %}</label><div class="box">{% if m.equipments %}<div class="tags">{% for e in m.equipments %}<span class="tag">{{ e.0 }}</span>{% endfor %}</div>{% else %}—{% endif %}</div></div>
+  <div style="margin-top:10px"><span class="lbl">{% translate "Prestataire de support" %}</span>{{ auto.provider }}</div>
+</section>
+
+<section class="s"><h2><span class="n">2</span>{% translate "Synthèse" %}</h2>
+  {% if m.summary %}<div class="card soft">{{ m.summary|linebreaksbr }}</div>{% endif %}
+  <div class="grid-5" style="margin-top:10px">
+    <div class="card kpi"><div class="v">{{ counts.total }}</div><div class="l">{% translate "Contrôles réalisés" %}</div></div>
+    <div class="card kpi"><div class="v ok">{{ counts.ok }}</div><div class="l">{% translate "Conformes" %}</div></div>
+    <div class="card kpi"><div class="v warn">{{ counts.watch }}</div><div class="l">{% translate "À surveiller" %}</div></div>
+    <div class="card kpi"><div class="v ko">{{ counts.ko }}</div><div class="l">{% translate "Non conformes" %}</div></div>
+    <div class="card kpi"><div class="v">{{ counts.na }}</div><div class="l">{% translate "Non applicables" %}</div></div>
+  </div>
+  <div class="stack" style="margin-top:10px"><span class="ok" style="width:{{ counts.pct_ok }}%"></span><span class="warn" style="width:{{ counts.pct_watch }}%"></span><span class="ko" style="width:{{ counts.pct_ko }}%"></span><span class="na" style="width:{{ counts.pct_na }}%"></span></div>
+  {% if counts.todo %}<p class="muted no-print">{{ counts.todo }} {% translate "contrôle(s) sans résultat renseigné." %}</p>{% endif %}
+</section>
+
+<section class="s"><h2><span class="n">3</span>{% translate "Contrôles réalisés" %}</h2>
+  {% if m.annexes %}<p class="muted">{% translate "Les références A1, A2… renvoient aux annexes jointes en fin de rapport." %}</p>{% endif %}
+  <div class="table-scroll"><table><thead><tr><th>{% translate "Contrôle" %}</th><th class="c">{% translate "Résultat" %}</th><th>{% translate "Commentaire" %}</th></tr></thead><tbody>
+  {% for cat, rows in control_groups %}<tr class="group"><td colspan="3">{{ cat|default:"—" }}</td></tr>
+    {% for row in rows %}<tr><td>{{ row.1 }}{% if row.2 %}<br><small class="muted">{{ row.2 }}</small>{% endif %}</td><td class="c"><span class="pill {{ row.3|tone }}">{{ row.3|default:"—" }}</span></td><td>{{ row.4 }}</td></tr>{% endfor %}
+  {% empty %}<tr><td colspan="3" class="muted">—</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+
+<section class="s"><h2><span class="n">4</span>{% translate "Opérations de maintenance exécutées" %}</h2>
+  <p class="muted">{% translate "Actions réellement réalisées pendant l'intervention, distinctes des contrôles ci-dessus." %}</p>
+  {% if m.operations %}<ul class="timeline">{% for row in m.operations %}<li><span class="t">{{ row.0 }}</span><span>{{ row.1 }}{% if row.2 %} <span class="muted">· {{ row.2 }}</span>{% endif %}</span></li>{% endfor %}</ul>{% else %}<p class="muted">—</p>{% endif %}
+</section>
+
+<section class="s"><h2><span class="n">5</span>{% translate "Anomalies et recommandations" %}</h2>
+  <p class="muted">{% translate "Une anomalie constatée n'est pas une correction réalisée : si elle exige une intervention distincte, un ticket curatif lui est associé." %}</p>
+  <div class="table-scroll"><table><thead><tr><th>{% translate "Recommandation" %}</th><th class="c">{% translate "Priorité" %}</th><th>{% translate "Responsable" %}</th><th>{% translate "Échéance" %}</th><th>{% translate "Ticket curatif" %}</th></tr></thead><tbody>
+  {% for row in m.recommendations %}<tr><td>{{ row.0 }}</td><td class="c"><span class="pill {{ row.1|tone }}">{{ row.1|default:"—" }}</span></td><td>{{ row.2 }}</td><td>{{ row.3 }}</td><td class="mono">{{ row.4|default:"—" }}</td></tr>{% empty %}<tr><td colspan="5" class="muted">{% translate "Aucune anomalie relevée." %}</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+
+<section class="s"><h2><span class="n">6</span>{% translate "Indicateurs avant / après" %}</h2>
+  <table><thead><tr><th>{% translate "Indicateur" %}</th><th class="c">{% translate "Avant" %}</th><th class="c">{% translate "Après" %}</th></tr></thead><tbody>
+  {% for row in m.indicators %}<tr><td>{{ row.0 }}</td><td class="c muted">{{ row.1 }}</td><td class="c"><strong>{{ row.2 }}</strong></td></tr>{% empty %}<tr><td colspan="3" class="muted">—</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+
+<section class="s"><h2><span class="n">7</span>{% translate "Prochaine intervention" %}</h2>
+  <div class="card bar-left"><span class="lbl">{% if m.next_date %}{% translate "Planifiée le" %} {{ m.next_date|day }}{% else %}{% translate "À planifier" %}{% endif %}</span>{{ m.next_scope|default:"—"|linebreaksbr }}</div>
+</section>
+
+<section class="s"><h2><span class="n">8</span>{% translate "Validation" %}</h2>
+  {% include "reports/_signatures.html" %}
+</section>
+{% endblock %}

@@ -8,7 +8,7 @@ from django.urls import path
 from django.utils.translation import gettext_lazy as _
 
 from accounts.models import Organisation
-from .models import Contract, ContractAccess, ContractType, ServiceFeature, Solution
+from .models import Contract, ContractAccess, ContractType, LicenseNotice, ServiceFeature, Solution
 from .widgets import FeatureChecklist
 
 
@@ -369,6 +369,12 @@ class ContractAdmin(admin.ModelAdmin):
     # « solutions_file » (champ déclaré du formulaire) n'est dans aucun bloc : il s'affiche
     # dans la zone « Solutions », au-dessus du tableau (solution_inline.html).
     inlines = [SolutionInline, ContractAccessInline]
+    actions = ["notify_esn_licenses"]
+
+    @admin.action(description=_("Notifier l'ESN : licences expirant sous 60 jours"))
+    def notify_esn_licenses(self, request, queryset):
+        from .notifications import expiring_solutions
+        _notify_esn(self, request, expiring_solutions().filter(contract__in=queryset))
 
     def get_readonly_fields(self, request, obj=None):
         # Référence attribuée automatiquement, jamais saisie.
@@ -507,13 +513,73 @@ class ContractAdmin(admin.ModelAdmin):
         return {"ok": True, "created": created, "updated": updated, "errors": errors + save_errors}
 
 
+def _notify_esn(modeladmin, request, solutions):
+    """Envoie, pour chaque ESN concernée, un email listant ses licences sélectionnées."""
+    from collections import defaultdict
+
+    from .notifications import send_license_notice
+
+    by_esn = defaultdict(list)
+    for sol in solutions:
+        if sol.license_end:
+            by_esn[sol.contract.client].append(sol)
+    if not by_esn:
+        modeladmin.message_user(request, _("Aucune licence avec date de fin dans la sélection."), messages.WARNING)
+        return
+    for esn, sols in by_esn.items():
+        recipients = send_license_notice(esn, sols, actor=request.user, manual=True)
+        if recipients:
+            modeladmin.message_user(request, _("%(esn)s prévenue (%(n)d licence(s)) : %(to)s.")
+                                    % {"esn": esn.name, "n": len(sols), "to": ", ".join(recipients)}, messages.SUCCESS)
+        else:
+            modeladmin.message_user(request, _("%(esn)s n'a aucun utilisateur actif : alerte non envoyée.")
+                                    % {"esn": esn.name}, messages.ERROR)
+
+
+class LicenseExpiryFilter(admin.SimpleListFilter):
+    title = _("fin de licence")
+    parameter_name = "licence"
+
+    def lookups(self, request, model_admin):
+        return [("expired", _("Expirée")), ("30", _("Dans 30 jours")), ("60", _("Dans 60 jours")),
+                ("90", _("Dans 90 jours"))]
+
+    def queryset(self, request, queryset):
+        from django.utils import timezone
+        today = timezone.localdate()
+        if self.value() == "expired":
+            return queryset.filter(license_end__lt=today)
+        if self.value() in ("30", "60", "90"):
+            return queryset.filter(license_end__gte=today,
+                                   license_end__lte=today + datetime.timedelta(days=int(self.value())))
+        return queryset
+
+
 @admin.register(Solution)
 class SolutionAdmin(admin.ModelAdmin):
     list_display = ("name", "category", "contract", "vendor", "model", "license_end", "is_active")
-    list_filter = ("category", "is_active", "contract__client")
+    list_filter = (LicenseExpiryFilter, "category", "is_active", "contract__client")
+    actions = ["notify_esn"]
+
+    @admin.action(description=_("Notifier l'ESN de l'expiration de licence"))
+    def notify_esn(self, request, queryset):
+        _notify_esn(self, request, queryset.select_related("contract__client"))
     exclude = ("version",)  # champ retiré de la saisie (colonne conservée en base)
     search_fields = ("name", "vendor", "model", "serial_number", "contract__reference")
     autocomplete_fields = ("contract",)
+
+
+@admin.register(LicenseNotice)
+class LicenseNoticeAdmin(admin.ModelAdmin):
+    list_display = ("sent_at", "solution", "license_end", "threshold", "manual", "recipients", "sent_by")
+    list_filter = ("manual", "threshold")
+    search_fields = ("solution__name", "solution__contract__reference", "recipients")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(ContractAccess)

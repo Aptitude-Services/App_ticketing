@@ -1,4 +1,4 @@
-"""Création d'un contrat dans l'administration avec des accès contrats dans le même écran."""
+"""Création d'un contrat dans l'administration avec des affectations aux contrats dans le même écran."""
 import datetime
 
 import pytest

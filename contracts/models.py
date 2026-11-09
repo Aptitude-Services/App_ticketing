@@ -275,8 +275,8 @@ class ContractAccess(models.Model):
 
     class Meta:
         unique_together = [("user", "contract")]
-        verbose_name = _("accès contrat")
-        verbose_name_plural = _("accès contrats")
+        verbose_name = _("affectation au contrat")
+        verbose_name_plural = _("affectations aux contrats")
 
     def __str__(self):
         return f"{self.user} → {self.contract.reference}"

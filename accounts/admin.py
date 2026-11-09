@@ -1,16 +1,41 @@
 from django import forms
 from django.contrib import admin
+from django.contrib.admin.options import IS_POPUP_VAR, TO_FIELD_VAR
+from django.contrib.admin.widgets import FilteredSelectMultiple
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.core.exceptions import PermissionDenied
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import path
+from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
 from .models import STANDBY_PROFILES, AuditEvent, Organisation, Profile, User
 
 
+class WrappedFilteredSelectMultiple(FilteredSelectMultiple):
+    """Sélecteur à deux colonnes enveloppé comme ceux de l'admin : le JS de Django
+    insère le sélecteur au début du conteneur ; sans enveloppe, il passerait avant le libellé."""
+
+    def render(self, name, value, attrs=None, renderer=None):
+        return format_html('<div class="related-widget-wrapper">{}</div>',
+                           super().render(name, value, attrs, renderer))
+
+
 class OrganisationForm(forms.ModelForm):
+    """Fiche organisation : les champs proposés dépendent du type.
+
+    Client ESN → ses clients finaux ; client final → ses ESN ; Aptitude → ni l'un
+    ni l'autre (ni secteur). Le JS masque les champs hors sujet ; côté serveur,
+    un rattachement qui ne correspond pas au type est ignoré.
+    """
+
+    partner_esns = forms.ModelMultipleChoiceField(
+        label=_("ESN rattachées"), required=False,
+        queryset=Organisation.objects.filter(kind=Organisation.Kind.CLIENT),
+        widget=WrappedFilteredSelectMultiple(_("ESN"), is_stacked=False),
+    )
+
     class Meta:
         model = Organisation
         fields = "__all__"
@@ -20,6 +45,8 @@ class OrganisationForm(forms.ModelForm):
         if "end_clients" in self.fields:
             # Seuls des clients finaux se rattachent à une ESN.
             self.fields["end_clients"].queryset = Organisation.objects.filter(kind=Organisation.Kind.END_CLIENT)
+        if "partner_esns" in self.fields and self.instance.pk:
+            self.fields["partner_esns"].initial = list(self.instance.partner_esns.values_list("pk", flat=True))
         # Formulaire épuré : pas de textes d'aide sous les champs (y compris le
         # « Maintenez appuyé Ctrl… » que l'admin ajoute aux listes multiples).
         for field in self.fields.values():
@@ -27,9 +54,20 @@ class OrganisationForm(forms.ModelForm):
 
     def clean(self):
         data = super().clean()
-        if data.get("end_clients") and data.get("kind") != Organisation.Kind.CLIENT:
-            self.add_error("end_clients", _("Seul un « Client ESN » peut avoir des clients finaux."))
+        kind = data.get("kind")
+        # Les champs masqués pour ce type ne sont pas pris en compte.
+        if kind != Organisation.Kind.CLIENT and "end_clients" in data:
+            data["end_clients"] = Organisation.objects.none()
+        if kind != Organisation.Kind.END_CLIENT and "partner_esns" in data:
+            data["partner_esns"] = Organisation.objects.none()
+        if kind == Organisation.Kind.APTITUDE:
+            data["activity_sector"] = ""
         return data
+
+    def save_partner_esns(self, organisation):
+        """À appeler après l'enregistrement : rattache le client final à ses ESN."""
+        if "partner_esns" in self.cleaned_data:
+            organisation.partner_esns.set(self.cleaned_data["partner_esns"])
 
 
 class EndClientForm(forms.ModelForm):
@@ -48,12 +86,39 @@ class OrganisationAdmin(admin.ModelAdmin):
     list_filter = ("kind", "activity_sector", "is_active")
     search_fields = ("name", "email_domains")
     filter_horizontal = ("end_clients",)
+    fields = ("name", "kind", "activity_sector", "end_clients", "partner_esns", "is_active", "email_domains")
 
     class Media:
         css = {"all": ("css/admin_features.css",)}
+        js = ("js/organisation_admin.js",)
 
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(_nb_end_clients=Count("end_clients"))
+
+    @staticmethod
+    def _is_end_client_popup(request):
+        """Fenêtre ouverte par le « + » du champ « Clients finaux » d'une ESN."""
+        def has(var):
+            return var in request.GET or var in request.POST
+        return has(IS_POPUP_VAR) and has(TO_FIELD_VAR)
+
+    def get_fields(self, request, obj=None):
+        fields = list(super().get_fields(request, obj))
+        if self._is_end_client_popup(request):
+            # L'ESN d'origine reçoit le nouveau client : pas de rattachements ici.
+            fields = [f for f in fields if f not in ("end_clients", "partner_esns")]
+        return fields
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        if self._is_end_client_popup(request):
+            # Champ déclaré sur le formulaire : Django le garde même hors de `fields`.
+            form.base_fields.pop("partner_esns", None)
+            if "kind" in form.base_fields:
+                end = Organisation.Kind.END_CLIENT
+                form.base_fields["kind"].choices = [(end.value, end.label)]
+                form.base_fields["kind"].initial = end
+        return form
 
     def get_changeform_initial_data(self, request):
         initial = super().get_changeform_initial_data(request)
@@ -62,6 +127,11 @@ class OrganisationAdmin(admin.ModelAdmin):
         if request.GET.get("_popup") and request.GET.get("_to_field") is not None and "kind" not in initial:
             initial["kind"] = Organisation.Kind.END_CLIENT
         return initial
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        if hasattr(form, "save_partner_esns"):
+            form.save_partner_esns(form.instance)
 
     @admin.display(description=_("secteur d'activité"), ordering="activity_sector")
     def sector(self, obj):

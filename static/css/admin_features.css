@@ -231,6 +231,9 @@
    générées par Django (« Choisissez… », « Enlevez… », « Choisir / Enlever toutes »). */
 .field-end_clients .selector .helptext,
 .field-end_clients .selector-chooseall,
-.field-end_clients .selector-clearall {
+.field-end_clients .selector-clearall,
+.field-partner_esns .selector .helptext,
+.field-partner_esns .selector-chooseall,
+.field-partner_esns .selector-clearall {
     display: none !important;
 }

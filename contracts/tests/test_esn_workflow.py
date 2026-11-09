@@ -41,11 +41,57 @@ def test_org_form_offers_only_end_clients(env):
     assert list(qs) == [env["end"]]
 
 
-def test_org_form_refuses_end_clients_on_non_esn(env):
+def test_org_form_ignores_end_clients_on_non_esn(env):
+    """Champ masqué pour un client final : une valeur reçue est ignorée, pas enregistrée."""
     form = OrganisationForm({"name": "Autre final", "kind": "end_client", "activity_sector": "bank",
                              "is_active": "on", "email_domains": "", "end_clients": [env["end"].pk]})
-    assert not form.is_valid()
-    assert "end_clients" in form.errors
+    assert form.is_valid(), form.errors
+    org = form.save()
+    assert not org.end_clients.exists()
+
+
+def _post_org(client, url, **data):
+    base = {"name": "Nouvelle org", "kind": "end_client", "activity_sector": "bank",
+            "is_active": "on", "email_domains": ""}
+    return client.post(url, {**base, **data})
+
+
+def test_end_client_created_with_its_esns(env):
+    """Un client final se crée séparément, puis se rattache à ses ESN depuis sa fiche."""
+    esn_b = Organisation.objects.create(name="ESN B", kind=Organisation.Kind.CLIENT, activity_sector=SECTOR)
+    resp = _post_org(env["client"], reverse("admin:accounts_organisation_add"),
+                     name="Hôpital Sud", partner_esns=[env["esn"].pk, esn_b.pk])
+    assert resp.status_code == 302, resp.context["adminform"].form.errors if resp.context else resp
+    created = Organisation.objects.get(name="Hôpital Sud")
+    assert set(created.partner_esns.all()) == {env["esn"], esn_b}
+
+
+def test_end_client_page_shows_its_esns(env):
+    resp = env["client"].get(reverse("admin:accounts_organisation_change", args=[env["end"].pk]))
+    form = resp.context["adminform"].form
+    assert form.fields["partner_esns"].initial == [env["esn"].pk]
+    assert list(form.fields["partner_esns"].queryset) == list(
+        Organisation.objects.filter(kind=Organisation.Kind.CLIENT))
+
+
+def test_esn_ignores_partner_esns(env):
+    """Une ESN ne se rattache pas à une autre ESN."""
+    other = Organisation.objects.create(name="ESN C", kind=Organisation.Kind.CLIENT, activity_sector=SECTOR)
+    _post_org(env["client"], reverse("admin:accounts_organisation_add"),
+              name="ESN D", kind="client", partner_esns=[other.pk])
+    assert not Organisation.objects.get(name="ESN D").partner_esns.exists()
+
+
+def test_popup_is_locked_to_end_client_without_links(env):
+    url = reverse("admin:accounts_organisation_add") + "?_to_field=id&_popup=1"
+    form = env["client"].get(url).context["adminform"].form
+    assert [value for value, _label in form.fields["kind"].choices] == ["end_client"]
+    assert "end_clients" not in form.fields and "partner_esns" not in form.fields
+
+    resp = _post_org(env["client"], url, name="Créé en popup", kind="client", _popup="1", _to_field="id")
+    assert not Organisation.objects.filter(name="Créé en popup").exists()  # « Client ESN » refusé
+    resp = _post_org(env["client"], url, name="Créé en popup", _popup="1", _to_field="id")
+    assert Organisation.objects.get(name="Créé en popup").kind == Organisation.Kind.END_CLIENT
 
 
 def test_new_esn_created_with_existing_end_client(env):

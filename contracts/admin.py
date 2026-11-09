@@ -1,7 +1,8 @@
+import datetime
 import json
 
 from django import forms
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.shortcuts import get_object_or_404, render
 from django.urls import path
 from django.utils.translation import gettext_lazy as _
@@ -9,6 +10,134 @@ from django.utils.translation import gettext_lazy as _
 from accounts.models import Organisation
 from .models import Contract, ContractAccess, ContractType, ServiceFeature, Solution
 from .widgets import FeatureChecklist
+
+
+# --- Import Excel des solutions -------------------------------------------------
+# Deux étapes : lire et vérifier le fichier (sans rien enregistrer), puis enregistrer.
+# Le formulaire de création de contrat vérifie le fichier avant d'enregistrer quoi que ce soit.
+
+CATEGORY_ALIASES = {
+    "software": "software", "logiciel": "software",
+    "hardware": "hardware", "matériel": "hardware", "materiel": "hardware",
+    "vm": "vm", "machine virtuelle": "vm", "virtual machine": "vm",
+    "cloud": "cloud", "saas": "cloud",
+    "other": "other", "autre": "other",
+}
+HEADER_ALIASES = {
+    "contrat": "contract", "catégorie": "category", "categorie": "category",
+    "éditeur": "vendor", "editeur": "vendor", "vendor": "vendor",
+    "modèle": "model", "modele": "model", "model": "model",
+    "nom": "name", "name": "name",
+    "n° de série": "serial_number", "n de série": "serial_number", "numero de serie": "serial_number",
+    "serial": "serial_number", "serial_number": "serial_number",
+    "localisation": "location", "lieu": "location", "location": "location",
+    "début de licence": "license_start", "debut de licence": "license_start", "license_start": "license_start",
+    "fin de licence": "license_end", "license_end": "license_end",
+    "notes": "notes", "note": "notes", "commentaire": "notes",
+    "actif": "is_active", "active": "is_active",
+}
+_TEXT_FIELDS = ("vendor", "model", "serial_number", "location", "notes")
+_DATE_FIELDS = ("license_start", "license_end")
+
+
+def _parse_date(value):
+    if isinstance(value, datetime.datetime):
+        return value.date()
+    if isinstance(value, datetime.date) or value is None:
+        return value
+    try:
+        return datetime.datetime.strptime(value, "%d/%m/%Y").date()
+    except ValueError:
+        return datetime.date.fromisoformat(value)
+
+
+def read_solution_rows(uploaded):
+    """Lit un fichier .xlsx sans rien enregistrer.
+
+    Renvoie (lignes, erreurs, fatal) : chaque ligne est (numéro, valeurs) ;
+    `fatal` vaut True si le fichier est inexploitable (illisible, vide, colonnes manquantes).
+    """
+    from openpyxl import load_workbook
+
+    try:
+        wb = load_workbook(uploaded, read_only=True, data_only=True)
+    except Exception:
+        return [], [_("Fichier Excel illisible (.xlsx attendu).")], True
+    rows = wb.active.iter_rows(values_only=True)
+    try:
+        header = [str(h).strip().lower() if h is not None else "" for h in next(rows)]
+    except StopIteration:
+        return [], [_("Fichier vide.")], True
+    cols = {}
+    for i, h in enumerate(header):
+        key = HEADER_ALIASES.get(h.replace("  ", " "))
+        if key and key not in cols:
+            cols[key] = i
+    if "name" not in cols or "category" not in cols:
+        return [], [_("Colonnes requises manquantes : « nom » et « catégorie ».")], True
+
+    parsed, errors = [], []
+    for lineno, row in enumerate(rows, start=2):
+        if not row or all(v is None or str(v).strip() == "" for v in row):
+            continue
+
+        def get(key):
+            return row[cols[key]] if key in cols and cols[key] < len(row) else None
+
+        name = str(get("name") or "").strip()
+        category = CATEGORY_ALIASES.get(str(get("category") or "").strip().lower())
+        if not name:
+            errors.append(_("Ligne %(n)d : nom manquant.") % {"n": lineno})
+            continue
+        if not category:
+            errors.append(_("Ligne %(n)d : catégorie « %(c)s » inconnue (logiciel, matériel, machine virtuelle, "
+                            "cloud, autre).") % {"n": lineno, "c": get("category")})
+            continue
+        values = {"name": name[:200], "category": category}
+        for field in _TEXT_FIELDS:
+            value = get(field)
+            values[field] = str(value).strip() if value is not None else ""
+        try:
+            for field in _DATE_FIELDS:
+                value = get(field)
+                if isinstance(value, str):
+                    value = value.strip() or None
+                values[field] = _parse_date(value)
+        except ValueError:
+            errors.append(_("Ligne %(n)d : date invalide « %(d)s » (JJ/MM/AAAA attendu).")
+                          % {"n": lineno, "d": value})
+            continue
+        active = get("is_active")
+        if active is not None and str(active).strip():
+            values["is_active"] = str(active).strip().lower() not in ("non", "no", "false", "0", "n")
+        parsed.append((lineno, values))
+    return parsed, errors, False
+
+
+def apply_solution_rows(rows, contract):
+    """Enregistre les lignes lues : une solution de même nom sur le contrat est mise à jour."""
+    from django.core.exceptions import ValidationError
+
+    created = updated = 0
+    errors = []
+    for lineno, values in rows:
+        sol = Solution.objects.filter(contract=contract, name=values["name"]).first()
+        was_created = sol is None
+        if sol is None:
+            sol = Solution(contract=contract)
+        for field, value in values.items():
+            setattr(sol, field, value)
+        try:
+            sol.full_clean()
+        except ValidationError as e:
+            errors.append(_("Ligne %(n)d : %(msg)s") % {"n": lineno, "msg": "; ".join(e.messages)})
+            continue
+        sol.save()
+        if was_created:
+            created += 1
+        else:
+            updated += 1
+    return created, updated, errors
 
 
 def _no_add_related(form, *names):
@@ -106,6 +235,26 @@ class ContractAccessInline(admin.TabularInline):
 
 
 class ContractForm(forms.ModelForm):
+    solutions_file = forms.FileField(
+        label=_("Fichier Excel des solutions"), required=False,
+        widget=forms.ClearableFileInput(attrs={"accept": ".xlsx"}),
+    )
+
+    def clean_solutions_file(self):
+        """Vérifie le fichier avant tout enregistrement : en cas d'erreur, ni le contrat
+        ni les solutions ne sont enregistrés, et le formulaire indique les lignes fautives."""
+        uploaded = self.cleaned_data.get("solutions_file")
+        self.solution_rows = []
+        if not uploaded:
+            return uploaded
+        rows, errors, _fatal = read_solution_rows(uploaded)
+        if errors:
+            raise forms.ValidationError(errors)
+        if not rows:
+            raise forms.ValidationError(_("Le fichier ne contient aucune solution."))
+        self.solution_rows = rows
+        return uploaded
+
     class Meta:
         model = Contract
         fields = "__all__"
@@ -216,6 +365,13 @@ class ContractAdmin(admin.ModelAdmin):
             "fields": ("excluded_features",),
             "description": _("Retirer pour ce contrat un critère normalement inclus dans la formule."),
         }),
+        (_("Solutions : import Excel"), {
+            "fields": ("solutions_file",),
+            "description": _(
+                "Joignez un fichier Excel : ses solutions sont ajoutées au contrat à l'enregistrement, "
+                "dès la création. Une solution de même nom déjà présente est mise à jour."
+            ),
+        }),
     )
     inlines = [SolutionInline, ContractAccessInline]
 
@@ -236,6 +392,19 @@ class ContractAdmin(admin.ModelAdmin):
         if not obj.reference:
             obj.assign_reference(form.cleaned_data.get("end_clients") or [])
         super().save_model(request, obj, form, change)
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        # Solutions du fichier Excel joint (déjà vérifié par le formulaire) : après le
+        # tableau des solutions, pour qu'une ligne du fichier mette à jour une saisie manuelle.
+        rows = getattr(form, "solution_rows", None)
+        if not rows:
+            return
+        created, updated, errors = apply_solution_rows(rows, form.instance)
+        self.message_user(request, _("Import Excel : %(c)d solution(s) créée(s), %(u)d mise(s) à jour.")
+                          % {"c": created, "u": updated}, messages.SUCCESS)
+        for error in errors:
+            self.message_user(request, error, messages.WARNING)
 
     class Media:
         css = {"all": ("css/admin_features.css",)}
@@ -334,111 +503,13 @@ class ContractAdmin(admin.ModelAdmin):
             "title": _("Importer des solutions"),
         })
 
-    CATEGORY_ALIASES = {
-        "software": "software", "logiciel": "software",
-        "hardware": "hardware", "matériel": "hardware", "materiel": "hardware",
-        "vm": "vm", "machine virtuelle": "vm", "virtual machine": "vm",
-        "cloud": "cloud", "saas": "cloud",
-        "other": "other", "autre": "other",
-    }
-    HEADER_ALIASES = {
-        "contrat": "contract", "catégorie": "category", "categorie": "category",
-        "éditeur": "vendor", "editeur": "vendor", "vendor": "vendor",
-        "modèle": "model", "modele": "model", "model": "model",
-        "nom": "name", "name": "name",
-        "n° de série": "serial_number", "n de série": "serial_number", "numero de serie": "serial_number",
-        "serial": "serial_number", "serial_number": "serial_number",
-        "localisation": "location", "lieu": "location", "location": "location",
-        "début de licence": "license_start", "debut de licence": "license_start", "license_start": "license_start",
-        "fin de licence": "license_end", "license_end": "license_end",
-        "notes": "notes", "note": "notes", "commentaire": "notes",
-        "actif": "is_active", "active": "is_active",
-    }
-
     def _import_solutions(self, uploaded, contract):
-        import datetime
-        from django.core.exceptions import ValidationError
-        from openpyxl import load_workbook
-
-        try:
-            wb = load_workbook(uploaded, read_only=True, data_only=True)
-        except Exception:
-            return {"ok": False, "errors": [_("Fichier Excel illisible (.xlsx attendu).")]}
-        ws = wb.active
-        rows = ws.iter_rows(values_only=True)
-        try:
-            header = [str(h).strip().lower() if h is not None else "" for h in next(rows)]
-        except StopIteration:
-            return {"ok": False, "errors": [_("Fichier vide.")]}
-        cols = {}
-        for i, h in enumerate(header):
-            key = self.HEADER_ALIASES.get(h.replace("  ", " "))
-            if key and key not in cols:
-                cols[key] = i
-        if "name" not in cols or "category" not in cols:
-            return {"ok": False, "errors": [_("Colonnes requises manquantes : « nom » et « catégorie ».")]}
-
-        created = updated = 0
-        errors = []
-        for lineno, row in enumerate(rows, start=2):
-            if not row or all(v is None or str(v).strip() == "" for v in row):
-                continue
-            get = lambda k: (row[cols[k]] if k in cols and cols[k] < len(row) else None)  # noqa: E731
-            name = str(get("name") or "").strip()
-            category = self.CATEGORY_ALIASES.get(str(get("category") or "").strip().lower())
-            if not name:
-                errors.append(_("Ligne %(n)d : nom manquant.") % {"n": lineno})
-                continue
-            if not category:
-                errors.append(_("Ligne %(n)d : catégorie « %(c)s » inconnue (software, hardware, vm, cloud, other).")
-                              % {"n": lineno, "c": get("category")})
-                continue
-            name = name[:200]
-            sol = Solution.objects.filter(contract=contract, name=name).first()
-            was_created = sol is None
-            if sol is None:
-                sol = Solution(contract=contract, name=name)
-            sol.category = category
-            row_failed = False
-            for field, key in (("vendor", "vendor"), ("model", "model"),
-                               ("serial_number", "serial_number"), ("location", "location"),
-                               ("license_start", "license_start"), ("license_end", "license_end"),
-                               ("notes", "notes")):
-                value = get(key)
-                if isinstance(value, datetime.datetime):
-                    value = value.date()
-                elif isinstance(value, str):
-                    value = value.strip() or None
-                if field in ("license_start", "license_end") and isinstance(value, str):
-                    try:
-                        value = datetime.datetime.strptime(value, "%d/%m/%Y").date()
-                    except ValueError:
-                        try:
-                            value = datetime.date.fromisoformat(value)
-                        except ValueError:
-                            errors.append(_("Ligne %(n)d : date invalide « %(d)s ».") % {"n": lineno, "d": value})
-                            row_failed = True
-                            break
-                if value is None:
-                    setattr(sol, field, None if field in ("license_start", "license_end") else "")
-                else:
-                    setattr(sol, field, value)
-            if row_failed:
-                continue
-            active = get("is_active")
-            if active is not None:
-                sol.is_active = str(active).strip().lower() not in ("non", "no", "false", "0", "n")
-            try:
-                sol.full_clean()
-            except ValidationError as e:
-                errors.append(_("Ligne %(n)d : %(msg)s") % {"n": lineno, "msg": "; ".join(e.messages)})
-                continue
-            sol.save()
-            if was_created:
-                created += 1
-            else:
-                updated += 1
-        return {"ok": True, "created": created, "updated": updated, "errors": errors}
+        """Page d'import : lit le fichier puis enregistre les lignes valides."""
+        rows, errors, fatal = read_solution_rows(uploaded)
+        if fatal:
+            return {"ok": False, "errors": errors}
+        created, updated, save_errors = apply_solution_rows(rows, contract)
+        return {"ok": True, "created": created, "updated": updated, "errors": errors + save_errors}
 
 
 @admin.register(Solution)

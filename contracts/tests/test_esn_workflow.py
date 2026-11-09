@@ -274,9 +274,9 @@ def test_solution_forms_have_no_version_field(env):
 
 def test_import_entry_shown_above_solutions(env):
     """L'accès à l'import Excel est visible au-dessus du tableau des solutions."""
-    add = env["client"].get(reverse("admin:contracts_contract_add")).content.decode()
-    assert "enregistrez d'abord le contrat" in add.lower()
-    assert reverse("admin:contracts_contract_import_template") in add
+    add = env["client"].get(reverse("admin:contracts_contract_add"))
+    assert "solutions_file" in add.context["adminform"].form.fields
+    assert reverse("admin:contracts_contract_import_template") in add.content.decode()
     change = env["client"].get(reverse("admin:contracts_contract_change", args=[env["contract"].pk]))
     assert reverse("admin:contracts_contract_import_solutions", args=[env["contract"].pk]) in change.content.decode()
 
@@ -309,3 +309,32 @@ def test_code_not_asked_on_organisation_forms(env):
                              "is_active": "on", "email_domains": ""})
     assert form.is_valid(), form.errors
     assert form.save().code == "OCI"
+
+
+def test_solutions_imported_when_contract_is_created(env):
+    """Le fichier Excel joint au formulaire de création ajoute les solutions au nouveau contrat."""
+    upload = _xlsx([
+        ["Catégorie", "Nom", "Éditeur", "Fin de licence"],
+        ["Matériel", "Pare-feu", "Fortinet", "31/12/2027"],
+        ["Logiciel", "ERP", "SAP", ""],
+    ])
+    contract = _add_contract(env, title="Avec import", solutions_file=upload)
+    assert contract.title == "Avec import"
+    assert sorted(contract.solutions.values_list("name", flat=True)) == ["ERP", "Pare-feu"]
+
+
+def test_bad_file_blocks_contract_creation(env):
+    """Fichier en erreur : rien n'est enregistré, la ligne fautive est signalée."""
+    before = Contract.objects.count()
+    upload = _xlsx([["Catégorie", "Nom"], ["Matériel", "OK"], ["Inconnue", "KO"]])
+    base = {
+        "title": "Refusé", "client": env["esn"].pk, "status": Contract.Status.ACTIVE,
+        "contract_type": ContractType.objects.get(name="GOLD").pk, "start_date": "2026-01-01",
+        "solutions-TOTAL_FORMS": "0", "solutions-INITIAL_FORMS": "0",
+        "accesses-TOTAL_FORMS": "0", "accesses-INITIAL_FORMS": "0", "solutions_file": upload,
+    }
+    resp = env["client"].post(reverse("admin:contracts_contract_add"), base)
+    assert resp.status_code == 200
+    errors = resp.context["adminform"].form.errors["solutions_file"]
+    assert any("Ligne 3" in e for e in errors)
+    assert Contract.objects.count() == before and not Solution.objects.filter(name="OK").exists()

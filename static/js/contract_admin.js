@@ -36,6 +36,32 @@
     filterEndClients();
   }
 
+  // --- Forfait de tickets : repris de la formule choisie ---
+  // Le champ reste modifiable : une valeur saisie à la main n'est jamais écrasée
+  // (on ne remplace que si le champ est vide ou contient la dernière valeur proposée).
+  var formulaSel = byId("id_contract_type");
+  var allowance = byId("id_allowance_tickets");
+  if (formulaSel && allowance) {
+    var allowances = parseMap(formulaSel, "data-allowances");
+    var proposed = null;
+    formulaSel.addEventListener("change", function () {
+      if (!(formulaSel.value in allowances)) return;
+      var value = allowances[formulaSel.value];
+      var text = value === null ? "" : String(value);
+      if (allowance.value === "" || allowance.value === proposed) {
+        allowance.value = text;
+        proposed = text;
+      }
+    });
+    // Nouveau contrat déjà positionné sur une formule (ex. retour d'erreur) : on ne
+    // touche pas à la saisie, mais on considère la valeur actuelle comme proposée
+    // si elle correspond à la formule.
+    if (formulaSel.value in allowances) {
+      var current = allowances[formulaSel.value];
+      if (allowance.value === (current === null ? "" : String(current))) proposed = allowance.value;
+    }
+  }
+
   // --- Critères : inclus (grisés, non cochables) / suppléments (cochables) ---
   var typeSel = byId("id_contract_type");
   var extraBox = byId("id_extra_features");

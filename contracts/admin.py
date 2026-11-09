@@ -43,14 +43,13 @@ class ContractTypeForm(forms.ModelForm):
 @admin.register(ContractType)
 class ContractTypeAdmin(admin.ModelAdmin):
     form = ContractTypeForm
-    list_display = ("name", "positioning", "sla", "scope", "billing_mode", "is_active")
+    list_display = ("name", "sla", "allowance_tickets", "is_active")
     list_filter = ("sla__coverage", "is_active")
-    search_fields = ("name", "positioning", "scope", "description")
+    search_fields = ("name", "description")
+    # Bloc « Positionnement & Commercial » retiré de la fiche (jugé inutile) ;
+    # les colonnes restent en base tant que la page contrat les affiche.
     fieldsets = (
-        (None, {"fields": ("name", "description", "sla", "is_active")}),
-        (_("Positionnement & Commercial"), {
-            "fields": ("positioning", "target_clients", "scope", "billing_mode", "commitment_period"),
-        }),
+        (None, {"fields": ("name", "description", "sla", "allowance_tickets", "is_active")}),
         (_("Critères & Prestations incluses"), {
             "fields": ("features",),
             "description": _(
@@ -238,12 +237,13 @@ class ContractAdmin(admin.ModelAdmin):
             str(o.pk): [e.pk for e in o.end_clients.all()]
             for o in Organisation.objects.filter(kind=Organisation.Kind.CLIENT).prefetch_related("end_clients")
         }
-        type_map = {
-            str(t.pk): [f.pk for f in t.features.all()]
-            for t in ContractType.objects.prefetch_related("features")
-        }
+        formulas = list(ContractType.objects.prefetch_related("features"))
+        type_map = {str(t.pk): [f.pk for f in t.features.all()] for t in formulas}
+        # formule → forfait de tickets par défaut (null = illimité)
+        allowance_map = {str(t.pk): t.allowance_tickets for t in formulas}
         form.base_fields["client"].widget.attrs["data-end-clients"] = json.dumps(esn_map)
         form.base_fields["contract_type"].widget.attrs["data-features"] = json.dumps(type_map)
+        form.base_fields["contract_type"].widget.attrs["data-allowances"] = json.dumps(allowance_map)
         _no_add_related(form, "extra_features", "excluded_features")
         return form
 

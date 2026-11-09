@@ -67,6 +67,11 @@ class ContractType(models.Model):
         ServiceFeature, blank=True, related_name="contract_types",
         verbose_name=_("critères inclus dans la formule"),
     )
+    allowance_tickets = models.PositiveIntegerField(
+        _("forfait de tickets"), null=True, blank=True,
+        help_text=_("Nombre de tickets inclus, repris par défaut sur les contrats de cette formule. "
+                    "Vide : illimité."),
+    )
     is_active = models.BooleanField(_("actif"), default=True)
 
     class Meta:

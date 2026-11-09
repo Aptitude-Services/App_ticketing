@@ -183,3 +183,33 @@ def test_allowed_access_is_saved_with_the_new_contract(setup, who):
     formset.instance = contract
     formset.save()
     assert ContractAccess.objects.filter(contract=contract, user=users[who]).exists()
+
+
+def test_formula_carries_default_ticket_allowance(setup):
+    """La fiche formule porte un forfait de tickets par défaut (vide = illimité)."""
+    _client, _users, request = setup
+    form = site._registry[ContractType].get_form(request)()
+    assert "allowance_tickets" in form.fields
+
+
+def test_contract_form_exposes_formula_allowances(setup):
+    """Le formulaire contrat fournit au JS le forfait de chaque formule, pour le préremplir."""
+    import json
+    _client, _users, request = setup
+    gold = ContractType.objects.get(name="GOLD")
+    gold.allowance_tickets = 120
+    gold.save()
+    form_class = site._registry[Contract].get_form(request)
+    allowances = json.loads(form_class.base_fields["contract_type"].widget.attrs["data-allowances"])
+    assert allowances[str(gold.pk)] == 120
+    starter = ContractType.objects.get(name="STARTER")
+    assert allowances[str(starter.pk)] is None  # non renseigné : illimité
+    assert 'data-allowances=' in str(form_class()["contract_type"])
+
+
+def test_formula_form_has_no_commercial_block(setup):
+    """Bloc « Positionnement & Commercial » retiré de la fiche formule."""
+    _client, _users, request = setup
+    form = site._registry[ContractType].get_form(request)()
+    for name in ("positioning", "target_clients", "scope", "billing_mode", "commitment_period"):
+        assert name not in form.fields

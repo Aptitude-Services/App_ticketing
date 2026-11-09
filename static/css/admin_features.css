@@ -254,7 +254,18 @@
     margin: 0;
 }
 .solutions-import-hint {
+    flex-basis: 100%;
+    margin: 0;
     color: var(--body-quiet-color, #666);
+}
+.solutions-import-bar.errors {
+    border-color: var(--error-fg, #ba2121);
+}
+.solutions-import-errors {
+    flex-basis: 100%;
+}
+.solutions-import-errors .errorlist {
+    margin: 0;
 }
 .solutions-import-template {
     font-weight: 600;

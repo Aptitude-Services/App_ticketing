@@ -365,14 +365,9 @@ class ContractAdmin(admin.ModelAdmin):
             "fields": ("excluded_features",),
             "description": _("Retirer pour ce contrat un critère normalement inclus dans la formule."),
         }),
-        (_("Solutions : import Excel"), {
-            "fields": ("solutions_file",),
-            "description": _(
-                "Joignez un fichier Excel : ses solutions sont ajoutées au contrat à l'enregistrement, "
-                "dès la création. Une solution de même nom déjà présente est mise à jour."
-            ),
-        }),
     )
+    # « solutions_file » (champ déclaré du formulaire) n'est dans aucun bloc : il s'affiche
+    # dans la zone « Solutions », au-dessus du tableau (solution_inline.html).
     inlines = [SolutionInline, ContractAccessInline]
 
     def get_readonly_fields(self, request, obj=None):

@@ -276,7 +276,12 @@ def test_import_entry_shown_above_solutions(env):
     """L'accès à l'import Excel est visible au-dessus du tableau des solutions."""
     add = env["client"].get(reverse("admin:contracts_contract_add"))
     assert "solutions_file" in add.context["adminform"].form.fields
-    assert reverse("admin:contracts_contract_import_template") in add.content.decode()
+    html = add.content.decode()
+    assert reverse("admin:contracts_contract_import_template") in html
+    # Plus de bloc séparé « Solutions : import Excel » : le champ est dans la zone Solutions.
+    assert "Solutions : import Excel" not in html
+    bar = html.index("solutions-import-bar")
+    assert bar < html.index('name="solutions_file"') < html.index("solutions-TOTAL_FORMS")
     change = env["client"].get(reverse("admin:contracts_contract_change", args=[env["contract"].pk]))
     assert reverse("admin:contracts_contract_import_solutions", args=[env["contract"].pk]) in change.content.decode()
 

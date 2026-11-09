@@ -1,0 +1,18 @@
+{% load i18n %}{% with id=widget.attrs.id %}<div{% if id %} id="{{ id }}"{% endif %} class="feature-checklist" data-mode="{{ widget.mode }}">
+  <div class="fc-toolbar">
+    <div class="fc-summary" aria-live="polite"></div>
+    <input type="search" class="fc-filter" placeholder="{% translate 'Rechercher un critère…' %}" aria-label="{% translate 'Rechercher un critère' %}">
+  </div>
+  <div class="fc-cards">
+  {% for group, options, index in widget.optgroups %}
+    <section class="fc-card">
+      <header class="fc-card-head">
+        <span class="fc-card-title">{{ group }}</span>
+        <span class="fc-card-count"></span>
+      </header>
+      <ul class="fc-rows">{% for option in options %}{% include option.template_name with widget=option %}{% endfor %}</ul>
+    </section>
+  {% endfor %}
+  </div>
+  <p class="fc-empty" hidden>{% translate "Aucun critère ne correspond à la recherche." %}</p>
+</div>{% endwith %}

@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.contrib.admin.sites import site
 
 from accounts.models import Organisation, Profile, User
-from contracts.models import Contract, ContractAccess, ContractType, Solution
+from contracts.models import Contract, ContractAccess, ContractType, ServiceFeature, Solution
 
 pytestmark = pytest.mark.django_db
 
@@ -60,15 +60,67 @@ def test_forbidden_access_is_a_form_error_not_a_crash(setup, who):
     assert formset.errors[0] or formset.non_form_errors()
 
 
-def test_extra_features_exclude_formula_criteria(setup):
-    """Les critères déjà inclus dans la formule ne sont pas reproposés en options."""
+def test_formula_criteria_shown_greyed_not_checkable(setup):
+    """Les critères de la formule sont affichés cochés et désactivés ; les autres restent cochables."""
     _client, _users, request = setup
     admin = site._registry[Contract]
     contract_type = ContractType.objects.get(name="STARTER")
     form = admin.get_form(request)({"contract_type": contract_type.pk})
     base_ids = set(contract_type.features.values_list("pk", flat=True))
-    proposed = set(form.fields["extra_features"].queryset.values_list("pk", flat=True))
-    assert base_ids and not (base_ids & proposed)
+    import re
+    html = str(form["extra_features"])
+    inputs = {int(m.group(1)): m.group(0) for m in re.finditer(r'<input[^>]*value="(\d+)"[^>]*>', html)}
+    assert base_ids
+    for pk in base_ids:
+        assert "checked" in inputs[pk] and "disabled" in inputs[pk]
+    supplement = form.fields["extra_features"].queryset.exclude(pk__in=base_ids).first()
+    assert supplement is not None
+    assert "disabled" not in inputs[supplement.pk] and "checked" not in inputs[supplement.pk]
+
+
+def test_formula_criteria_never_saved_as_supplements(setup):
+    client, _users, request = setup
+    admin = site._registry[Contract]
+    formula = ContractType.objects.get(name="STARTER")
+    base = formula.features.first()
+    extra = ServiceFeature.objects.filter(is_active=True).exclude(pk__in=formula.features.all()).first()
+    data = {**_post(client, _users["client"]), "contract_type": formula.pk, "extra_features": [base.pk, extra.pk]}
+    form = admin.get_form(request)(data)
+    assert form.is_valid(), form.errors
+    assert [f.pk for f in form.cleaned_data["extra_features"]] == [extra.pk]
+
+
+def test_only_formula_criteria_can_be_removed(setup):
+    client, _users, request = setup
+    admin = site._registry[Contract]
+    formula = ContractType.objects.get(name="STARTER")
+    outside = ServiceFeature.objects.filter(is_active=True).exclude(pk__in=formula.features.all()).first()
+    data = {**_post(client, _users["client"]), "contract_type": formula.pk, "excluded_features": [outside.pk]}
+    form = admin.get_form(request)(data)
+    assert not form.is_valid()
+    assert "excluded_features" in form.errors
+
+    data["excluded_features"] = [formula.features.first().pk]
+    assert admin.get_form(request)(data).is_valid()
+
+
+def test_formula_form_lists_criteria_grouped_by_category(setup):
+    _client, _users, request = setup
+    form = site._registry[ContractType].get_form(request)()
+    html = str(form["features"])
+    assert 'class="feature-checklist" data-mode="catalogue"' in html
+    assert html.count('class="fc-card"') == ServiceFeature.objects.values("category").distinct().count()
+    assert "disabled" not in html  # sur la formule, rien n'est pré-inclus
+
+
+@pytest.mark.parametrize("model, fields", [(ContractType, ["features"]),
+                                           (Contract, ["extra_features", "excluded_features"])])
+def test_no_add_related_button_on_criteria(setup, model, fields):
+    """Pas de « + » : les critères se créent dans le menu « Critères de service »."""
+    _client, _users, request = setup
+    form = site._registry[model].get_form(request)()
+    for name in fields:
+        assert "add-related" not in str(form[name])
 
 
 def test_end_clients_queryset_limited_to_esn(setup):

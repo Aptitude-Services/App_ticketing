@@ -8,6 +8,16 @@ from django.utils.translation import gettext_lazy as _
 
 from accounts.models import Organisation
 from .models import Contract, ContractAccess, ContractType, ServiceFeature, Solution
+from .widgets import FeatureChecklist
+
+
+def _no_add_related(form, *names):
+    """Retire le bouton « + » (création d'un critère en popup) : les critères se gèrent
+    dans le menu « Critères de service », pas depuis une formule ou un contrat."""
+    for name in names:
+        field = form.base_fields.get(name)
+        if field is not None and hasattr(field.widget, "can_add_related"):
+            field.widget.can_add_related = False
 
 
 @admin.register(ServiceFeature)
@@ -23,7 +33,10 @@ class ContractTypeForm(forms.ModelForm):
         model = ContractType
         fields = "__all__"
         widgets = {
-            "features": forms.CheckboxSelectMultiple,
+            "features": FeatureChecklist(mode="catalogue"),
+        }
+        labels = {
+            "features": _("Critères de la formule"),
         }
 
 
@@ -40,12 +53,21 @@ class ContractTypeAdmin(admin.ModelAdmin):
         }),
         (_("Critères & Prestations incluses"), {
             "fields": ("features",),
-            "description": _("Cochez les critères et prestations inclus par défaut dans cette formule."),
+            "description": _(
+                "Activez les critères compris dans cette formule. Dans chaque contrat qui l'utilise, ils "
+                "apparaîtront « Inclus » et les autres seront proposés en suppléments."
+            ),
         }),
     )
 
     class Media:
         css = {"all": ("css/admin_features.css",)}
+        js = ("js/feature_checklist.js",)
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        _no_add_related(form, "features")
+        return form
 
 
 class CategorySelect(forms.Select):
@@ -87,8 +109,16 @@ class ContractForm(forms.ModelForm):
         model = Contract
         fields = "__all__"
         widgets = {
-            "extra_features": forms.CheckboxSelectMultiple,
-            "excluded_features": forms.CheckboxSelectMultiple,
+            "extra_features": FeatureChecklist(mode="contract"),
+            "excluded_features": FeatureChecklist(mode="exclusions"),
+        }
+        labels = {
+            "extra_features": _("Critères et suppléments"),
+            "excluded_features": _("Critères retirés"),
+        }
+        help_texts = {
+            "extra_features": _("Grisés : inclus dans la formule. Cochez les suppléments à ajouter pour ce client."),
+            "excluded_features": _("Exceptionnel : cochez un critère de la formule à retirer pour ce contrat."),
         }
 
     def __init__(self, *args, **kwargs):
@@ -103,14 +133,25 @@ class ContractForm(forms.ModelForm):
                 qs = qs | self.instance.end_clients.all()
             self.fields["end_clients"].queryset = qs.distinct()
 
-        # Options additionnelles : les critères déjà inclus dans la formule
-        # sélectionnée ne sont pas reproposés (le JS les masque aussi en direct).
-        if contract_type is not None:
-            base_ids = contract_type.features.values_list("pk", flat=True)
-            qs = ServiceFeature.objects.filter(is_active=True).exclude(pk__in=base_ids)
-            if self.instance.pk:
-                qs = qs | self.instance.extra_features.all()
-            self.fields["extra_features"].queryset = qs.distinct()
+        # Critères : tout le catalogue actif est listé ; ceux de la formule choisie
+        # sont affichés cochés et grisés (non modifiables), les autres sont les
+        # suppléments cochables. Le JS met l'affichage à jour au changement de formule.
+        active = ServiceFeature.objects.filter(is_active=True)
+        extra_qs, excluded_qs = active, active
+        if self.instance.pk:
+            extra_qs = extra_qs | self.instance.extra_features.all()
+            excluded_qs = excluded_qs | self.instance.excluded_features.all()
+        self.fields["extra_features"].queryset = extra_qs.distinct()
+        self.fields["excluded_features"].queryset = excluded_qs.distinct()
+        widget = self.fields["extra_features"].widget
+        widget = getattr(widget, "widget", widget)  # l'admin l'enveloppe (bouton « + »)
+        widget.included = self._formula_ids(contract_type)
+
+    @staticmethod
+    def _formula_ids(contract_type):
+        if contract_type is None:
+            return set()
+        return set(contract_type.features.values_list("pk", flat=True))
 
     def _selected(self, name, model):
         """Objet choisi dans les données POST, ou valeur actuelle de l'instance."""
@@ -135,6 +176,16 @@ class ContractForm(forms.ModelForm):
                     self.add_error("end_clients",
                                    _("Ces clients finaux ne sont pas rattachés à %(client)s : %(names)s")
                                    % {"client": client.name, "names": ", ".join(invalid)})
+
+        formula_ids = self._formula_ids(data.get("contract_type"))
+        # Un critère déjà inclus dans la formule n'est jamais enregistré comme supplément.
+        if data.get("extra_features") is not None:
+            data["extra_features"] = [f for f in data["extra_features"] if f.pk not in formula_ids]
+        stray = [f.name for f in data.get("excluded_features") or [] if f.pk not in formula_ids]
+        if stray:
+            self.add_error("excluded_features",
+                           _("Seuls des critères inclus dans la formule peuvent être retirés : %(names)s")
+                           % {"names": ", ".join(stray)})
         return data
 
 
@@ -152,20 +203,24 @@ class ContractAdmin(admin.ModelAdmin):
             "fields": ("reference", "title", "client", "end_clients", "contract_type", "status", "start_date", "end_date",
                        "allowance_tickets"),
         }),
-        (_("Options sur-mesure pour ce client"), {
-            "fields": ("extra_features", "excluded_features"),
+        (_("Composition du contrat"), {
+            "fields": ("extra_features",),
             "description": _(
-                "Cochez des critères additionnels spécifiques à ce client (ex. Support N3 expert pour une formule Bronze) "
-                "sans modifier la formule standard du catalogue. Les critères déjà inclus dans la formule "
-                "sélectionnée ne sont pas reproposés."
+                "Les critères de la formule choisie sont marqués « Inclus ». Activez les suppléments "
+                "propres à ce client (ex. Support N3 expert sur une formule BRONZE), sans modifier la formule."
             ),
+        }),
+        (_("Dérogations (exceptionnel)"), {
+            "classes": ("collapse",),
+            "fields": ("excluded_features",),
+            "description": _("Retirer pour ce contrat un critère normalement inclus dans la formule."),
         }),
     )
     inlines = [SolutionInline, ContractAccessInline]
 
     class Media:
         css = {"all": ("css/admin_features.css",)}
-        js = ("js/contract_admin.js",)
+        js = ("js/feature_checklist.js", "js/contract_admin.js")
 
     def get_urls(self):
         urls = super().get_urls()
@@ -189,6 +244,7 @@ class ContractAdmin(admin.ModelAdmin):
         }
         form.base_fields["client"].widget.attrs["data-end-clients"] = json.dumps(esn_map)
         form.base_fields["contract_type"].widget.attrs["data-features"] = json.dumps(type_map)
+        _no_add_related(form, "extra_features", "excluded_features")
         return form
 
     def import_solutions_view(self, request, object_id):

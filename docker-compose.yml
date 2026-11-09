@@ -15,12 +15,18 @@ services:
       - --certificatesresolvers.le.acme.email=${ACME_EMAIL}
       - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
       - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+      # Certificat fourni par fichier (autorité interne Aptitude) : voir docker/traefik/tls.yml
+      # et docker/certs/creer-certificat.sh. Let's Encrypt : docker-compose.letsencrypt.yml.
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
     # Apache occupe déjà le port 80 sur srv-aptitude-4 : site servi en HTTPS sur 8843.
     ports:
       - "8843:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - letsencrypt:/letsencrypt
+      - ./docker/traefik:/etc/traefik/dynamic:ro
+      - ./certs:/certs:ro
 
   web:
     build: .
@@ -38,12 +44,12 @@ services:
       - traefik.http.services.support.loadbalancer.server.port=8000
       - traefik.http.routers.support.rule=Host(`${SITE_DOMAIN}`)
       - traefik.http.routers.support.entrypoints=websecure
-      - traefik.http.routers.support.tls.certresolver=le
+      - traefik.http.routers.support.tls=true
       - traefik.http.routers.support.service=support
       # Console d'administration (/gestion) limitée aux IP Aptitude
       - traefik.http.routers.support-admin.rule=Host(`${SITE_DOMAIN}`) && PathPrefix(`/gestion`)
       - traefik.http.routers.support-admin.entrypoints=websecure
-      - traefik.http.routers.support-admin.tls.certresolver=le
+      - traefik.http.routers.support-admin.tls=true
       - traefik.http.routers.support-admin.service=support
       - traefik.http.routers.support-admin.middlewares=admin-ip
       - traefik.http.middlewares.admin-ip.ipallowlist.sourcerange=${ADMIN_ALLOWED_IPS}

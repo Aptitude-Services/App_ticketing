@@ -1,0 +1,13 @@
+# Certificat HTTPS servi par Traefik (configuration dynamique, relue à chaud).
+# Les fichiers viennent de ./certs sur le serveur (jamais versionnés), générés par
+# docker/certs/creer-certificat.sh et signés par l'autorité interne Aptitude.
+# Remplacer ces deux fichiers suffit pour renouveler : Traefik les recharge seul.
+tls:
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /certs/support.crt
+        keyFile: /certs/support.key
+  options:
+    default:
+      minVersion: VersionTLS12

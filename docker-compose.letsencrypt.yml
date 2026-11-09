@@ -1,0 +1,14 @@
+# Passage à Let's Encrypt, le jour où le site a un nom public (ex. support.aptitudes.net).
+# Let's Encrypt refuse les noms en .local : tant que SITE_DOMAIN=support.aptitudes.local,
+# garder le certificat de l'autorité interne (docker-compose.yml seul).
+#
+# Usage : docker compose -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d
+# Prérequis de la validation HTTP configurée dans docker-compose.yml : SITE_DOMAIN public,
+# résolu vers le serveur, et port 80 joignable depuis Internet (à rediriger vers Traefik ;
+# Apache occupe aujourd'hui le port 80 de srv-aptitude-4). Sans exposition à Internet,
+# utiliser une validation DNS (par ex. acme-dns) à la place de httpchallenge.
+services:
+  web:
+    labels:
+      - traefik.http.routers.support.tls.certresolver=le
+      - traefik.http.routers.support-admin.tls.certresolver=le

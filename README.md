@@ -10,7 +10,7 @@ Le jalon 1 pose le socle (comptes, profils, cloisonnement, MFA, audit) ; le jalo
 | Organisations | Aptitude et clients, domaines email, activation |
 | Utilisateurs | Connexion par email, 7 profils, langue FR/EN, invitation par email |
 | Cloisonnement | `accounts/permissions.py` : point unique qui décide de ce qu'un utilisateur voit |
-| Accès contrats | Engineer (restricted) et utilisateur client limité par son admin |
+| Affectations aux contrats | Engineer (restricted) et utilisateur client limité par son admin |
 | Gestion par l'admin client | Création et modification des comptes de son organisation, limitation par contrat, protection du dernier admin |
 | MFA | TOTP obligatoire pour Aptitude, optionnelle pour les clients (exigée dès qu'elle est activée) |
 | Sécurité | Verrouillage après 5 échecs (30 min), sessions de 8 h, cookies sécurisés, HSTS, `/gestion` filtrable par IP |
@@ -111,18 +111,60 @@ Toute nouvelle vue doit filtrer ses données via `accounts/permissions.py` et aj
 
 ## Déployer sur le VPS
 
-Prérequis : Docker et Docker Compose, ports 80 et 443 ouverts, enregistrement DNS `support.aptitudes.net` pointant vers le VPS.
+Prérequis : Docker et Docker Compose, un nom DNS pointant vers le serveur (aujourd'hui `support.aptitudes.local` → `10.10.1.77`, site publié en HTTPS sur le port 8843).
 
 ```bash
 cp .env.example .env
-# éditer .env : DJANGO_SECRET_KEY, POSTGRES_PASSWORD, ADMIN_ALLOWED_IPS (la messagerie peut ensuite se régler dans l'application)
+# éditer .env : SITE_DOMAIN, DJANGO_ALLOWED_HOSTS, DJANGO_CSRF_TRUSTED_ORIGINS, DJANGO_SECRET_KEY, POSTGRES_PASSWORD, ADMIN_ALLOWED_IPS
 python3 -c "import secrets; print(secrets.token_urlsafe(50))"   # pour DJANGO_SECRET_KEY
+sh docker/certs/creer-certificat.sh support.aptitudes.local 10.10.1.77   # voir « Certificat HTTPS »
 docker compose up -d --build
 docker compose exec web python manage.py createsuperuser
 ```
 
-Traefik obtient et renouvelle le certificat Let's Encrypt. Les migrations s'appliquent à chaque démarrage du conteneur `web`.
-L'administration est à `https://support.aptitudes.net/gestion/` ; restreignez `ADMIN_ALLOWED_IPS` aux IP ou au VPN d'Aptitude.
+Les migrations s'appliquent à chaque démarrage du conteneur `web`.
+L'administration est à `https://support.aptitudes.local:8843/gestion/` ; restreignez `ADMIN_ALLOWED_IPS` aux IP ou au VPN d'Aptitude.
+
+### Certificat HTTPS (autorité interne Aptitude)
+
+Let's Encrypt ne délivre **pas** de certificat pour un nom en `.local`. Tant que le site s'appelle
+`support.aptitudes.local`, le certificat est signé par une **autorité de certification interne** Aptitude.
+Sans certificat valide, le navigateur affiche une alerte et **l'application (PWA) ne s'installe pas sur mobile**.
+
+1. **Créer l'autorité et le certificat** (sur le serveur, depuis la racine du projet) :
+
+   ```bash
+   sh docker/certs/creer-certificat.sh support.aptitudes.local 10.10.1.77
+   # noms supplémentaires possibles à la suite, ex. : ... 10.10.1.77 support.aptitudes.net
+   ```
+
+   Le script écrit dans `./certs` (jamais versionné) : `support.crt` / `support.key`, lus par Traefik
+   (`docker/traefik/tls.yml`), et le certificat racine à distribuer `aptitude-ca.crt` (et `.cer` pour Windows).
+   Il affiche l'empreinte SHA-256 de l'autorité : vérifiez-la sur chaque appareil lors de l'installation.
+   **Copiez ensuite `certs/ca/aptitude-ca.key` hors du serveur** (coffre, clé USB chiffrée) et supprimez-le du serveur.
+   L'autorité est limitée par construction aux noms `aptitudes.local`, `aptitudes.net` et aux IP privées.
+
+2. **Faire confiance à l'autorité, une seule fois par appareil** :
+   - **PC du domaine** : stratégie de groupe → Configuration ordinateur → Paramètres Windows → Paramètres de sécurité →
+     Stratégies de clé publique → *Autorités de certification racines de confiance* → importer `aptitude-ca.cer`.
+     Hors domaine : double-clic sur `aptitude-ca.cer` → Installer → Ordinateur local → *Autorités de certification racines de confiance*.
+   - **Android** : Paramètres → Sécurité → Chiffrement et identifiants → Installer un certificat → *Certificat CA* → `aptitude-ca.crt`
+     (libellés variables selon le fabricant). Ouvrir ensuite le site dans Chrome → menu → *Installer l'application*.
+   - **iPhone / iPad** : envoyer `aptitude-ca.crt` (mail, AirDrop) → Réglages → *Profil téléchargé* → Installer, puis
+     Réglages → Général → Informations → *Réglages des certificats* → activer la confiance totale.
+     Ouvrir ensuite le site dans Safari → Partager → *Sur l'écran d'accueil*.
+
+3. **Renouveler tous les ans** (le certificat du site vaut 397 jours, maximum accepté par les iPhone) : remettre la clé de
+   l'autorité dans `certs/ca/`, relancer la même commande. Traefik recharge le certificat sans redémarrage, et rien n'est
+   à réinstaller sur les appareils (même autorité). Le script refuse de créer une nouvelle autorité si la clé manque.
+
+> **Mobiles et `.local`** : iPhone et Android résolvent souvent les noms en `.local` par multicast (Bonjour) et non par le DNS
+> de l'entreprise ; le site peut alors être introuvable sur téléphone. Le certificat couvre aussi l'IP (`https://10.10.1.77:8843`).
+> La solution durable est un nom en `aptitudes.net` (le DNS interne gère déjà cette zone) : ajoutez `support.aptitudes.net`
+> au certificat et à `DJANGO_ALLOWED_HOSTS` / `DJANGO_CSRF_TRUSTED_ORIGINS`.
+
+**Passer à Let's Encrypt plus tard** : avec un nom public (ex. `support.aptitudes.net`) et `SITE_DOMAIN` mis à jour,
+lancer `docker compose -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d` (prérequis dans ce fichier).
 
 Sauvegarde de la base (à planifier en cron, puis copier hors du VPS) :
 

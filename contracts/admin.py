@@ -87,7 +87,7 @@ def category_help():
 class SolutionInline(admin.TabularInline):
     model = Solution
     extra = 0
-    fields = ("category", "vendor", "model", "version", "name", "serial_number", "location",
+    fields = ("category", "vendor", "model", "name", "serial_number", "location",
               "license_start", "license_end", "is_active")
 
     def formfield_for_choice_field(self, db_field, request, **kwargs):
@@ -217,6 +217,24 @@ class ContractAdmin(admin.ModelAdmin):
     )
     inlines = [SolutionInline, ContractAccessInline]
 
+    def get_readonly_fields(self, request, obj=None):
+        # Référence attribuée automatiquement, jamais saisie.
+        return ("reference",) if obj else ()
+
+    def get_fieldsets(self, request, obj=None):
+        fieldsets = super().get_fieldsets(request, obj)
+        if obj is None:
+            # À la création, la référence n'existe pas encore : on ne l'affiche pas.
+            main = dict(fieldsets[0][1])
+            main["fields"] = tuple(f for f in main["fields"] if f != "reference")
+            fieldsets = ((fieldsets[0][0], main), *fieldsets[1:])
+        return fieldsets
+
+    def save_model(self, request, obj, form, change):
+        if not obj.reference:
+            obj.assign_reference(form.cleaned_data.get("end_clients") or [])
+        super().save_model(request, obj, form, change)
+
     class Media:
         css = {"all": ("css/admin_features.css",)}
         js = ("js/feature_checklist.js", "js/contract_admin.js")
@@ -274,7 +292,7 @@ class ContractAdmin(admin.ModelAdmin):
         "contrat": "contract", "catégorie": "category", "categorie": "category",
         "éditeur": "vendor", "editeur": "vendor", "vendor": "vendor",
         "modèle": "model", "modele": "model", "model": "model",
-        "version": "version", "nom": "name", "name": "name",
+        "nom": "name", "name": "name",
         "n° de série": "serial_number", "n de série": "serial_number", "numero de serie": "serial_number",
         "serial": "serial_number", "serial_number": "serial_number",
         "localisation": "location", "lieu": "location", "location": "location",
@@ -329,7 +347,7 @@ class ContractAdmin(admin.ModelAdmin):
                 sol = Solution(contract=contract, name=name)
             sol.category = category
             row_failed = False
-            for field, key in (("vendor", "vendor"), ("model", "model"), ("version", "version"),
+            for field, key in (("vendor", "vendor"), ("model", "model"),
                                ("serial_number", "serial_number"), ("location", "location"),
                                ("license_start", "license_start"), ("license_end", "license_end"),
                                ("notes", "notes")):
@@ -372,8 +390,9 @@ class ContractAdmin(admin.ModelAdmin):
 
 @admin.register(Solution)
 class SolutionAdmin(admin.ModelAdmin):
-    list_display = ("name", "category", "contract", "vendor", "model", "version", "license_end", "is_active")
+    list_display = ("name", "category", "contract", "vendor", "model", "license_end", "is_active")
     list_filter = ("category", "is_active", "contract__client")
+    exclude = ("version",)  # champ retiré de la saisie (colonne conservée en base)
     search_fields = ("name", "vendor", "model", "serial_number", "contract__reference")
     autocomplete_fields = ("contract",)
 

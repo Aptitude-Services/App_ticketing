@@ -1,10 +1,47 @@
 """Référentiel contrats : types de contrat (porteurs du SLA), contrats, solutions, accès."""
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from accounts.models import Organisation, Profile, User
 from sla.models import SLA
+
+
+class ContractSequence(models.Model):
+    """Compteur des références de contrat, par préfixe ESN[-client final]-année.
+
+    Ex. préfixe « HUD-BLAG-2026 » → HUD-BLAG-2026-001, HUD-BLAG-2026-002…
+    """
+
+    prefix = models.CharField(max_length=40, primary_key=True)
+    last = models.PositiveIntegerField(default=0)
+
+    @classmethod
+    def next_reference(cls, prefix):
+        with transaction.atomic():
+            seq, _ = cls.objects.select_for_update().get_or_create(prefix=prefix)
+            while True:
+                seq.last += 1
+                reference = f"{prefix}-{seq.last:03d}"
+                # Une référence saisie à la main par le passé pourrait déjà exister.
+                if not Contract.objects.filter(reference=reference).exists():
+                    break
+            seq.save(update_fields=["last"])
+            return reference
+
+
+def contract_reference_prefix(client, end_clients=(), year=None):
+    """Préfixe lisible : code ESN, code client final (ou MULTI s'il y en a plusieurs), année."""
+    year = year or timezone.localdate().year
+    parts = [client.code]
+    end_clients = list(end_clients)
+    if len(end_clients) == 1:
+        parts.append(end_clients[0].code)
+    elif len(end_clients) > 1:
+        parts.append("MULTI")
+    parts.append(str(year))
+    return "-".join(parts)
 
 
 class ServiceFeature(models.Model):
@@ -97,7 +134,10 @@ class Contract(models.Model):
         EXPIRED = "expired", _("Expiré")
         TERMINATED = "terminated", _("Résilié")
 
-    reference = models.CharField(_("référence"), max_length=50, unique=True)
+    reference = models.CharField(
+        _("référence"), max_length=50, unique=True, blank=True,
+        help_text=_("Attribuée automatiquement à la création : ESN-CLIENTFINAL-AAAA-NNN (ex. HUD-BLAG-2026-001)."),
+    )
     title = models.CharField(_("intitulé"), max_length=200)
     client = models.ForeignKey(
         Organisation, on_delete=models.PROTECT, related_name="contracts",
@@ -207,6 +247,16 @@ class Contract(models.Model):
             cat_label = item["feature"].get_category_display()
             grouped.setdefault(cat_label, []).append(item)
         return grouped
+
+    def assign_reference(self, end_clients=()):
+        """Attribue la référence (une seule fois). Les clients finaux sont passés
+        explicitement : à la création, la relation n'est pas encore enregistrée."""
+        if not self.reference and self.client_id:
+            self.reference = ContractSequence.next_reference(contract_reference_prefix(self.client, end_clients))
+
+    def save(self, *args, **kwargs):
+        self.assign_reference()  # filet de sécurité hors admin : ESN seule
+        super().save(*args, **kwargs)
 
     def clean(self):
         if not self.contract_type_id:

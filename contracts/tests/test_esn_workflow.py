@@ -200,3 +200,73 @@ def test_ticket_forfait_prefilled_from_contract_formula(env):
                                     profile=Profile.CLIENT_ADMIN)
     ticket = S.create_ticket(user, env["contract"], "Panne", "Le service ne répond plus")
     assert ticket.forfait == "GOLD"
+
+
+# --- Codes des organisations et références de contrat -----------------------
+
+def test_organisation_codes_are_derived_and_unique(env):
+    assert env["esn"].code == "EA"  # « ESN A » : calculé depuis le nom
+    hud = Organisation.objects.create(name="HUDSON", kind=Organisation.Kind.CLIENT, activity_sector=SECTOR)
+    lagune = Organisation.objects.create(name="Banque Lagune", kind=Organisation.Kind.END_CLIENT,
+                                         activity_sector=SECTOR)
+    twin = Organisation.objects.create(name="Hudson", kind=Organisation.Kind.CLIENT, activity_sector=SECTOR)
+    assert (hud.code, lagune.code, twin.code) == ("HUD", "BLAG", "HUD2")
+
+
+def test_organisation_code_entered_by_hand_is_checked(env):
+    org = Organisation(name="Orange CI", code="or-ci", kind=Organisation.Kind.CLIENT, activity_sector=SECTOR)
+    with pytest.raises(Exception):
+        org.full_clean()
+    org.code = "orci"
+    org.full_clean()
+    org.save()
+    assert org.code == "ORCI"
+
+
+def _add_contract(env, **data):
+    base = {
+        "title": "Contrat", "client": env["esn"].pk, "status": Contract.Status.ACTIVE,
+        "contract_type": ContractType.objects.get(name="GOLD").pk, "start_date": "2026-01-01",
+        "solutions-TOTAL_FORMS": "0", "solutions-INITIAL_FORMS": "0",
+        "accesses-TOTAL_FORMS": "0", "accesses-INITIAL_FORMS": "0",
+    }
+    resp = env["client"].post(reverse("admin:contracts_contract_add"), {**base, **data})
+    assert resp.status_code == 302, resp.context["adminform"].form.errors if resp.context else resp
+    return Contract.objects.order_by("-pk").first()
+
+
+def test_contract_reference_built_from_esn_and_end_client(env):
+    from django.utils import timezone
+    year = timezone.localdate().year
+    esn, end = env["esn"], env["end"]
+    first = _add_contract(env, end_clients=[end.pk])
+    second = _add_contract(env, title="Autre", end_clients=[end.pk])
+    assert first.reference == f"{esn.code}-{end.code}-{year}-001"
+    assert second.reference == f"{esn.code}-{end.code}-{year}-002"
+
+    alone = _add_contract(env, title="ESN seule")
+    assert alone.reference == f"{esn.code}-{year}-001"
+
+    other = Organisation.objects.create(name="Clinique Nord", kind=Organisation.Kind.END_CLIENT,
+                                        activity_sector=SECTOR)
+    esn.end_clients.add(other)
+    multi = _add_contract(env, title="Plusieurs", end_clients=[end.pk, other.pk])
+    assert multi.reference == f"{esn.code}-MULTI-{year}-001"
+
+
+def test_contract_reference_not_asked_then_read_only(env):
+    add_form = env["client"].get(reverse("admin:contracts_contract_add")).context["adminform"].form
+    assert "reference" not in add_form.fields
+    contract = env["contract"]
+    change = env["client"].get(reverse("admin:contracts_contract_change", args=[contract.pk]))
+    assert "reference" not in change.context["adminform"].form.fields
+    assert contract.reference in change.content.decode()
+
+
+def test_solution_forms_have_no_version_field(env):
+    from django.contrib.admin.sites import site
+    from contracts.admin import SolutionInline
+    from contracts.models import Solution as Sol
+    assert "version" not in SolutionInline.fields
+    request = env["client"].get(reverse("admin:contracts_solution_add")).wsgi_request
+    assert "version" not in site._registry[Sol].get_form(request)().fields

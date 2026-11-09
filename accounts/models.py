@@ -56,6 +56,11 @@ class Organisation(models.Model):
         OTHER = "other", _("Autre")
 
     name = models.CharField(_("nom"), max_length=200, unique=True)
+    code = models.CharField(
+        _("code"), max_length=8, unique=True, blank=True,
+        help_text=_("2 à 8 lettres ou chiffres, repris dans les références de contrat (ex. HUD). "
+                    "Vide : calculé depuis le nom."),
+    )
     kind = models.CharField(_("type"), max_length=20, choices=Kind.choices, default=Kind.CLIENT)
     activity_sector = models.CharField(
         _("secteur d'activité"), max_length=30, choices=ActivitySector.choices, blank=True,
@@ -82,8 +87,22 @@ class Organisation(models.Model):
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        if self.code:
+            self.code = self.code.strip().upper()
+        else:
+            from .codes import suggest_code
+            taken = Organisation.objects.exclude(pk=self.pk).values_list("code", flat=True)
+            self.code = suggest_code(self.name, taken)
+        super().save(*args, **kwargs)
+
     def clean(self):
         super().clean()
+        if self.code:
+            from .codes import CODE_RE
+            self.code = self.code.strip().upper()
+            if not CODE_RE.match(self.code):
+                raise ValidationError({"code": _("De 2 à 8 lettres (sans accent) ou chiffres, ex. HUD.")})
         client_kinds = {self.Kind.CLIENT, self.Kind.END_CLIENT}
         if self.kind in client_kinds and not self.activity_sector:
             raise ValidationError({"activity_sector": _("Choisissez le secteur d'activité.")})

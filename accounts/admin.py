@@ -38,7 +38,8 @@ class OrganisationForm(forms.ModelForm):
 
     class Meta:
         model = Organisation
-        fields = "__all__"
+        # Le code (HUD, BLAG…) est calculé automatiquement depuis le nom : pas de saisie.
+        exclude = ["code"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -51,10 +52,6 @@ class OrganisationForm(forms.ModelForm):
         # « Maintenez appuyé Ctrl… » que l'admin ajoute aux listes multiples).
         for field in self.fields.values():
             field.help_text = ""
-        if "code" in self.fields:
-            self.fields["code"].widget.attrs.update({
-                "placeholder": _("Auto (ex. HUD)"), "style": "text-transform:uppercase", "size": 10,
-            })
 
     def clean(self):
         data = super().clean()
@@ -79,7 +76,7 @@ class EndClientForm(forms.ModelForm):
 
     class Meta:
         model = Organisation
-        fields = ["name", "code", "activity_sector", "email_domains"]
+        fields = ["name", "activity_sector", "email_domains"]
 
 
 @admin.register(Organisation)
@@ -90,7 +87,7 @@ class OrganisationAdmin(admin.ModelAdmin):
     list_filter = ("kind", "activity_sector", "is_active")
     search_fields = ("name", "email_domains")
     filter_horizontal = ("end_clients",)
-    fields = ("name", "code", "kind", "activity_sector", "end_clients", "partner_esns", "is_active", "email_domains")
+    fields = ("name", "kind", "activity_sector", "end_clients", "partner_esns", "is_active", "email_domains")
 
     class Media:
         css = {"all": ("css/admin_features.css",)}

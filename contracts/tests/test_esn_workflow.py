@@ -270,3 +270,42 @@ def test_solution_forms_have_no_version_field(env):
     assert "version" not in SolutionInline.fields
     request = env["client"].get(reverse("admin:contracts_solution_add")).wsgi_request
     assert "version" not in site._registry[Sol].get_form(request)().fields
+
+
+def test_import_entry_shown_above_solutions(env):
+    """L'accès à l'import Excel est visible au-dessus du tableau des solutions."""
+    add = env["client"].get(reverse("admin:contracts_contract_add")).content.decode()
+    assert "enregistrez d'abord le contrat" in add.lower()
+    assert reverse("admin:contracts_contract_import_template") in add
+    change = env["client"].get(reverse("admin:contracts_contract_change", args=[env["contract"].pk]))
+    assert reverse("admin:contracts_contract_import_solutions", args=[env["contract"].pk]) in change.content.decode()
+
+
+def test_import_template_round_trip(env):
+    """Le modèle téléchargé, une fois rempli, est accepté tel quel par l'import."""
+    from openpyxl import load_workbook
+
+    resp = env["client"].get(reverse("admin:contracts_contract_import_template"))
+    assert resp.status_code == 200
+    assert resp["Content-Disposition"].endswith('modele-import-solutions.xlsx"')
+    wb = load_workbook(io.BytesIO(resp.content))
+    assert wb.sheetnames == ["Solutions", "Catégories acceptées"]
+    buf = io.BytesIO()
+    wb.save(buf)
+    upload = SimpleUploadedFile("rempli.xlsx", buf.getvalue())
+    url = reverse("admin:contracts_contract_import_solutions", args=[env["contract"].pk])
+    result = env["client"].post(url, {"file": upload}).context["result"]
+    assert result["ok"] and result["created"] == 1 and not result["errors"], result
+    sol = Solution.objects.get(contract=env["contract"], name="Pare-feu siège")
+    assert sol.category == "hardware" and sol.serial_number == "FG100F0000000"
+    assert sol.license_end == datetime.date(2026, 12, 31)
+
+
+def test_code_not_asked_on_organisation_forms(env):
+    """Le code est calculé automatiquement : il n'est plus saisi."""
+    add = env["client"].get(reverse("admin:accounts_organisation_add")).context["adminform"].form
+    assert "code" not in add.fields
+    form = OrganisationForm({"name": "Orange CI", "kind": "client", "activity_sector": "telecom",
+                             "is_active": "on", "email_domains": ""})
+    assert form.is_valid(), form.errors
+    assert form.save().code == "OCI"

@@ -81,6 +81,14 @@ def test_org_admin_add_page_shows_client_esn_and_sector(env):
     assert "type de client" not in html.lower()
 
 
+def test_org_admin_form_has_no_help_texts(env):
+    """Formulaire épuré : aucun texte d'aide sous les champs de l'organisation."""
+    html = env["client"].get(reverse("admin:accounts_organisation_add")).content.decode()
+    for text in ("Obligatoire pour un client ESN", "Un même client final peut", "Maintenez appuyé",
+                 "Domaines séparés"):
+        assert text not in html, text
+
+
 def test_contract_admin_add_page_renders(env):
     resp = env["client"].get(reverse("admin:contracts_contract_add"))
     assert resp.status_code == 200

@@ -20,6 +20,10 @@ class OrganisationForm(forms.ModelForm):
         if "end_clients" in self.fields:
             # Seuls des clients finaux se rattachent à une ESN.
             self.fields["end_clients"].queryset = Organisation.objects.filter(kind=Organisation.Kind.END_CLIENT)
+        # Formulaire épuré : pas de textes d'aide sous les champs (y compris le
+        # « Maintenez appuyé Ctrl… » que l'admin ajoute aux listes multiples).
+        for field in self.fields.values():
+            field.help_text = ""
 
     def clean(self):
         data = super().clean()

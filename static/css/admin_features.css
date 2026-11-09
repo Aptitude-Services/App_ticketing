@@ -226,3 +226,11 @@
     :root:not([data-theme="light"]) .feature-checklist { --fc-ok: #3fb950; --fc-ok-bg: rgba(63, 185, 80, .15); }
 }
 :root[data-theme="dark"] .feature-checklist { --fc-ok: #3fb950; --fc-ok-bg: rgba(63, 185, 80, .15); }
+
+/* Organisations : sélecteur « clients finaux » épuré — sans les consignes
+   générées par Django (« Choisissez… », « Enlevez… », « Choisir / Enlever toutes »). */
+.field-end_clients .selector .helptext,
+.field-end_clients .selector-chooseall,
+.field-end_clients .selector-clearall {
+    display: none !important;
+}

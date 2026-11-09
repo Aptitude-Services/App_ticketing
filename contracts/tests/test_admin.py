@@ -14,8 +14,9 @@ pytestmark = pytest.mark.django_db
 @pytest.fixture
 def setup(rf):
     apt = Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.APTITUDE)
-    client = Organisation.objects.create(name="HUDSON", client_type=Organisation.ClientType.SME)
-    other = Organisation.objects.create(name="Autre", client_type=Organisation.ClientType.SME)
+    sector = Organisation.ActivitySector.OTHER
+    client = Organisation.objects.create(name="HUDSON", kind=Organisation.Kind.CLIENT, activity_sector=sector)
+    other = Organisation.objects.create(name="Autre", kind=Organisation.Kind.CLIENT, activity_sector=sector)
     admin_user = User.objects.create_superuser("admin@aptitudes.net", "x" * 12)
     users = {
         "admin": admin_user,
@@ -57,6 +58,33 @@ def test_forbidden_access_is_a_form_error_not_a_crash(setup, who):
     contract, formset = _validate(request, _post(client, users[who]))
     assert not formset.is_valid()
     assert formset.errors[0] or formset.non_form_errors()
+
+
+def test_extra_features_exclude_formula_criteria(setup):
+    """Les critères déjà inclus dans la formule ne sont pas reproposés en options."""
+    _client, _users, request = setup
+    admin = site._registry[Contract]
+    contract_type = ContractType.objects.get(name="STARTER")
+    form = admin.get_form(request)({"contract_type": contract_type.pk})
+    base_ids = set(contract_type.features.values_list("pk", flat=True))
+    proposed = set(form.fields["extra_features"].queryset.values_list("pk", flat=True))
+    assert base_ids and not (base_ids & proposed)
+
+
+def test_end_clients_queryset_limited_to_esn(setup):
+    """Le formulaire contrat ne propose que les clients finaux de l'ESN choisie."""
+    client, _users, request = setup
+    from accounts.models import Organisation
+    end = Organisation.objects.create(name="Client final HUD", kind=Organisation.Kind.END_CLIENT,
+                                       activity_sector=Organisation.ActivitySector.OTHER)
+    client.end_clients.add(end)
+    stray = Organisation.objects.create(name="Client final autre", kind=Organisation.Kind.END_CLIENT,
+                                         activity_sector=Organisation.ActivitySector.OTHER)
+    admin = site._registry[Contract]
+    form_class = admin.get_form(request)
+    form = form_class({"client": client.pk})
+    assert set(form.fields["end_clients"].queryset.values_list("pk", flat=True)) == {end.pk}
+    assert stray.pk not in form.fields["end_clients"].queryset.values_list("pk", flat=True)
 
 
 def _solution(client, **kw):

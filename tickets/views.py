@@ -112,6 +112,7 @@ def ticket_create(request):
         "solutions": form.fields["solutions"].queryset.select_related("contract"),
         "selected_solutions": [int(x) for x in request.POST.getlist("solutions") if x.isdigit()],
         "priority_names": PRIORITY_NAMES,
+        "forfaits": {c.pk: (c.contract_type.name if c.contract_type_id else "") for c in contracts},
     })
 
 

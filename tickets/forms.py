@@ -76,7 +76,7 @@ class TicketCreateForm(forms.Form):
         if contract and any(s.contract_id != contract.pk for s in solutions):
             self.add_error("solutions", _("Choisissez uniquement des solutions du contrat sélectionné."))
         requester = data.get("requester")
-        if contract and requester and requester.is_client and contract.client_id not in requester.organisation.scope_ids():
+        if contract and requester and requester.is_client and not requester.organisation.relates_to(contract):
             self.add_error("requester", _("Ce demandeur n'appartient pas au client du contrat."))
         return data
 

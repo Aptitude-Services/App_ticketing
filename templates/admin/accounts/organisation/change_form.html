@@ -1,0 +1,13 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls %}
+
+{% block object-tools-items %}
+  {{ block.super }}
+  {% if original and original.is_esn %}
+    <li>
+      <a href="{% url 'admin:accounts_organisation_add_end_client' original.pk %}" class="addlink">
+        {% translate "Nouveau client final" %}
+      </a>
+    </li>
+  {% endif %}
+{% endblock %}

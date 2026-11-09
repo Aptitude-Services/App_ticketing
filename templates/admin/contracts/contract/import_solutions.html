@@ -1,0 +1,61 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate "Accueil" %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url 'admin:contracts_contract_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; <a href="{% url 'admin:contracts_contract_change' contract.pk %}">{{ contract.reference }}</a>
+  &rsaquo; {% translate "Importer des solutions" %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <p>{% blocktranslate with ref=contract.reference title=contract.title %}Importer des solutions pour le contrat <strong>{{ ref }} — {{ title }}</strong>.{% endblocktranslate %}</p>
+
+  <div class="module">
+    <h2>{% translate "Format attendu" %}</h2>
+    <p>{% translate "Fichier .xlsx avec une ligne d'en-tête. Colonnes reconnues (français ou anglais) :" %}</p>
+    <p class="help">
+      <code>catégorie*</code>, <code>nom*</code>, <code>éditeur</code>, <code>modèle</code>, <code>version</code>,
+      <code>n° de série</code>, <code>localisation</code>, <code>début de licence</code>, <code>fin de licence</code>,
+      <code>notes</code>, <code>actif</code>.
+    </p>
+    <p class="help">
+      {% translate "Catégories acceptées : software, hardware, vm (machine virtuelle), cloud, other — ou leur libellé français. Les dates acceptent le format JJ/MM/AAAA ou AAAA-MM-JJ." %}
+      {% translate "Une solution existante du même nom sur ce contrat est mise à jour, sinon elle est créée." %}
+    </p>
+  </div>
+
+  {% if result %}
+    {% if result.ok %}
+      <div class="module{% if result.errors %} aligned{% endif %}">
+        <h2>{% translate "Résultat" %}</h2>
+        <p>{% blocktranslate with c=result.created u=result.updated %}{{ c }} solution(s) créée(s), {{ u }} mise(s) à jour.{% endblocktranslate %}</p>
+        {% if result.errors %}
+          <ul class="errorlist">
+            {% for e in result.errors %}<li>{{ e }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="module">
+        <ul class="errorlist"><li>{{ result.errors|join:" " }}</li></ul>
+      </div>
+    {% endif %}
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="form-row">
+      <input type="file" name="file" accept=".xlsx" required>
+    </div>
+    <div class="submit-row">
+      <input type="submit" value="{% translate 'Importer' %}" class="default">
+      <a href="{% url 'admin:contracts_contract_change' contract.pk %}" class="button cancel-link">{% translate "Retour au contrat" %}</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

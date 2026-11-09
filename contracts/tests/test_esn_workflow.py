@@ -1,0 +1,148 @@
+"""Retours métier : clients finaux des ESN, import Excel des solutions, forfait repris sur le ticket."""
+import datetime
+import io
+
+import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.urls import reverse
+from openpyxl import Workbook
+
+from accounts.admin import OrganisationForm
+from accounts.models import Organisation, Profile, User
+from contracts.models import Contract, ContractType, Solution
+from tickets import services as S
+
+pytestmark = pytest.mark.django_db
+SECTOR = Organisation.ActivitySector.BANK
+
+
+@pytest.fixture
+def env(client, monkeypatch):
+    # L'enrôlement MFA est testé ailleurs ; ici on ouvre directement l'administration.
+    from accounts.middleware import MFARequiredMiddleware
+    monkeypatch.setattr(MFARequiredMiddleware, "__call__", lambda self, request: self.get_response(request))
+    apt = Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.APTITUDE)
+    esn = Organisation.objects.create(name="ESN A", kind=Organisation.Kind.CLIENT, activity_sector=SECTOR)
+    end = Organisation.objects.create(name="Banque Finale", kind=Organisation.Kind.END_CLIENT, activity_sector=SECTOR)
+    esn.end_clients.add(end)
+    contract = Contract.objects.create(
+        reference="ESN-1", title="Contrat", client=esn, start_date=datetime.date(2026, 1, 1),
+        contract_type=ContractType.objects.get(name="Standard 24x7"),
+    )
+    admin = User.objects.create_superuser("admin@aptitudes.net", "Motdepasse-tres-long-1")
+    client.force_login(admin)
+    return {"apt": apt, "esn": esn, "end": end, "contract": contract, "admin": admin, "client": client}
+
+
+# --- Organisation : rattachement des clients finaux -------------------------
+
+def test_org_form_offers_only_end_clients(env):
+    qs = OrganisationForm().fields["end_clients"].queryset
+    assert list(qs) == [env["end"]]
+
+
+def test_org_form_refuses_end_clients_on_non_esn(env):
+    form = OrganisationForm({"name": "Autre final", "kind": "end_client", "activity_sector": "bank",
+                             "is_active": "on", "email_domains": "", "end_clients": [env["end"].pk]})
+    assert not form.is_valid()
+    assert "end_clients" in form.errors
+
+
+def test_new_esn_created_with_existing_end_client(env):
+    form = OrganisationForm({"name": "ESN B", "kind": "client", "activity_sector": "telecom",
+                             "is_active": "on", "email_domains": "", "end_clients": [env["end"].pk]})
+    assert form.is_valid(), form.errors
+    esn_b = form.save()
+    # Le même client final est désormais partagé par deux ESN.
+    assert set(env["end"].partner_esns.all()) == {env["esn"], esn_b}
+
+
+def test_popup_from_end_clients_field_presets_end_client_kind(env):
+    url = reverse("admin:accounts_organisation_add") + "?_to_field=id&_popup=1"
+    resp = env["client"].get(url)
+    assert resp.status_code == 200
+    assert resp.context["adminform"].form.initial["kind"] == Organisation.Kind.END_CLIENT
+
+
+def test_create_end_client_from_esn_page(env):
+    url = reverse("admin:accounts_organisation_add_end_client", args=[env["esn"].pk])
+    resp = env["client"].post(url, {"name": "Clinique Nord", "activity_sector": "health", "email_domains": ""})
+    assert resp.status_code == 302
+    created = Organisation.objects.get(name="Clinique Nord")
+    assert created.kind == Organisation.Kind.END_CLIENT
+    assert created in env["esn"].end_clients.all()
+
+
+def test_org_admin_add_page_shows_client_esn_and_sector(env):
+    resp = env["client"].get(reverse("admin:accounts_organisation_add"))
+    html = resp.content.decode()
+    assert "Client ESN" in html
+    assert "Secteur d" in html
+    assert "type de client" not in html.lower()
+
+
+def test_contract_admin_add_page_renders(env):
+    resp = env["client"].get(reverse("admin:contracts_contract_add"))
+    assert resp.status_code == 200
+
+
+# --- Import Excel des solutions ---------------------------------------------
+
+def _xlsx(rows):
+    wb = Workbook()
+    ws = wb.active
+    for row in rows:
+        ws.append(row)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return SimpleUploadedFile("solutions.xlsx", buf.getvalue(),
+                              content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+def test_import_solutions_creates_and_updates(env):
+    contract = env["contract"]
+    Solution.objects.create(contract=contract, name="Pare-feu", category="hardware", vendor="Ancien")
+    upload = _xlsx([
+        ["Catégorie", "Nom", "Éditeur", "Version", "Fin de licence"],
+        ["Matériel", "Pare-feu", "Fortinet", "7.4", "31/12/2027"],
+        ["logiciel", "ERP", "SAP", "S/4", datetime.datetime(2028, 6, 30)],
+        ["inconnue", "Truc", "", "", ""],
+        [None, None, None, None, None],
+    ])
+    url = reverse("admin:contracts_contract_import_solutions", args=[contract.pk])
+    resp = env["client"].post(url, {"file": upload})
+    assert resp.status_code == 200
+    result = resp.context["result"]
+    assert result["ok"] and result["created"] == 1 and result["updated"] == 1
+    assert len(result["errors"]) == 1 and "Ligne 4" in str(result["errors"][0])
+
+    fw = Solution.objects.get(contract=contract, name="Pare-feu")
+    assert fw.vendor == "Fortinet" and fw.license_end == datetime.date(2027, 12, 31)
+    erp = Solution.objects.get(contract=contract, name="ERP")
+    assert erp.category == "software" and erp.license_end == datetime.date(2028, 6, 30)
+
+
+def test_import_solutions_requires_name_and_category_columns(env):
+    url = reverse("admin:contracts_contract_import_solutions", args=[env["contract"].pk])
+    resp = env["client"].post(url, {"file": _xlsx([["Éditeur"], ["SAP"]])})
+    assert not resp.context["result"]["ok"]
+    assert not Solution.objects.exists()
+
+
+def test_import_solutions_rejects_non_excel(env):
+    url = reverse("admin:contracts_contract_import_solutions", args=[env["contract"].pk])
+    bad = SimpleUploadedFile("x.xlsx", b"pas un classeur")
+    resp = env["client"].post(url, {"file": bad})
+    assert not resp.context["result"]["ok"]
+
+
+# --- Forfait repris sur le ticket -------------------------------------------
+
+def test_ticket_forfait_prefilled_from_contract_formula(env):
+    gold, _ = ContractType.objects.get_or_create(name="GOLD", defaults={"sla": env["contract"].contract_type.sla})
+    env["contract"].contract_type = gold
+    env["contract"].save()
+    user = User.objects.create_user("rw@esn.ci", "Motdepasse-tres-long-1", organisation=env["esn"],
+                                    profile=Profile.CLIENT_ADMIN)
+    ticket = S.create_ticket(user, env["contract"], "Panne", "Le service ne répond plus")
+    assert ticket.forfait == "GOLD"

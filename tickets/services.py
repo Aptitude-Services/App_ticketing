@@ -137,12 +137,14 @@ def create_ticket(actor, contract, title, description, solutions=(), priority=Pr
             raise ValidationError(_("Une solution sélectionnée n'appartient pas à ce contrat."))
 
     requester = requester or actor
-    if requester.is_client and contract.client_id not in requester.organisation.scope_ids():
+    if requester.is_client and not requester.organisation.relates_to(contract):
         raise ValidationError(_("Le demandeur doit appartenir au client du contrat."))
 
+    forfait = contract.contract_type.name if contract.contract_type_id else ""
     ticket = Ticket(contract=contract, title=title.strip(), description=description.strip(), priority=priority,
                     channel=channel, requester=requester, created_by=actor, out_of_coverage=out_of_coverage,
-                    created_at=now, updated_at=now, reference=TicketSequence.next_reference(timezone.localtime(now).year))
+                    forfait=forfait, created_at=now, updated_at=now,
+                    reference=TicketSequence.next_reference(timezone.localtime(now).year))
     _set_deadlines(ticket, now)
     ticket.full_clean(exclude=["solutions"])
     ticket.save()

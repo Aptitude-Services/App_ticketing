@@ -3,7 +3,7 @@
 Règle d'or : toute vue, tout export et toute API passent par ces fonctions.
 Aucun filtrage « à la main » ailleurs dans le code.
 """
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet
 
 from .models import APTITUDE_PROFILES, CLIENT_PROFILES, STANDBY_PROFILES, Organisation, Profile, User
 
@@ -26,8 +26,13 @@ def visible_contracts(user) -> QuerySet:
         # Technicien « contrats affectés »
         return qs.filter(accesses__user=user).distinct()
 
-    # Utilisateur client : jamais en dehors de son organisation (et de ses clients finaux pour une ESN)
-    qs = qs.filter(client_id__in=user.organisation.scope_ids())
+    # ESN : ses contrats et ceux historiquement portés par ses clients finaux.
+    # Client final : ses propres contrats et ceux des ESN qui le couvrent.
+    org = user.organisation
+    if org.is_end_client:
+        qs = qs.filter(Q(client_id=org.pk) | Q(end_clients=org.pk)).distinct()
+    else:
+        qs = qs.filter(client_id__in=org.scope_ids())
     if user.profile == Profile.CLIENT_ADMIN or user.all_contracts:
         return qs
     return qs.filter(accesses__user=user).distinct()

@@ -1,0 +1,36 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate "Accueil" %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url 'admin:accounts_organisation_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; <a href="{% url 'admin:accounts_organisation_change' esn.pk %}">{{ esn.name }}</a>
+  &rsaquo; {% translate "Nouveau client final" %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <p>{% blocktranslate with name=esn.name %}Nouveau client final rattaché à l'ESN <strong>{{ name }}</strong>.{% endblocktranslate %}</p>
+  <form method="post" novalidate>{% csrf_token %}
+    <fieldset class="module aligned">
+      {% for field in form %}
+        <div class="form-row{% if field.errors %} errors{% endif %}">
+          {{ field.errors }}
+          <div>
+            <label for="{{ field.id_for_label }}" class="required">{{ field.label }}:</label>
+            {{ field }}
+            {% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </fieldset>
+    <div class="submit-row">
+      <input type="submit" value="{% translate 'Créer et rattacher' %}" class="default">
+      <a href="{% url 'admin:accounts_organisation_change' esn.pk %}" class="button cancel-link">{% translate "Annuler" %}</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

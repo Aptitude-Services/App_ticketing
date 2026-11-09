@@ -7,21 +7,82 @@ from accounts.models import Organisation, Profile, User
 from sla.models import SLA
 
 
+class ServiceFeature(models.Model):
+    """Critère ou prestation de service d'une formule (ex. Support N3, Supervision, SOC...)."""
+
+    class Category(models.TextChoices):
+        SUPPORT = "support", _("Support & Niveaux")
+        SUPERVISION = "supervision", _("Supervision & Monitoring")
+        SECURITY = "security", _("Sécurité, SOC & Incidents")
+        CHANGES = "changes", _("Gestion des changements")
+        GOVERNANCE = "governance", _("Gouvernance & Conformité")
+        INFRASTRUCTURE = "infrastructure", _("Infrastructure & Matériel")
+
+    code = models.CharField(_("code"), max_length=60, unique=True)
+    name = models.CharField(_("intitulé"), max_length=150)
+    category = models.CharField(_("catégorie"), max_length=30, choices=Category.choices, default=Category.SUPPORT)
+    description = models.TextField(_("description"), blank=True)
+    order = models.PositiveSmallIntegerField(_("ordre"), default=10)
+    is_active = models.BooleanField(_("actif"), default=True)
+
+    class Meta:
+        ordering = ["category", "order", "name"]
+        verbose_name = _("critère de service")
+        verbose_name_plural = _("critères de service")
+
+    def __str__(self):
+        return f"{self.name} ({self.get_category_display()})"
+
+
 class ContractType(models.Model):
-    """Ex. « Infogérance 24x7 », « Maintenance 8x5 ». Chaque type porte un SLA."""
+    """Ex. « STARTER », « BRONZE », « SILVER », « GOLD », « PLATINUM ».
+
+    Chaque formule porte un SLA et un ensemble de critères / prestations.
+    """
 
     name = models.CharField(_("nom"), max_length=120, unique=True)
     description = models.TextField(_("description"), blank=True)
     sla = models.ForeignKey(SLA, on_delete=models.PROTECT, related_name="contract_types", verbose_name=_("SLA"))
+    positioning = models.CharField(
+        _("positionnement"), max_length=150, blank=True,
+        help_text=_("Ex. Garantie SAV, Assistance essentielle, Assistance opérationnelle, MSSP..."),
+    )
+    target_clients = models.CharField(
+        _("type de clients"), max_length=150, blank=True,
+        help_text=_("Ex. Tout client, PME – non critique, SI critiques, Banques / Telco..."),
+    )
+    scope = models.CharField(
+        _("périmètre couvert"), max_length=150, blank=True,
+        help_text=_("Ex. Support incidents, Support + supervision, Managed Security Services..."),
+    )
+    billing_mode = models.CharField(
+        _("mode de facturation"), max_length=150, blank=True,
+        help_text=_("Ex. Gratuit, CFA/équipement/mois, Forfait..."),
+    )
+    commitment_period = models.CharField(
+        _("engagement contractuel"), max_length=150, blank=True,
+        help_text=_("Ex. Min: 1 mois - Max: 3 mois, Annuel..."),
+    )
+    features = models.ManyToManyField(
+        ServiceFeature, blank=True, related_name="contract_types",
+        verbose_name=_("critères inclus dans la formule"),
+    )
     is_active = models.BooleanField(_("actif"), default=True)
 
     class Meta:
         ordering = ["name"]
-        verbose_name = _("type de contrat")
-        verbose_name_plural = _("types de contrat")
+        verbose_name = _("formule / type de contrat")
+        verbose_name_plural = _("formules / types de contrat")
 
     def __str__(self):
         return self.name
+
+    def features_by_category(self):
+        """Regroupe les critères de la formule par catégorie."""
+        by_cat = {}
+        for feat in self.features.filter(is_active=True).order_by("category", "order", "name"):
+            by_cat.setdefault(feat.get_category_display(), []).append(feat)
+        return by_cat
 
 
 class Contract(models.Model):
@@ -35,7 +96,12 @@ class Contract(models.Model):
     title = models.CharField(_("intitulé"), max_length=200)
     client = models.ForeignKey(
         Organisation, on_delete=models.PROTECT, related_name="contracts",
-        limit_choices_to={"kind": Organisation.Kind.CLIENT}, verbose_name=_("client"),
+        limit_choices_to={"kind": Organisation.Kind.CLIENT}, verbose_name=_("client ESN"),
+    )
+    end_clients = models.ManyToManyField(
+        Organisation, blank=True, related_name="covered_contracts",
+        limit_choices_to={"kind": Organisation.Kind.END_CLIENT}, verbose_name=_("clients finaux"),
+        help_text=_("Clients finaux couverts par ce contrat. La liste se limite à ceux rattachés à l'ESN choisie."),
     )
     contract_type = models.ForeignKey(
         ContractType, on_delete=models.PROTECT, related_name="contracts", null=True,
@@ -47,6 +113,16 @@ class Contract(models.Model):
     # Prévu, inactif en V1 (forfait d'heures ou de tickets)
     allowance_hours = models.PositiveIntegerField(_("forfait d'heures"), null=True, blank=True)
     allowance_tickets = models.PositiveIntegerField(_("forfait de tickets"), null=True, blank=True)
+    extra_features = models.ManyToManyField(
+        ServiceFeature, blank=True, related_name="contracts_extra",
+        verbose_name=_("options additionnelles (sur-mesure client)"),
+        help_text=_("Critères ou options activés pour ce client en plus de ceux de sa formule de base."),
+    )
+    excluded_features = models.ManyToManyField(
+        ServiceFeature, blank=True, related_name="contracts_excluded",
+        verbose_name=_("options exclues"),
+        help_text=_("Critères de la formule retirés exceptionnellement pour ce contrat."),
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -68,11 +144,70 @@ class Contract(models.Model):
     def get_coverage_display(self):
         return self.sla.get_coverage_display() if self.sla else "—"
 
+    @property
+    def active_features(self):
+        """Tous les critères actifs pour ce contrat (base + options client - exclusions)."""
+        base_features = self.contract_type.features.filter(is_active=True) if self.contract_type_id else ServiceFeature.objects.none()
+        extras = self.extra_features.filter(is_active=True)
+        excluded_ids = set(self.excluded_features.values_list("id", flat=True))
+        all_features = (base_features | extras).distinct()
+        if excluded_ids:
+            all_features = all_features.exclude(id__in=excluded_ids)
+        return all_features.order_by("category", "order", "name")
+
+    def has_feature(self, code: str) -> bool:
+        """Vérifie si un critère spécifique est actif sur ce contrat."""
+        if self.excluded_features.filter(code=code).exists():
+            return False
+        if self.extra_features.filter(code=code, is_active=True).exists():
+            return True
+        if self.contract_type_id:
+            return self.contract_type.features.filter(code=code, is_active=True).exists()
+        return False
+
+    @property
+    def has_support_n3(self) -> bool:
+        return self.has_feature("support_n3")
+
+    @property
+    def has_supervision_disponibilite(self) -> bool:
+        return self.has_feature("supervision_disponibilite")
+
+    @property
+    def has_supervision_performance(self) -> bool:
+        return self.has_feature("supervision_performance")
+
+    @property
+    def has_vulnerabilites(self) -> bool:
+        return self.has_feature("gestion_vulnerabilites")
+
+    def active_features_annotated(self):
+        """Liste des critères actifs avec indication de leur origine (formule vs sur-mesure client)."""
+        base_ids = set(self.contract_type.features.values_list("id", flat=True)) if self.contract_type_id else set()
+        extra_ids = set(self.extra_features.values_list("id", flat=True))
+        annotated = []
+        for feat in self.active_features:
+            is_custom = feat.id in extra_ids and feat.id not in base_ids
+            annotated.append({
+                "feature": feat,
+                "is_custom": is_custom,
+                "badge": _("Option personnalisée") if is_custom else _("Inclus dans la formule"),
+            })
+        return annotated
+
+    def active_features_by_category(self):
+        """Regroupe les critères actifs par catégorie avec indication custom vs formule."""
+        grouped = {}
+        for item in self.active_features_annotated():
+            cat_label = item["feature"].get_category_display()
+            grouped.setdefault(cat_label, []).append(item)
+        return grouped
+
     def clean(self):
         if not self.contract_type_id:
             raise ValidationError({"contract_type": _("Le type de contrat est obligatoire.")})
-        if self.client_id and self.client.is_aptitude:
-            raise ValidationError({"client": _("Un contrat doit appartenir à une organisation cliente.")})
+        if self.client_id and not self.client.is_esn:
+            raise ValidationError({"client": _("Un contrat se rattache à un client ESN.")})
         if self.end_date and self.start_date and self.end_date < self.start_date:
             raise ValidationError({"end_date": _("La fin doit suivre le début.")})
 
@@ -155,7 +290,7 @@ class ContractAccess(models.Model):
             contract = self.contract
         except Contract.DoesNotExist:
             return
-        if self.user.is_client and contract.client_id not in self.user.organisation.scope_ids():
+        if self.user.is_client and not self.user.organisation.relates_to(contract):
             raise ValidationError(_("Un utilisateur client ne peut accéder qu'aux contrats de son organisation."))
         if self.user.is_aptitude and self.user.profile != Profile.TECH_ASSIGNED:
             raise ValidationError(_("Seuls les profils « Engineer (restricted) » reçoivent des affectations."))

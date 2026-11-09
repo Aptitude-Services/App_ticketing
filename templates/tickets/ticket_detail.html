@@ -108,6 +108,7 @@
         <dt>{% translate "Demandeur" %}</dt><dd>{{ t.requester.display_name }}</dd>
         {% if user.is_aptitude %}<dt>{% translate "Assigné à" %}</dt><dd>{% if t.assignee %}{{ t.assignee.display_name }}{% else %}<span class="unassigned">{% translate "Personne" %}</span>{% endif %}</dd>{% endif %}
         <dt>{% translate "Canal" %}</dt><dd>{{ t.get_channel_display }}</dd>
+        {% if t.forfait %}<dt>{% translate "Forfait" %}</dt><dd>{{ t.forfait }}</dd>{% endif %}
         <dt>{% translate "Ouvert le" %}</dt><dd class="mono">{{ t.created_at|date:"d/m/Y H:i" }}</dd>
       </dl>
       {% if solutions %}<h3 style="margin-top:18px">{% translate "Solutions concernées" %}</h3>

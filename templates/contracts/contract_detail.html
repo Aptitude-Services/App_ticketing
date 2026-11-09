@@ -37,6 +37,40 @@
       {% else %}<div class="empty"><strong>{% translate "Aucun engagement de service" %}</strong>{% translate "Ce contrat n'a pas encore de type de contrat associé." %}</div>{% endif %}
     </section>
 
+    {% if features_annotated %}
+    <section class="panel">
+      <div class="panel-head" style="padding-bottom:14px">
+        <h2>{% translate "Prestations et périmètre couvert" %}</h2>
+        {% if contract.contract_type %}<span class="tag brand">{{ contract.contract_type.name }}</span>{% endif %}
+      </div>
+      {% if contract.contract_type.positioning or contract.contract_type.scope %}
+      <p class="muted small" style="margin:0 24px 14px">
+        {% if contract.contract_type.positioning %}<strong>{{ contract.contract_type.positioning }}</strong>{% endif %}
+        {% if contract.contract_type.scope %} — {{ contract.contract_type.scope }}{% endif %}
+      </p>
+      {% endif %}
+      <div class="table-wrap"><table>
+        <thead><tr><th>{% translate "Prestation / Critère" %}</th><th>{% translate "Catégorie" %}</th><th class="num">{% translate "Inclusion" %}</th></tr></thead>
+        <tbody>{% for row in features_annotated %}
+          <tr>
+            <td>
+              <strong>{{ row.feature.name }}</strong>
+              {% if row.feature.description %}<div class="def">{{ row.feature.description }}</div>{% endif %}
+            </td>
+            <td>{{ row.feature.get_category_display }}</td>
+            <td class="num">
+              {% if row.is_custom %}
+              <span class="tag ok" title="{% translate 'Option personnalisée ajoutée pour ce contrat' %}">✓ {{ row.badge }}</span>
+              {% else %}
+              <span class="tag outline">✓ {{ row.badge }}</span>
+              {% endif %}
+            </td>
+          </tr>{% endfor %}
+        </tbody>
+      </table></div>
+    </section>
+    {% endif %}
+
     <section class="panel">
       <div class="panel-head" style="padding-bottom:14px"><h2>{% translate "Solutions couvertes" %}</h2><span class="muted small">{{ solutions|length }}</span></div>
       {% if solutions %}
@@ -67,7 +101,9 @@
       {% endwith %}
       <dl class="facts" style="margin-top:20px">
         <dt>{% translate "Référence" %}</dt><dd>{{ contract.reference }}</dd>
-        <dt>{% translate "Type" %}</dt><dd>{{ contract.contract_type|default:"—" }}</dd>
+        <dt>{% translate "Formule" %}</dt><dd>{{ contract.contract_type|default:"—" }}</dd>
+        {% if contract.contract_type.billing_mode %}<dt>{% translate "Facturation" %}</dt><dd>{{ contract.contract_type.billing_mode }}</dd>{% endif %}
+        {% if contract.contract_type.commitment_period %}<dt>{% translate "Engagement" %}</dt><dd>{{ contract.contract_type.commitment_period }}</dd>{% endif %}
         <dt>{% translate "Début" %}</dt><dd>{{ contract.start_date|date:"j F Y" }}</dd>
         <dt>{% translate "Fin" %}</dt><dd>{% if contract.end_date %}{{ contract.end_date|date:"j F Y" }}{% else %}{% translate "Sans date de fin" %}{% endif %}</dd>
       </dl>

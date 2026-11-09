@@ -56,6 +56,10 @@ class Ticket(models.Model):
     title = models.CharField(_("titre"), max_length=200)
     description = models.TextField(_("description"))
     priority = models.PositiveSmallIntegerField(_("priorité"), choices=Priority.choices, default=Priority.P4)
+    forfait = models.CharField(
+        _("forfait"), max_length=120, blank=True,
+        help_text=_("Formule du contrat au moment de l'ouverture (ex. GOLD)."),
+    )
     status = models.CharField(_("statut"), max_length=20, choices=Status.choices, default=Status.NEW, db_index=True)
     channel = models.CharField(_("canal"), max_length=10, choices=Channel.choices, default=Channel.PORTAL)
 

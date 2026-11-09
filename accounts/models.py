@@ -6,33 +6,37 @@ from django.utils.translation import gettext_lazy as _
 
 
 class Organisation(models.Model):
-    """Aptitude elle-même ou une organisation cliente."""
+    """Aptitude, un client ESN, ou un client final d'une ou plusieurs ESN."""
 
     class Kind(models.TextChoices):
         APTITUDE = "aptitude", _("Aptitude")
-        CLIENT = "client", _("Client")
+        CLIENT = "client", _("Client ESN")
+        END_CLIENT = "end_client", _("Client final")
 
-    class ClientType(models.TextChoices):
-        SME = "sme", _("PME – non critique")
-        STRUCTURED_SME = "structured_sme", _("PME structurée")
-        CRITICAL_IS = "critical_is", _("SI critique")
-        CRITICAL_INFRA = "critical_infra", _("Banque, Telco, Infrastructure critique")
+    class ActivitySector(models.TextChoices):
+        BANK = "bank", _("Banque")
+        HEALTH = "health", _("Santé")
+        TELECOM = "telecom", _("Télécommunications")
+        INSURANCE = "insurance", _("Assurance")
+        PUBLIC = "public", _("Administration publique")
+        ENERGY = "energy", _("Énergie")
+        INDUSTRY = "industry", _("Industrie")
+        RETAIL = "retail", _("Commerce et distribution")
+        EDUCATION = "education", _("Éducation")
+        TRANSPORT = "transport", _("Transport")
+        OTHER = "other", _("Autre")
 
     name = models.CharField(_("nom"), max_length=200, unique=True)
     kind = models.CharField(_("type"), max_length=20, choices=Kind.choices, default=Kind.CLIENT)
-    client_type = models.CharField(
-        _("type de client"), max_length=20, choices=ClientType.choices, blank=True,
-        help_text=_("Obligatoire pour une organisation cliente ; vide pour Aptitude."),
+    activity_sector = models.CharField(
+        _("secteur d'activité"), max_length=30, choices=ActivitySector.choices, blank=True,
+        help_text=_("Obligatoire pour un client ESN ou un client final ; vide pour Aptitude."),
     )
-    manages_end_clients = models.BooleanField(
-        _("gère des clients finaux"), default=False,
-        help_text=_("ESN, revendeur ou intégrateur partenaire : ses utilisateurs voient et gèrent aussi "
-                    "les contrats, tickets et comptes de ses clients finaux."),
-    )
-    parent = models.ForeignKey(
-        "self", null=True, blank=True, on_delete=models.PROTECT, related_name="end_clients",
-        limit_choices_to={"manages_end_clients": True}, verbose_name=_("rattachée à (ESN)"),
-        help_text=_("Pour un client final : l'ESN qui le gère."),
+    end_clients = models.ManyToManyField(
+        "self", symmetrical=False, blank=True, related_name="partner_esns",
+        verbose_name=_("clients finaux"),
+        help_text=_("Clients finaux de cette ESN. Un même client final peut être rattaché à plusieurs ESN, "
+                    "chacune intervenant sur ses propres solutions."),
     )
     is_active = models.BooleanField(_("active"), default=True)
     email_domains = models.CharField(
@@ -51,32 +55,53 @@ class Organisation(models.Model):
 
     def clean(self):
         super().clean()
-        if self.kind == self.Kind.CLIENT and not self.client_type:
-            raise ValidationError({"client_type": _("Choisissez le type de client.")})
-        if self.kind == self.Kind.APTITUDE and self.client_type:
-            raise ValidationError({"client_type": _("Aptitude n'a pas de type de client.")})
-        if self.kind == self.Kind.APTITUDE and (self.manages_end_clients or self.parent_id):
-            raise ValidationError(_("Aptitude ne gère pas de clients finaux et n'est rattachée à aucune ESN."))
-        if self.parent_id:
-            if self.parent_id == self.pk:
-                raise ValidationError({"parent": _("Une organisation ne peut pas être rattachée à elle-même.")})
-            if not self.parent.manages_end_clients:
-                raise ValidationError({"parent": _("Cette organisation ne gère pas de clients finaux.")})
-            if self.manages_end_clients:
-                raise ValidationError({"parent": _("Une ESN ne peut pas être elle-même rattachée à une autre ESN.")})
-        if self.pk and not self.manages_end_clients and self.end_clients.exists():
-            raise ValidationError({"manages_end_clients": _("Des clients finaux sont encore rattachés à cette ESN.")})
+        client_kinds = {self.Kind.CLIENT, self.Kind.END_CLIENT}
+        if self.kind in client_kinds and not self.activity_sector:
+            raise ValidationError({"activity_sector": _("Choisissez le secteur d'activité.")})
+        if self.kind == self.Kind.APTITUDE and self.activity_sector:
+            raise ValidationError({"activity_sector": _("Aptitude n'a pas de secteur d'activité.")})
+        if self.pk:
+            self.clean_links()
+
+    def clean_links(self):
+        """Contrôle les rattachements déjà enregistrés (indisponibles avant la sauvegarde)."""
+        if not self.pk:
+            return
+        if self.kind != self.Kind.CLIENT and self.end_clients.exists():
+            raise ValidationError({"kind": _("Retirez les clients finaux avant de changer ce type d'organisation.")})
+        if self.end_clients.exclude(kind=self.Kind.END_CLIENT).exists():
+            raise ValidationError({"end_clients": _("Seuls des clients finaux peuvent être rattachés à une ESN.")})
+        if self.kind != self.Kind.END_CLIENT and self.partner_esns.exists():
+            raise ValidationError({"kind": _("Retirez les ESN rattachées avant de changer ce type d'organisation.")})
+        if self.partner_esns.exclude(kind=self.Kind.CLIENT).exists():
+            raise ValidationError(_("Un client final ne se rattache qu'à des clients ESN."))
 
     @property
     def is_aptitude(self):
         return self.kind == self.Kind.APTITUDE
 
+    @property
+    def is_esn(self):
+        return self.kind == self.Kind.CLIENT
+
+    @property
+    def is_end_client(self):
+        return self.kind == self.Kind.END_CLIENT
+
     def scope_ids(self):
-        """Organisations dont les données sont accessibles : elle-même, et ses clients finaux si c'est une ESN."""
+        """Organisations dont les comptes sont gérés : elle-même, et ses clients finaux si c'est une ESN."""
         ids = [self.pk]
-        if self.manages_end_clients:
+        if self.is_esn:
             ids += list(self.end_clients.values_list("pk", flat=True))
         return ids
+
+    def relates_to(self, contract) -> bool:
+        """Vrai si l'organisation est l'ESN du contrat, un de ses clients finaux historiques, ou un client final couvert."""
+        if contract.client_id in self.scope_ids():
+            return True
+        if self.is_end_client and contract.pk:
+            return contract.end_clients.filter(pk=self.pk).exists()
+        return False
 
     def domain_list(self):
         return [d.strip().lower() for d in self.email_domains.split(",") if d.strip()]

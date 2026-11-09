@@ -43,4 +43,6 @@ def contract_detail(request, pk):
         "solutions": visible_solutions(request.user).filter(contract=contract),
         "coverage_now": coverage_status(contract, now),
         "upcoming_holidays": Holiday.objects.filter(date__gte=now.date())[:4] if sla and not sla.is_24x7 else [],
+        "features_annotated": contract.active_features_annotated(),
+        "features_by_category": contract.active_features_by_category(),
     })

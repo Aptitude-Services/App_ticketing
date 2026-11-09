@@ -70,7 +70,7 @@ class UserManageForm(forms.ModelForm):
 
         if org is not None:
             for contract in contracts:
-                if not org.is_aptitude and contract.client_id not in org.scope_ids():
+                if not org.is_aptitude and not org.relates_to(contract):
                     raise forms.ValidationError(_("Un contrat sélectionné n'appartient pas à cette organisation."))
             if org.is_aptitude and contracts and profile != Profile.TECH_ASSIGNED:
                 self.add_error("contracts", _("Seuls les profils « Engineer (restricted) » reçoivent des affectations."))

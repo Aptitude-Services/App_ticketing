@@ -32,3 +32,11 @@ def test_staff_member_still_reaches_the_admin(w):
     c.force_login(boss)
     assert c.get(reverse("admin:index")).status_code == 200
     assert c.get(reverse("admin:login")).status_code == 302  # déjà connecté → index
+
+
+def test_admin_home_has_no_recent_actions_block(w):
+    c = w["client"]
+    c.force_login(w["boss"])
+    page = c.get(reverse("admin:index")).content.decode()
+    assert 'id="recent-actions-module"' not in page
+    assert "colMS" not in page

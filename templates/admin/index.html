@@ -1,0 +1,9 @@
+{% extends "admin/index.html" %}
+{% comment %}
+  Accueil de l'administration sans le bloc « Actions récentes » de Django : il ne montrait que
+  les dernières actions de l'utilisateur connecté, en colonne étroite. Le suivi des actions se fait
+  par le Journal d'audit et le bouton « Historique » de chaque fiche. La liste des menus prend
+  toute la largeur.
+{% endcomment %}
+{% block coltype %}colM{% endblock %}
+{% block sidebar %}{% endblock %}

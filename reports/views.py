@@ -27,6 +27,8 @@ STATUS_TABS = [
 
 
 ALL = "tous"
+MAIL_WARNING = gettext_lazy("L'email de notification n'a pas pu partir : vérifiez Configuration > Messagerie "
+                            "(le journal des emails indique l'erreur).")
 
 
 def _kind_or_404(kind, allow_all=False):
@@ -95,12 +97,14 @@ def report_edit(request, pk):
         report.save()
         if "submit" in request.POST:
             try:
-                validators = S.submit(request.user, report)
+                validators, mailed = S.submit(request.user, report)
             except PermissionDenied as e:
                 messages.error(request, str(e))
             else:
                 names = ", ".join(u.display_name for u in validators) or _("aucun validateur disponible")
                 messages.success(request, _("Rapport soumis à validation (%(v)s).") % {"v": names})
+                if validators and not mailed:
+                    messages.warning(request, MAIL_WARNING)
                 return redirect("report_detail", report.pk)
         else:
             messages.success(request, _("Brouillon enregistré."))
@@ -194,8 +198,10 @@ def report_action(request, pk, action):
     user = request.user
     try:
         if action == "soumettre":
-            S.submit(user, report)
+            validators, mailed = S.submit(user, report)
             messages.success(request, _("Rapport soumis à validation."))
+            if validators and not mailed:
+                messages.warning(request, MAIL_WARNING)
         elif action == "valider":
             S.validate(user, report)
             messages.success(request, _("Rapport validé et verrouillé."))
@@ -204,11 +210,18 @@ def report_action(request, pk, action):
             if not form.is_valid():
                 messages.error(request, _("Indiquez les corrections attendues."))
             else:
-                S.reject(user, report, form.cleaned_data["comment"])
+                mailed = S.reject(user, report, form.cleaned_data["comment"])
                 messages.success(request, _("Rapport renvoyé au rédacteur."))
+                if not mailed:
+                    messages.warning(request, MAIL_WARNING)
         elif action == "envoyer":
-            recipients = S.send_to_client(user, report)
-            messages.success(request, _("Rapport envoyé à %(to)s.") % {"to": ", ".join(recipients)})
+            recipients, mailed = S.send_to_client(user, report)
+            if mailed:
+                messages.success(request, _("Rapport envoyé à %(to)s.") % {"to": ", ".join(recipients)})
+            else:
+                messages.warning(request, _("Rapport publié sur le portail du client, mais l'email à %(to)s n'a pas "
+                                            "pu partir : vérifiez Configuration > Messagerie.")
+                                 % {"to": ", ".join(recipients)})
         elif action == "confirmer":
             S.client_confirm(user, report)
             messages.success(request, _("Merci, la réception du rapport est confirmée."))

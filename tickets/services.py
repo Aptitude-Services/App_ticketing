@@ -17,6 +17,7 @@ from accounts.permissions import visible_contracts
 from sla import engine
 from sla.models import CLIENT_MAX_PRIORITY, PRIORITIES_REQUIRING_JUSTIFICATION, Priority
 
+from . import notifications as N
 from .models import OPEN_STATUSES, Attachment, Channel, Comment, Event, Status, Ticket, TicketSequence
 
 # Priorités interdites à l'ouverture : elles ne s'atteignent que par escalade justifiée.
@@ -152,6 +153,7 @@ def create_ticket(actor, contract, title, description, solutions=(), priority=Pr
     _event(ticket, actor, Event.Kind.CREATED, at=now, priority=priority, channel=channel, out_of_coverage=out_of_coverage)
     if out_of_coverage:
         _event(ticket, actor, Event.Kind.SLA, at=now, internal=True, note="created_out_of_coverage")
+    N.ticket_created(ticket, actor)
     return ticket
 
 
@@ -191,6 +193,7 @@ def change_priority(actor, ticket, new, justification="", now=None):
             _pause(ticket, now)
     ticket.save()
     _event(ticket, actor, Event.Kind.PRIORITY, at=now, old=old, new=new, justification=justification)
+    N.priority_changed(ticket, actor, old, new, justification)
     return ticket
 
 
@@ -220,7 +223,7 @@ def allowed_statuses(user, ticket):
 
 
 @transaction.atomic
-def change_status(actor, ticket, new, now=None, _system=False):
+def change_status(actor, ticket, new, now=None, _system=False, notify=True):
     now = now or timezone.now()
     if not _system:
         _require(new in allowed_statuses(actor, ticket), _("Changement de statut non autorisé."))
@@ -247,6 +250,8 @@ def change_status(actor, ticket, new, now=None, _system=False):
         ticket.closed_at = now
     ticket.save()
     _event(ticket, actor, Event.Kind.STATUS, at=now, old=old, new=new, automatic=_system)
+    if notify and new != old:
+        N.status_changed(ticket, actor, new)
     return ticket
 
 
@@ -274,6 +279,8 @@ def assign(actor, ticket, user, now=None):
     ticket.assignee = user
     ticket.save(update_fields=["assignee"])
     _event(ticket, actor, Event.Kind.ASSIGNED, at=now, old=str(old) if old else None, new=str(user) if user else None)
+    if user is not None and user != old:
+        N.assigned(ticket, actor, user)
     return ticket
 
 
@@ -311,11 +318,12 @@ def add_comment(actor, ticket, body, internal=False, files=(), now=None):
 
     # Effets sur le cycle de vie
     if actor.is_aptitude and not internal and ticket.status == Status.NEW:
-        change_status(actor, ticket, Status.ACKNOWLEDGED, now=now, _system=True)
+        change_status(actor, ticket, Status.ACKNOWLEDGED, now=now, _system=True, notify=False)
     elif actor.is_client and ticket.status == Status.WAITING_CLIENT:
-        change_status(actor, ticket, Status.IN_PROGRESS, now=now, _system=True)
+        change_status(actor, ticket, Status.IN_PROGRESS, now=now, _system=True, notify=False)
     elif actor.is_client and ticket.status == Status.RESOLVED:
-        change_status(actor, ticket, Status.IN_PROGRESS, now=now, _system=True)
+        change_status(actor, ticket, Status.IN_PROGRESS, now=now, _system=True, notify=False)
+    N.commented(ticket, actor, comment)
     return comment
 
 

@@ -10,6 +10,8 @@ from django.urls import path
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
+from core.assets import versioned
+
 from .models import STANDBY_PROFILES, AuditEvent, Organisation, Profile, User, file_data_uri
 
 
@@ -111,8 +113,8 @@ class OrganisationAdmin(admin.ModelAdmin):
     fields = ("name", "kind", "activity_sector", "logo", "end_clients", "partner_esns", "is_active", "email_domains")
 
     class Media:
-        css = {"all": ("css/admin_features.css",)}
-        js = ("js/organisation_admin.js",)
+        css = {"all": (versioned("css/admin_features.css"),)}
+        js = (versioned("js/organisation_admin.js"),)
 
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(_nb_end_clients=Count("end_clients"))

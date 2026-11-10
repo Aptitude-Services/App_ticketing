@@ -7,6 +7,8 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import path
 from django.utils.translation import gettext_lazy as _
 
+from core.assets import versioned
+
 from accounts.models import Organisation
 from .models import Contract, ContractAccess, ContractType, LicenseNotice, ServiceFeature, Solution
 from .widgets import FeatureChecklist
@@ -189,8 +191,8 @@ class ContractTypeAdmin(admin.ModelAdmin):
     )
 
     class Media:
-        css = {"all": ("css/admin_features.css",)}
-        js = ("js/feature_checklist.js",)
+        css = {"all": (versioned("css/admin_features.css"),)}
+        js = (versioned("js/feature_checklist.js"),)
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
@@ -282,6 +284,7 @@ class ContractForm(forms.ModelForm):
             if self.instance.pk:
                 qs = qs | self.instance.end_clients.all()
             self.fields["end_clients"].queryset = qs.distinct()
+        self._end_client_dropdown()
 
         # Critères : tout le catalogue actif est listé ; ceux de la formule choisie
         # sont affichés cochés et grisés (non modifiables), les autres sont les
@@ -296,6 +299,31 @@ class ContractForm(forms.ModelForm):
         widget = self.fields["extra_features"].widget
         widget = getattr(widget, "widget", widget)  # l'admin l'enveloppe (bouton « + »)
         widget.included = self._formula_ids(contract_type)
+
+    def _end_client_dropdown(self):
+        """Client final : une liste déroulante (un contrat = une ESN et un client final).
+
+        Un contrat existant qui couvre déjà plusieurs clients finaux garde la liste
+        multiple, pour ne rien perdre à l'enregistrement."""
+        field = self.fields.get("end_clients")
+        if field is None or (self.instance.pk and self.instance.end_clients.count() > 1):
+            if field is not None:
+                field.help_text = ""
+            return
+        self.fields["end_clients"] = forms.ModelChoiceField(
+            queryset=field.queryset, required=False, label=_("Client final"),
+            empty_label=_("— Choisissez d'abord l'ESN —"),
+        )
+        if self.instance.pk:
+            first = self.instance.end_clients.first()
+            self.initial["end_clients"] = first.pk if first else None
+
+    def clean_end_clients(self):
+        """Toujours une liste pour l'enregistrement de la relation (plusieurs à plusieurs)."""
+        value = self.cleaned_data.get("end_clients")
+        if value is None:
+            return []
+        return list(value) if hasattr(value, "__iter__") else [value]
 
     @staticmethod
     def _formula_ids(contract_type):
@@ -408,14 +436,16 @@ class ContractAdmin(admin.ModelAdmin):
             self.message_user(request, error, messages.WARNING)
 
     class Media:
-        css = {"all": ("css/admin_features.css",)}
-        js = ("js/feature_checklist.js", "js/contract_admin.js")
+        css = {"all": (versioned("css/admin_features.css"),)}
+        js = (versioned("js/feature_checklist.js"), versioned("js/contract_admin.js"))
 
     def get_urls(self):
         urls = super().get_urls()
         custom = [
             path("modele-import-solutions.xlsx",
                  self.admin_site.admin_view(self.import_template_view), name="contracts_contract_import_template"),
+            path("lire-solutions/",
+                 self.admin_site.admin_view(self.read_solutions_view), name="contracts_contract_read_solutions"),
             path("<path:object_id>/import-solutions/",
                  self.admin_site.admin_view(self.import_solutions_view), name="contracts_contract_import_solutions"),
         ]
@@ -488,6 +518,39 @@ class ContractAdmin(admin.ModelAdmin):
         _no_add_related(form, "extra_features", "excluded_features")
         return form
 
+    INLINE_FIELDS = ("category", "vendor", "model", "name", "serial_number", "location",
+                     "license_start", "license_end", "is_active")
+
+    def read_solutions_view(self, request):
+        """Lit le fichier Excel sans rien enregistrer et renvoie les solutions en JSON :
+        la fiche contrat s'en sert pour remplir le tableau des solutions avant l'enregistrement."""
+        from django.core.exceptions import PermissionDenied
+        from django.http import JsonResponse
+        from django.utils.formats import localize_input
+
+        if request.method != "POST":
+            return JsonResponse({"ok": False, "errors": [_("Méthode non autorisée.")]}, status=405)
+        if not (self.has_add_permission(request) or self.has_change_permission(request)):
+            raise PermissionDenied
+        uploaded = request.FILES.get("file")
+        if not uploaded:
+            return JsonResponse({"ok": False, "errors": [_("Aucun fichier reçu.")]}, status=400)
+        if not uploaded.name.lower().endswith(".xlsx"):
+            return JsonResponse({"ok": False, "errors": [_("Fichier Excel .xlsx attendu.")]}, status=400)
+        rows, errors, fatal = read_solution_rows(uploaded)
+        if fatal:
+            return JsonResponse({"ok": False, "errors": errors}, status=400)
+        out = []
+        for lineno, values in rows:
+            row = {"line": lineno}
+            for field in self.INLINE_FIELDS:
+                value = values.get(field, True if field == "is_active" else "")
+                if field in _DATE_FIELDS:
+                    value = localize_input(value) if value else ""
+                row[field] = value
+            out.append(row)
+        return JsonResponse({"ok": True, "rows": out, "errors": [str(e) for e in errors]})
+
     def import_solutions_view(self, request, object_id):
         """Importe des solutions depuis un fichier Excel (.xlsx) pour ce contrat."""
         contract = get_object_or_404(self.get_queryset(request), pk=object_id)
@@ -517,7 +580,7 @@ def _notify_esn(modeladmin, request, solutions):
     """Envoie, pour chaque ESN concernée, un email listant ses licences sélectionnées."""
     from collections import defaultdict
 
-    from .notifications import send_license_notice
+    from .notifications import LicenseMailError, send_license_notice
 
     by_esn = defaultdict(list)
     for sol in solutions:
@@ -527,7 +590,13 @@ def _notify_esn(modeladmin, request, solutions):
         modeladmin.message_user(request, _("Aucune licence avec date de fin dans la sélection."), messages.WARNING)
         return
     for esn, sols in by_esn.items():
-        recipients = send_license_notice(esn, sols, actor=request.user, manual=True)
+        try:
+            recipients = send_license_notice(esn, sols, actor=request.user, manual=True)
+        except LicenseMailError as e:
+            modeladmin.message_user(request, _("%(esn)s : l'email à %(to)s n'a pas pu partir. Vérifiez "
+                                               "Configuration > Messagerie (journal des emails).")
+                                    % {"esn": esn.name, "to": ", ".join(e.recipients)}, messages.ERROR)
+            continue
         if recipients:
             modeladmin.message_user(request, _("%(esn)s prévenue (%(n)d licence(s)) : %(to)s.")
                                     % {"esn": esn.name, "n": len(sols), "to": ", ".join(recipients)}, messages.SUCCESS)

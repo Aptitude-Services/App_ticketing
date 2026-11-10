@@ -69,10 +69,16 @@ def user_create(request):
                             profile=Profile.TECH_ALL)
     if request.method == "POST" and form.is_valid():
         user = form.save()
-        _send_invitation(request, user)
+        link = _send_invitation(request, user)
         record(request, AuditEvent.Action.USER_CREATED, target_user=user,
                details={"profile": user.profile, "organisation": user.organisation.name})
-        messages.success(request, _("Utilisateur créé. Un email d'invitation lui a été envoyé."))
+        if link is None:
+            messages.success(request, _("Utilisateur créé. Un email d'invitation lui a été envoyé."))
+        else:
+            # Messagerie en panne : le compte est créé ; l'administrateur transmet lui-même le lien.
+            messages.warning(request, _("Utilisateur créé, mais l'email d'invitation n'a pas pu partir "
+                                        "(voir Configuration > Messagerie). Transmettez-lui ce lien pour qu'il "
+                                        "définisse son mot de passe : %(link)s") % {"link": link})
         return _back_to_list(user)
     return render(request, "accounts/user_form.html", {"form": form, "creating": True, "audience": audience})
 
@@ -97,7 +103,8 @@ def user_update(request, pk):
 
 
 def _send_invitation(request, user):
-    """Envoie un lien de définition du mot de passe.
+    """Envoie un lien de définition du mot de passe. Renvoie None si l'email est parti,
+    sinon le lien, que l'administrateur transmettra lui-même.
 
     Le formulaire de réinitialisation de Django ignore les comptes sans mot de
     passe : on construit donc le lien nous-mêmes, avec le même générateur de jetons.
@@ -112,7 +119,15 @@ def _send_invitation(request, user):
     with translation.override(user.language):
         subject = "".join(render_to_string("registration/invitation_subject.txt", context).splitlines())
         body = render_to_string("registration/invitation_email.txt", context)
-    send_mail(subject, body, None, [user.email])
+    try:
+        sent = send_mail(subject, body, None, [user.email], fail_silently=True)
+    except Exception:
+        sent = 0
+    if sent:
+        return None
+    # Échec (inscrit au journal des emails) : le lien est rendu pour être transmis autrement.
+    path = reverse("password_reset_confirm", kwargs={"uidb64": context["uid"], "token": context["token"]})
+    return f"{context['protocol']}://{context['domain']}{path}"
 
 
 @login_required

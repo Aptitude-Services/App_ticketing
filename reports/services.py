@@ -79,6 +79,22 @@ def _require(condition, message):
         raise PermissionDenied(message)
 
 
+def _mail(subject, body, recipients):
+    """Envoie un email sans jamais bloquer le circuit du rapport.
+
+    Une messagerie mal configurée ou injoignable ne doit pas empêcher de soumettre,
+    valider ou publier un rapport : l'échec est inscrit au journal des emails
+    (Configuration > Messagerie) et signalé à l'utilisateur. Renvoie True si l'email est parti."""
+    if not recipients:
+        return False
+    try:
+        return send_mail(subject, body, None, recipients, fail_silently=True) > 0
+    except Exception:  # filet de sécurité : aucune erreur d'envoi ne remonte à l'écran
+        import logging
+        logging.getLogger(__name__).exception("Envoi d'email impossible")
+        return False
+
+
 def _absolute(path):
     return f"{settings.SITE_URL.rstrip('/')}{path}" if settings.SITE_URL else path
 
@@ -137,16 +153,14 @@ def submit(user, report):
     report.rejection_comment = ""
     report.save()
     validators = validators_for(report)
-    emails = [u.email for u in validators]
-    if emails:
-        url = _absolute(reverse("report_detail", args=[report.pk]))
-        send_mail(
-            _("[Aptitude] Rapport à valider : %(ref)s") % {"ref": report.reference},
-            _("%(who)s a soumis le rapport %(ref)s (%(kind)s, %(esn)s) à votre validation.\n\n%(url)s")
-            % {"who": report.author.display_name, "ref": report.reference, "kind": report.get_kind_display(),
-               "esn": report.esn.name, "url": url},
-            None, emails)
-    return validators
+    url = _absolute(reverse("report_detail", args=[report.pk]))
+    mailed = _mail(
+        _("[Aptitude] Rapport à valider : %(ref)s") % {"ref": report.reference},
+        _("%(who)s a soumis le rapport %(ref)s (%(kind)s, %(esn)s) à votre validation.\n\n%(url)s")
+        % {"who": report.author.display_name, "ref": report.reference, "kind": report.get_kind_display(),
+           "esn": report.esn.name, "url": url},
+        [u.email for u in validators])
+    return validators, mailed
 
 
 def validate(user, report):
@@ -167,13 +181,12 @@ def reject(user, report, comment):
     report.status = Report.Status.REJECTED
     report.rejection_comment = comment
     report.save()
-    if report.author.email:
-        send_mail(
-            _("[Aptitude] Rapport à corriger : %(ref)s") % {"ref": report.reference},
-            _("%(who)s demande des corrections sur le rapport %(ref)s :\n\n%(c)s\n\n%(url)s")
-            % {"who": user.display_name, "ref": report.reference, "c": comment,
-               "url": _absolute(reverse("report_detail", args=[report.pk]))},
-            None, [report.author.email])
+    return _mail(
+        _("[Aptitude] Rapport à corriger : %(ref)s") % {"ref": report.reference},
+        _("%(who)s demande des corrections sur le rapport %(ref)s :\n\n%(c)s\n\n%(url)s")
+        % {"who": user.display_name, "ref": report.reference, "c": comment,
+           "url": _absolute(reverse("report_detail", args=[report.pk]))},
+        [report.author.email] if report.author.email else [])
 
 
 def send_to_client(user, report):
@@ -189,18 +202,19 @@ def send_to_client(user, report):
                               % {"esn": report.esn.name})
     url = _absolute(reverse("report_detail", args=[report.pk]))
     target = report.end_client.name if report.end_client_id else report.esn.name
-    send_mail(
+    mailed = _mail(
         _("Rapport %(kind)s %(ref)s — %(target)s") % {"kind": report.get_kind_display().lower(),
                                                       "ref": report.reference, "target": target},
         _("Bonjour,\n\nLe rapport %(ref)s (%(kind)s) est disponible sur votre portail de support :\n%(url)s\n\n"
           "Vous pouvez le consulter, l'imprimer ou l'enregistrer en PDF, et confirmer sa réception.\n")
         % {"ref": report.reference, "kind": report.get_kind_display(), "url": url},
-        None, recipients)
+        recipients)
+    # Même sans email, le rapport est publié : le client le retrouve sur son portail.
     report.status = Report.Status.SENT
     report.sent_at = timezone.now()
     report.sent_to = ", ".join(recipients)
     report.save()
-    return recipients
+    return recipients, mailed
 
 
 def client_confirm(user, report):

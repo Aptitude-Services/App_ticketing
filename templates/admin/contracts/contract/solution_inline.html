@@ -1,17 +1,22 @@
 {% load i18n %}
-{# Tableau des solutions du contrat, précédé de l'import Excel : le fichier joint ici est
-   vérifié avec le reste du formulaire, puis ses solutions sont ajoutées à l'enregistrement
-   (dès la création du contrat). #}
+{% comment %}
+  Section « Solutions » du contrat : carte d'import Excel (placée sous le titre de la
+  section par contract_admin.js), puis le tableau de saisie. Le fichier choisi est lu
+  aussitôt (lire-solutions/) et ses lignes remplissent le tableau, à vérifier avant
+  d'enregistrer. Sans JavaScript, le fichier est importé à l'enregistrement du contrat.
+{% endcomment %}
 {% with field=adminform.form.solutions_file %}
-<div class="solutions-import-bar{% if field.errors %} errors{% endif %}">
-  <label for="{{ field.id_for_label }}"><strong>{% translate "Importer la liste des solutions (Excel)" %}</strong></label>
-  {{ field }}
-  <a class="solutions-import-template" href="{% url 'admin:contracts_contract_import_template' %}">{% translate "Télécharger le modèle Excel" %}</a>
-  {% if original.pk %}
-    <a href="{% url 'admin:contracts_contract_import_solutions' original.pk %}">{% translate "Page d'import détaillée" %}</a>
-  {% endif %}
-  <p class="solutions-import-hint">{% translate "Les solutions du fichier sont ajoutées au contrat à l'enregistrement. Une solution de même nom déjà présente est mise à jour." %}</p>
-  {% if field.errors %}<div class="solutions-import-errors">{{ field.errors }}</div>{% endif %}
+<div class="solutions-import-bar sol-import{% if field.errors %} has-errors{% endif %}" data-sol-import
+     data-read-url="{% url 'admin:contracts_contract_read_solutions' %}">
+  <div class="sol-import__body">
+    <div class="sol-import__result" data-sol-result hidden></div>
+    {% if field.errors %}<div class="sol-import__errors">{{ field.errors }}</div>{% endif %}
+  </div>
+  <div class="sol-import__actions">
+    <label class="sol-btn sol-btn--primary" for="{{ field.id_for_label }}">{% translate "Choisir un fichier" %}</label>
+    {{ field }}
+    <a class="sol-btn sol-btn--ghost" href="{% url 'admin:contracts_contract_import_template' %}">{% translate "Modèle Excel" %}</a>
+  </div>
 </div>
 {% endwith %}
 {% include "admin/edit_inline/tabular.html" %}

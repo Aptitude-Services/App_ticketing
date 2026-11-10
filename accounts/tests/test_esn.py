@@ -113,9 +113,10 @@ def test_contract_end_clients_limited_to_esn(esn):
         "contract_type": ct.pk, "status": "active", "start_date": "2026-01-01",
         "end_date": "", "allowance_tickets": "",
     }
-    form = ContractForm({**base, "end_clients": [esn["end"].pk]})
+    form = ContractForm({**base, "end_clients": esn["end"].pk})
     assert form.is_valid(), form.errors
+    assert form.cleaned_data["end_clients"] == [esn["end"]]
 
-    form = ContractForm({**base, "end_clients": [esn["end"].pk, stray.pk]})
+    form = ContractForm({**base, "end_clients": stray.pk})
     assert not form.is_valid()
     assert "end_clients" in form.errors

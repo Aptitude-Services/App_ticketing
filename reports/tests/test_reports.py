@@ -148,7 +148,8 @@ def test_sent_report_reaches_esn_and_is_visible_to_clients(w):
     R.validate(w["boss"], r)
     assert not R.visible_reports(w["end_user"]).exists(), "invisible tant qu'il n'est pas envoyé"
     mail.outbox.clear()
-    recipients = R.send_to_client(w["boss"], r)
+    recipients, mailed = R.send_to_client(w["boss"], r)
+    assert mailed
     assert "admin@hudson.ci" in recipients
     assert mail.outbox and r.reference in mail.outbox[0].subject
     assert R.visible_reports(w["esn_admin"]).filter(pk=r.pk).exists()
@@ -265,3 +266,43 @@ def test_admin_action_notifies_esn(w, client):
     assert resp.status_code == 302
     assert mail.outbox and mail.outbox[0].to == ["admin@hudson.ci"]
     assert LicenseNotice.objects.get().manual
+
+
+# --- Messagerie en panne : le circuit continue ---------------------------------------------------------
+
+def _broken_mail(*args, **kwargs):
+    raise RuntimeError("HTTP 404 ErrorInvalidUser")
+
+
+def test_mail_failure_does_not_block_the_report(w, monkeypatch):
+    monkeypatch.setattr(R, "send_mail", _broken_mail)
+    r = _curative(w)
+    validators, mailed = R.submit(w["tech"], r)
+    assert r.status == Report.Status.SUBMITTED and validators and not mailed
+    assert R.reject(w["boss"], r, "À revoir") is False and r.status == Report.Status.REJECTED
+    R.submit(w["tech"], r)
+    R.validate(w["boss"], r)
+    recipients, mailed = R.send_to_client(w["boss"], r)
+    assert r.status == Report.Status.SENT and recipients and not mailed
+
+
+def test_submit_view_warns_instead_of_crashing_when_mail_fails(w, monkeypatch):
+    monkeypatch.setattr(R, "send_mail", _broken_mail)
+    r = _curative(w)
+    c = w["client"]
+    c.force_login(w["tech"])
+    resp = c.post(reverse("report_edit", args=[r.pk]), {"submit": ""}, follow=True)
+    assert resp.status_code == 200
+    r.refresh_from_db()
+    assert r.status == Report.Status.SUBMITTED
+    assert "pas pu partir" in resp.content.decode()
+
+
+def test_license_alert_retried_when_mail_fails(w, monkeypatch):
+    import contracts.notifications as N
+    today = datetime.date(2026, 11, 9)
+    w["sol"].license_end = today + datetime.timedelta(days=10)
+    w["sol"].save()
+    monkeypatch.setattr(N, "send_mail", _broken_mail)
+    assert notify_expiring_licenses(today) == (0, 0)
+    assert not LicenseNotice.objects.exists(), "rien n'est tracé : l'alerte sera retentée"

@@ -1,4 +1,5 @@
 from django import forms
+from django.db.models import Q
 from django.contrib.auth.forms import AuthenticationForm
 from django.utils.translation import gettext_lazy as _
 
@@ -23,7 +24,8 @@ class UserManageForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ["email", "first_name", "last_name", "phone", "language", "organisation", "profile", "all_contracts", "is_active"]
+        fields = ["email", "first_name", "last_name", "phone", "language", "organisation", "profile", "manager",
+                  "all_contracts", "is_active"]
 
     def __init__(self, *args, actor, **kwargs):
         super().__init__(*args, **kwargs)
@@ -38,25 +40,41 @@ class UserManageForm(forms.ModelForm):
         orgs = permissions.manageable_organisations(actor)
         self.fields["organisation"].queryset = orgs
         if actor.profile == Profile.CLIENT_ADMIN:
+            # L'admin d'une ESN crée aussi les comptes de ses clients finaux : il choisit
+            # parmi son organisation et ses clients finaux. Seul dans son périmètre, le champ est figé.
             self.fields["organisation"].initial = actor.organisation
-            self.fields["organisation"].disabled = True
+            self.fields["organisation"].disabled = orgs.count() <= 1
+
+        # Supérieur hiérarchique : pour l'équipe Aptitude, réglé par le Super Admin.
+        if actor.profile == Profile.APTITUDE_ADMIN:
+            self.fields["manager"].queryset = User.objects.filter(
+                is_active=True, profile__in=[Profile.APTITUDE_ADMIN, Profile.APTITUDE_MANAGER]).exclude(
+                pk=self.instance.pk)
+            self.fields["manager"].label = _("Supérieur hiérarchique")
+            self.fields["manager"].help_text = _("Valide les rapports d'intervention de cette personne. "
+                                                 "Vide : tout Manager ou Super Admin peut les valider.")
+        else:
+            del self.fields["manager"]
 
         # Contrats proposables : ceux de l'organisation cible et visibles par l'acteur
         contract_qs = permissions.visible_contracts(actor)
         target_org = self._target_org()
         if target_org is not None and not target_org.is_aptitude:
-            contract_qs = contract_qs.filter(client=target_org)
+            contract_qs = contract_qs.filter(
+                Q(client=target_org) | Q(end_clients=target_org)).distinct()
         self.fields["contracts"].queryset = contract_qs
         if self.instance.pk:
             self.fields["contracts"].initial = Contract.objects.filter(accesses__user=self.instance)
 
     def _target_org(self):
-        if self.actor.profile == Profile.CLIENT_ADMIN:
+        if self.actor.profile == Profile.CLIENT_ADMIN and self.fields["organisation"].disabled:
             return self.actor.organisation
         if self.is_bound and self.data.get(self.add_prefix("organisation")):
             return self.fields["organisation"].queryset.filter(pk=self.data.get(self.add_prefix("organisation"))).first()
         if self.instance.pk:
             return self.instance.organisation
+        if self.actor.profile == Profile.CLIENT_ADMIN:
+            return self.actor.organisation
         return None
 
     def clean_email(self):
@@ -77,6 +95,8 @@ class UserManageForm(forms.ModelForm):
 
         if profile == Profile.CLIENT_ADMIN:
             data["all_contracts"] = True
+        if "manager" in data and (org is None or not org.is_aptitude):
+            data["manager"] = None
 
         # Le dernier admin client actif ne peut être ni rétrogradé, ni désactivé.
         if self.instance.pk:

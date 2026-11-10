@@ -24,6 +24,14 @@ THRESHOLDS = (60, 30, 15, 7, 0)
 HORIZON = max(THRESHOLDS)
 
 
+class LicenseMailError(Exception):
+    """L'email d'alerte n'a pas pu partir (messagerie mal configurée ou injoignable)."""
+
+    def __init__(self, recipients):
+        super().__init__(", ".join(recipients))
+        self.recipients = recipients
+
+
 def esn_recipients(esn):
     """Administrateurs de l'ESN ; à défaut, tous ses utilisateurs actifs."""
     users = User.objects.filter(organisation=esn, is_active=True)
@@ -86,7 +94,13 @@ def send_license_notice(esn, solutions, actor=None, threshold=0, manual=False, t
     soonest = min(s.license_end for s in solutions)
     subject = _("[Aptitude] %(n)d licence(s) expirent bientôt — première échéance le %(d)s") % {
         "n": len(solutions), "d": soonest.strftime("%d/%m/%Y")}
-    send_mail(subject, _body(esn, solutions, today), None, recipients)
+    try:
+        sent = send_mail(subject, _body(esn, solutions, today), None, recipients, fail_silently=True)
+    except Exception:
+        sent = 0
+    if not sent:
+        # Échec d'envoi (inscrit au journal des emails) : rien n'est tracé, l'alerte sera retentée.
+        raise LicenseMailError(recipients)
     LicenseNotice.objects.bulk_create([
         LicenseNotice(solution=s, license_end=s.license_end, threshold=threshold if not manual else
                       max(0, (s.license_end - today).days), manual=manual,
@@ -118,7 +132,11 @@ def notify_expiring_licenses(today=None):
         for s in sols:
             by_threshold[s._threshold].append(s)
         for threshold, group in sorted(by_threshold.items()):
-            if send_license_notice(esn, group, threshold=threshold, today=today):
+            try:
+                ok = send_license_notice(esn, group, threshold=threshold, today=today)
+            except LicenseMailError:
+                continue
+            if ok:
                 emails += 1
                 solutions += len(group)
     return emails, solutions

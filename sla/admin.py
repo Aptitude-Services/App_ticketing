@@ -2,6 +2,8 @@ from django import forms
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 
+from core.assets import versioned
+
 from .models import SLA, Holiday, SLATarget
 
 # Valeurs stockées : 0 = lundi … 6 = dimanche (convention Python utilisée par le moteur SLA).
@@ -65,7 +67,7 @@ class SLAAdmin(admin.ModelAdmin):
     )
 
     class Media:
-        js = ("js/sla_admin.js",)
+        js = (versioned("js/sla_admin.js"),)
 
     @admin.display(description=_("horaires"))
     def horaires(self, obj):

@@ -247,11 +247,28 @@ def test_contract_reference_built_from_esn_and_end_client(env):
     alone = _add_contract(env, title="ESN seule")
     assert alone.reference == f"{esn.code}-{year}-001"
 
+    # Plusieurs clients finaux (contrats existants) : référence « MULTI ».
     other = Organisation.objects.create(name="Clinique Nord", kind=Organisation.Kind.END_CLIENT,
                                         activity_sector=SECTOR)
-    esn.end_clients.add(other)
-    multi = _add_contract(env, title="Plusieurs", end_clients=[end.pk, other.pk])
-    assert multi.reference == f"{esn.code}-MULTI-{year}-001"
+    from contracts.models import contract_reference_prefix
+    assert contract_reference_prefix(esn, [end, other], year) == f"{esn.code}-MULTI-{year}"
+
+
+def test_end_client_is_a_dropdown_of_the_esn_clients(env):
+    from django import forms as dj_forms
+    add = env["client"].get(reverse("admin:contracts_contract_add"))
+    field = add.context["adminform"].form.fields["end_clients"]
+    assert isinstance(field, dj_forms.ModelChoiceField) and not field.help_text
+    html = add.content.decode()
+    assert '<select name="end_clients"' in html and 'multiple' not in html.split('name="end_clients"')[1].split(">")[0]
+    contract = _add_contract(env, title="Un client", end_clients=env["end"].pk)
+    assert list(contract.end_clients.all()) == [env["end"]]
+    # Contrat existant à plusieurs clients finaux : la liste multiple est conservée.
+    other = Organisation.objects.create(name="Clinique Sud", kind=Organisation.Kind.END_CLIENT, activity_sector=SECTOR)
+    env["esn"].end_clients.add(other)
+    contract.end_clients.add(other)
+    change = env["client"].get(reverse("admin:contracts_contract_change", args=[contract.pk]))
+    assert isinstance(change.context["adminform"].form.fields["end_clients"], dj_forms.ModelMultipleChoiceField)
 
 
 def test_contract_reference_not_asked_then_read_only(env):
@@ -282,8 +299,6 @@ def test_import_entry_shown_above_solutions(env):
     assert "Solutions : import Excel" not in html
     bar = html.index("solutions-import-bar")
     assert bar < html.index('name="solutions_file"') < html.index("solutions-TOTAL_FORMS")
-    change = env["client"].get(reverse("admin:contracts_contract_change", args=[env["contract"].pk]))
-    assert reverse("admin:contracts_contract_import_solutions", args=[env["contract"].pk]) in change.content.decode()
 
 
 def test_import_template_round_trip(env):
@@ -343,3 +358,35 @@ def test_bad_file_blocks_contract_creation(env):
     errors = resp.context["adminform"].form.errors["solutions_file"]
     assert any("Ligne 3" in e for e in errors)
     assert Contract.objects.count() == before and not Solution.objects.filter(name="OK").exists()
+
+
+def _xlsx(rows):
+    wb = Workbook()
+    for row in rows:
+        wb.active.append(row)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return SimpleUploadedFile("solutions.xlsx", buf.getvalue())
+
+
+def test_read_solutions_returns_rows_for_the_table_without_saving(env):
+    """Le fichier choisi remplit le tableau des solutions : lu sans rien enregistrer."""
+    url = reverse("admin:contracts_contract_read_solutions")
+    upload = _xlsx([["Catégorie", "Nom", "Éditeur", "Fin de licence", "Actif"],
+                    ["Matériel", "FW-01", "Fortinet", "31/12/2026", "oui"],
+                    ["Inconnue", "X", "", "", ""]])
+    data = env["client"].post(url, {"file": upload}).json()
+    assert data["ok"]
+    assert data["rows"] == [{"line": 2, "category": "hardware", "vendor": "Fortinet", "model": "", "name": "FW-01",
+                             "serial_number": "", "location": "", "license_start": "",
+                             "license_end": "31/12/2026", "is_active": True}]
+    assert len(data["errors"]) == 1 and "Ligne 3" in data["errors"][0]
+    assert not Solution.objects.filter(name="FW-01").exists()
+
+
+def test_read_solutions_rejects_bad_files(env):
+    url = reverse("admin:contracts_contract_read_solutions")
+    assert env["client"].post(url, {"file": SimpleUploadedFile("a.csv", b"x")}).status_code == 400
+    resp = env["client"].post(url, {"file": _xlsx([["Nom"], ["FW"]])})
+    assert resp.status_code == 400 and not resp.json()["ok"]
+    assert env["client"].get(url).status_code == 405

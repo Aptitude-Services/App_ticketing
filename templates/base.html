@@ -47,6 +47,7 @@
     </form>
     <div class="c-actions">
       <button type="button" class="btn btn-secondary c-install" data-install-app hidden>{% translate "Installer l'application" %}</button>
+      {% include "_notif_bell.html" with cls="c-icon" where="notif-console" %}
       {% include "_theme_toggle.html" with cls="c-icon" %}
       <a class="c-me" href="{% url 'my_profile' %}"><span class="avatar" aria-hidden="true">{{ user.initials }}</span><span class="hide-sm">{{ user.display_name }}</span></a>
     </div>
@@ -88,7 +89,10 @@
 {% else %}
 <div class="app">
   <aside class="sidebar" aria-label="{% translate 'Navigation principale' %}">
-    <a class="logo" href="{% url 'dashboard' %}"><img src="{% static 'img/logo-white.png' %}" alt="Aptitude"></a>
+    <div class="side-top">
+      <a class="logo" href="{% url 'dashboard' %}"><img src="{% static 'img/logo-white.png' %}" alt="Aptitude"></a>
+      {% include "_notif_bell.html" with cls="icon-btn" where="notif-side" %}
+    </div>
     <div class="product">{% translate "Portail de support" %}</div>
     <nav>
       <a href="{% url 'dashboard' %}" {% if section == 'dashboard' %}aria-current="page"{% endif %}>{% include "icons/home.svg" %}{% translate "Accueil" %}</a>
@@ -119,6 +123,7 @@
         <a href="{% url 'ticket_list' %}" {% if section == 'ticket_list' or section == 'ticket_detail' %}aria-current="page"{% endif %}>{% translate "Tickets" %}</a>
         <a href="{% url 'my_profile' %}" {% if section == 'my_profile' %}aria-current="page"{% endif %}>{% translate "Profil" %}</a>
       </nav>
+      {% include "_notif_bell.html" with cls="icon-btn" where="notif-mobile" %}
     </header>
     <main class="content" id="contenu">
 {% endif %}
@@ -152,6 +157,7 @@
 </script>
 {% endblock %}
 <script src="{% versioned 'js/mobile.js' %}" defer></script>
+{% if user.is_authenticated %}<script src="{% versioned 'js/notifications.js' %}" defer></script>{% endif %}
 <script src="{% versioned 'js/help_tips.js' %}" defer></script>
 </body>
 </html>

@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% load i18n %}
+{% block title %}{% translate "Notifications" %}{% endblock %}
+{% block content %}
+<div class="page-head"><div>
+  <h1>{% translate "Notifications" %}</h1>
+  <p class="lead">{% translate "Tickets qui vous sont assignés, réponses, rapports à valider ou à consulter." %}</p>
+</div>
+{% if notif_unread %}<form method="post" action="{% url 'notification_read_all' %}">{% csrf_token %}
+  <input type="hidden" name="next" value="{{ request.get_full_path }}">
+  <button type="submit" class="btn btn-secondary">{% translate "Tout marquer comme lu" %}</button>
+</form>{% endif %}
+</div>
+
+<div class="panel notif-page">
+  {% with notif_items=page.object_list %}{% include "_notif_items.html" %}{% endwith %}
+</div>
+{% if page.has_other_pages %}
+<nav class="notif-pager" aria-label="{% translate 'Pages' %}">
+  {% if page.has_previous %}<a class="btn btn-secondary" href="?page={{ page.previous_page_number }}">← {% translate "Plus récentes" %}</a>{% endif %}
+  <span class="muted small">{% blocktranslate with n=page.number total=page.paginator.num_pages %}Page {{ n }} sur {{ total }}{% endblocktranslate %}</span>
+  {% if page.has_next %}<a class="btn btn-secondary" href="?page={{ page.next_page_number }}">{% translate "Plus anciennes" %} →</a>{% endif %}
+</nav>
+{% endif %}
+{% endblock %}

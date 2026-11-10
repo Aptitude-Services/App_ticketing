@@ -17,6 +17,7 @@ from django.utils.translation import gettext as _
 from accounts.models import Profile, User
 from accounts.permissions import visible_contracts
 from contracts.notifications import esn_recipients
+from core.notify import notify
 
 from . import builders as B
 from .models import Report
@@ -95,6 +96,21 @@ def _mail(subject, body, recipients):
         return False
 
 
+def _notify(users, report, actor, title, body=""):
+    """Notification interne (cloche) liée au rapport ; `title` est évalué dans la langue du destinataire."""
+    return notify(users, "report", title, reverse("report_detail", args=[report.pk]), actor=actor, body=body)
+
+
+def _client_users(report):
+    """Mêmes destinataires que l'email d'envoi : admins de l'ESN (à défaut tous ses comptes actifs),
+    plus les admins du client final."""
+    esn_users = list(User.objects.filter(organisation=report.esn, is_active=True))
+    users = [u for u in esn_users if u.profile == Profile.CLIENT_ADMIN] or esn_users
+    if report.end_client_id:
+        users += list(report.end_client.users.filter(is_active=True, profile=Profile.CLIENT_ADMIN))
+    return users
+
+
 def _absolute(path):
     return f"{settings.SITE_URL.rstrip('/')}{path}" if settings.SITE_URL else path
 
@@ -160,6 +176,8 @@ def submit(user, report):
         % {"who": report.author.display_name, "ref": report.reference, "kind": report.get_kind_display(),
            "esn": report.esn.name, "url": url},
         [u.email for u in validators])
+    _notify(validators, report, user, lambda: _("Rapport à valider : %(ref)s") % {"ref": report.reference},
+            lambda: _("%(who)s a soumis le rapport à votre validation.") % {"who": report.author.display_name})
     return validators, mailed
 
 
@@ -173,6 +191,8 @@ def validate(user, report):
     report.validated_at = timezone.now()
     report.fingerprint = report.compute_fingerprint()
     report.save()
+    _notify([report.author], report, user, lambda: _("Rapport validé : %(ref)s") % {"ref": report.reference},
+            lambda: _("%(who)s a validé votre rapport.") % {"who": user.display_name})
 
 
 def reject(user, report, comment):
@@ -181,6 +201,8 @@ def reject(user, report, comment):
     report.status = Report.Status.REJECTED
     report.rejection_comment = comment
     report.save()
+    _notify([report.author], report, user, lambda: _("Rapport à corriger : %(ref)s") % {"ref": report.reference},
+            comment)
     return _mail(
         _("[Aptitude] Rapport à corriger : %(ref)s") % {"ref": report.reference},
         _("%(who)s demande des corrections sur le rapport %(ref)s :\n\n%(c)s\n\n%(url)s")
@@ -214,6 +236,9 @@ def send_to_client(user, report):
     report.sent_at = timezone.now()
     report.sent_to = ", ".join(recipients)
     report.save()
+    _notify(_client_users(report), report, user,
+            lambda: _("Nouveau rapport disponible : %(ref)s") % {"ref": report.reference},
+            lambda: _("%(kind)s — à consulter et à confirmer.") % {"kind": report.get_kind_display()})
     return recipients, mailed
 
 
@@ -222,3 +247,7 @@ def client_confirm(user, report):
     report.client_validated_by = user
     report.client_validated_at = timezone.now()
     report.save(update_fields=["client_validated_by", "client_validated_at", "updated_at"])
+    _notify([report.author, report.validator], report, user,
+            lambda: _("Réception confirmée : %(ref)s") % {"ref": report.reference},
+            lambda: _("%(who)s (%(org)s) a confirmé la réception du rapport.")
+            % {"who": user.display_name, "org": user.organisation})

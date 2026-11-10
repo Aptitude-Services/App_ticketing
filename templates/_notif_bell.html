@@ -1,0 +1,18 @@
+{% load i18n %}<details class="notif {{ where }}" data-notif data-panel-url="{% url 'notification_panel' %}">
+  <summary class="{{ cls }} notif-btn" title="{% translate 'Notifications' %}">
+    {% include "icons/bell.svg" %}
+    <span class="sr-only">{% translate "Notifications" %}</span>
+    <span class="notif-count" data-notif-count {% if not notif_unread %}hidden{% endif %}>{% if notif_unread > 99 %}99+{% else %}{{ notif_unread }}{% endif %}</span>
+  </summary>
+  <div class="notif-panel" role="region" aria-label="{% translate 'Notifications' %}">
+    <div class="notif-head">
+      <strong>{% translate "Notifications" %}</strong>
+      <form method="post" action="{% url 'notification_read_all' %}" data-notif-readall {% if not notif_unread %}hidden{% endif %}>{% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit">{% translate "Tout marquer comme lu" %}</button>
+      </form>
+    </div>
+    <div data-notif-items>{% include "_notif_items.html" %}</div>
+    <a class="notif-all" href="{% url 'notifications' %}">{% translate "Voir toutes les notifications" %}</a>
+  </div>
+</details>

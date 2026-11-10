@@ -1,0 +1,8 @@
+{% load i18n %}{% if notif_items %}<ul class="notif-list">{% for n in notif_items %}
+  <li><a href="{% url 'notification_open' n.pk %}" class="notif-item{% if n.is_unread %} unread{% endif %}">
+    <span class="notif-dot" aria-hidden="true"></span>
+    <span class="notif-text"><strong>{{ n.title }}</strong>{% if n.body %}<span class="notif-body">{{ n.body }}</span>{% endif %}
+      <span class="notif-meta">{% if n.actor %}{{ n.actor.display_name }} · {% endif %}{% blocktranslate with since=n.created_at|timesince %}il y a {{ since }}{% endblocktranslate %}{% if n.is_unread %}<span class="sr-only"> · {% translate "non lue" %}</span>{% endif %}</span>
+    </span>
+  </a></li>{% endfor %}
+</ul>{% else %}<p class="notif-empty">{% translate "Aucune notification pour le moment." %}</p>{% endif %}

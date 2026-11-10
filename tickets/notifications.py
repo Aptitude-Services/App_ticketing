@@ -8,6 +8,9 @@
 
 L'auteur d'une action n'est pas prévenu de sa propre action, sauf l'accusé de réception. Un email qui ne part pas
 n'interrompt jamais l'action : l'échec est inscrit au journal des emails.
+
+Chaque email est doublé d'une notification interne (cloche), pour les mêmes destinataires — sauf
+l'auteur de l'action, y compris pour l'accusé de réception.
 """
 import logging
 
@@ -18,6 +21,7 @@ from django.utils import translation
 from django.utils.translation import gettext as _
 
 from accounts.models import Profile, User
+from core.notify import notify
 
 from .models import Status
 
@@ -42,8 +46,11 @@ def _url(ticket):
     return f"{settings.SITE_URL.rstrip('/')}{path}" if settings.SITE_URL else path
 
 
-def _send(users, subject, lines, ticket):
-    """Un email par destinataire, dans sa langue. Ne lève jamais d'exception."""
+def _send(users, subject, lines, ticket, actor=None):
+    """Un email par destinataire, dans sa langue, plus une notification interne. Ne lève jamais d'exception."""
+    users = list(users)
+    notify(users, "ticket", f"{ticket.reference} — {subject}", reverse("ticket_detail", args=[ticket.reference]),
+           actor=actor, body=next((line for line in lines if line), ""))
     sent = 0
     for user in {u.pk: u for u in users if u and u.is_active and u.email}.values():
         try:
@@ -74,11 +81,11 @@ def ticket_created(ticket, actor):
     # Accusé de réception : envoyé au demandeur, y compris quand il a ouvert le ticket lui-même.
     _send([ticket.requester] if ticket.requester.is_client else [], "Votre demande a bien été enregistrée",
           ["Votre demande a bien été enregistrée. Notre équipe vous répond dans les délais de votre contrat.",
-           f"Priorité : P{ticket.priority}"], ticket)
+           f"Priorité : P{ticket.priority}"], ticket, actor)
     _send(_others(_support_team(ticket), actor), "Nouveau ticket",
           [f"Nouveau ticket de {ticket.requester.display_name} ({ticket.requester.organisation}), "
            f"contrat {ticket.contract.reference}, priorité P{ticket.priority}.",
-           "", ticket.description[:1500]], ticket)
+           "", ticket.description[:1500]], ticket, actor)
 
 
 def status_changed(ticket, actor, new):
@@ -86,19 +93,19 @@ def status_changed(ticket, actor, new):
     if not message:
         return
     label = dict(Status.choices)[new]
-    _send(_others([ticket.requester], actor), f"Statut : {label}", [message], ticket)
+    _send(_others([ticket.requester], actor), f"Statut : {label}", [message], ticket, actor)
 
 
 def priority_changed(ticket, actor, old, new, justification=""):
     lines = [f"La priorité de votre demande passe de P{old} à P{new}."]
     if justification:
         lines.append(f"Motif : {justification}")
-    _send(_others([ticket.requester], actor), f"Priorité P{new}", lines, ticket)
+    _send(_others([ticket.requester], actor), f"Priorité P{new}", lines, ticket, actor)
 
 
 def assigned(ticket, actor, user):
     _send(_others([user], actor), "Ticket qui vous est assigné",
-          [f"Ce ticket vous est assigné (priorité P{ticket.priority}, client {ticket.contract.client})."], ticket)
+          [f"Ce ticket vous est assigné (priorité P{ticket.priority}, client {ticket.contract.client})."], ticket, actor)
 
 
 def commented(ticket, actor, comment):
@@ -107,8 +114,8 @@ def commented(ticket, actor, comment):
     excerpt = comment.body[:1500] if comment.body else "(pièce jointe)"
     if actor.is_aptitude:
         _send(_others([ticket.requester], actor), "Nouvelle réponse de notre équipe",
-              [f"{actor.display_name} a répondu :", "", excerpt], ticket)
+              [f"{actor.display_name} a répondu :", "", excerpt], ticket, actor)
     else:
         targets = [ticket.assignee] if ticket.assignee_id else _support_team(ticket)
         _send(_others(targets, actor), "Réponse du client",
-              [f"{actor.display_name} ({actor.organisation}) a répondu :", "", excerpt], ticket)
+              [f"{actor.display_name} ({actor.organisation}) a répondu :", "", excerpt], ticket, actor)

@@ -90,3 +90,39 @@ class OutgoingMail(models.Model):
 
     def __str__(self):
         return f"{self.subject} → {self.recipients}"
+
+
+class Notification(models.Model):
+    """Notification interne (cloche) : doublon des emails, lisible directement dans l'application.
+
+    Créée au même moment que l'email correspondant, pour les mêmes destinataires, sans jamais
+    le remplacer. L'auteur d'une action n'est pas notifié de sa propre action.
+    """
+
+    class Kind(models.TextChoices):
+        TICKET = "ticket", _("Ticket")
+        REPORT = "report", _("Rapport")
+
+    recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                                  related_name="notifications", verbose_name=_("destinataire"))
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                              related_name="+", verbose_name=_("auteur"))
+    kind = models.CharField(_("type"), max_length=10, choices=Kind.choices)
+    title = models.CharField(_("titre"), max_length=255)
+    body = models.CharField(_("détail"), max_length=300, blank=True)
+    url = models.CharField(_("lien"), max_length=300)
+    created_at = models.DateTimeField(_("créée le"), auto_now_add=True, db_index=True)
+    read_at = models.DateTimeField(_("lue le"), null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-pk"]
+        indexes = [models.Index(fields=["recipient", "read_at"])]
+        verbose_name = _("notification")
+        verbose_name_plural = _("notifications")
+
+    def __str__(self):
+        return self.title
+
+    @property
+    def is_unread(self):
+        return self.read_at is None

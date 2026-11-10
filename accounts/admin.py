@@ -3,6 +3,7 @@ from django.contrib import admin
 from django.contrib.admin.options import IS_POPUP_VAR, TO_FIELD_VAR
 from django.contrib.admin.widgets import FilteredSelectMultiple
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.models import Group
 from django.core.exceptions import PermissionDenied
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
@@ -276,3 +277,10 @@ class AuditEventAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+# Les droits viennent du profil de chaque utilisateur (User.has_perm) : les groupes et
+# permissions « à la carte » de Django ne sont jamais lus. La page « Groupes » est retirée
+# pour ne pas laisser croire qu'un groupe donne ou retire des droits.
+if admin.site.is_registered(Group):
+    admin.site.unregister(Group)

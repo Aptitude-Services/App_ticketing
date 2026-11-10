@@ -90,3 +90,14 @@ def test_reset_links_stay_reachable_without_mfa(unverified_engineer):
     resp = c.get(reverse("password_reset_confirm", kwargs={"uidb64": "xx", "token": "yy"}))
     assert not (resp.status_code == 302 and "mfa" in resp["Location"])
     assert c.get(reverse("password_reset")).status_code == 200
+
+
+def test_groups_page_is_removed_from_admin(w):
+    from django.urls import NoReverseMatch
+    c = w["client"]
+    root = User.objects.create_user("root@apt.ci", PWD, organisation=w["boss"].organisation,
+                                    profile=Profile.APTITUDE_ADMIN)
+    c.force_login(root)
+    assert "auth/group" not in c.get(reverse("admin:index")).content.decode()
+    with pytest.raises(NoReverseMatch):
+        reverse("admin:auth_group_changelist")

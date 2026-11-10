@@ -5,5 +5,14 @@
   par le Journal d'audit et le bouton « Historique » de chaque fiche. La liste des menus prend
   toute la largeur.
 {% endcomment %}
+{% block extrastyle %}{{ block.super }}
+<style>
+  /* Django fige l'accueil à 600 px : pleine largeur, sections en colonnes sur grand écran. */
+  .dashboard #content { width: auto; }
+  .dashboard #content-main { float: none; width: 100%; display: grid; gap: 24px 32px; align-items: start;
+                             grid-template-columns: repeat(auto-fill, minmax(min(440px, 100%), 1fr)); }
+  .dashboard #content-main > .module { margin: 0; }
+</style>
+{% endblock %}
 {% block coltype %}colM{% endblock %}
 {% block sidebar %}{% endblock %}

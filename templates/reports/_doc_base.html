@@ -132,11 +132,15 @@
     .grid, .grid-3, .grid-4, .grid-5, .sign { grid-template-columns: 1fr 1fr; }
     .table-scroll { overflow-x: auto; }
   }
-  @page { size: A4; margin: 12mm 12mm 14mm; }
+  /* Marges de page nulles : le navigateur n'a plus de place pour ses propres en-têtes et
+     pieds de page (adresse, date, n° de page). Les marges du document sont portées par
+     .doc, répétées sur chaque page imprimée (box-decoration-break: clone). */
+  @page { size: A4; margin: 0; }
   @media print {
-    html { background: #fff; }
+    html, body { background: #fff; }
     .no-print { display: none !important; }
-    .doc { margin: 0; padding: 0; box-shadow: none; max-width: none; }
+    .doc { margin: 0; padding: 12mm 13mm 14mm; box-shadow: none; max-width: none;
+           -webkit-box-decoration-break: clone; box-decoration-break: clone; }
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>

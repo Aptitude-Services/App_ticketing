@@ -1,0 +1,6 @@
+{% load i18n %}<label class="cl-filter{% for choice in choices %}{% if choice.selected and not forloop.first %} is-active{% endif %}{% endfor %}">
+  <span>{{ title|capfirst }}</span>
+  <select data-admin-filter>
+    {% for choice in choices %}<option value="{{ choice.query_string|iriencode }}"{% if choice.selected %} selected{% endif %}>{{ choice.display }}</option>{% endfor %}
+  </select>
+</label>

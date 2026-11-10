@@ -1,8 +1,10 @@
 from django.urls import path
 
 from . import views
+from .comex.views import comex
 
 urlpatterns = [
+    path("comex/", comex, name="comex"),  # avant <slug:kind>/
     path("rapport/<int:pk>/", views.report_detail, name="report_detail"),
     path("rapport/<int:pk>/modifier/", views.report_edit, name="report_edit"),
     path("rapport/<int:pk>/<slug:action>/", views.report_action, name="report_action"),

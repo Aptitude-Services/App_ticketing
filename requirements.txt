@@ -8,3 +8,4 @@ gunicorn>=23.0
 whitenoise>=6.7
 cryptography>=43
 openpyxl>=3.1.5,<4
+python-pptx>=1.0.2,<2

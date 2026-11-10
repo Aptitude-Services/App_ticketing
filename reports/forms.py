@@ -157,7 +157,15 @@ SCHEMA = {
              {"columns": [_("Mesure"), _("Justification"), _("Impact"), _("Effort")],
               "help": _("Impact : élevé ou moyen. Effort : faible, moyen ou élevé.")}),
             ("action_plan", _("Plan d'action"), "lines",
-             {"columns": [_("Action"), _("Priorité"), _("Responsable"), _("Échéance"), _("Statut")]}),
+             {"columns": [_("Action"), _("Priorité"), _("Responsable"), _("Échéance"), _("Statut")],
+              "help": _("Échéance au format JJ/MM/AAAA : elle place l'action sur la feuille de route du COMEX.")}),
+        ]),
+        (_("Comité de direction (COMEX)"), [
+            ("decisions", _("Décisions attendues"), "lines",
+             {"columns": [_("Décision"), _("Détail")],
+              "help": _("Trois au plus. Ex. Extension du stockage SAN-01 | Valider le budget avant décembre.")}),
+            ("next_point", _("Prochain point"), "text",
+             {"help": _("Ex. Prochain point : rapport trimestriel T4 2026, début janvier 2027.")}),
         ]),
     ],
 }

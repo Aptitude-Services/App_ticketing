@@ -74,6 +74,7 @@
       <a href="{% url 'report' 'preventif' %}" {% if section in 'report report_create report_edit report_detail' and kind == 'preventif' %}aria-current="page"{% endif %}>{% include "icons/shield.svg" %}{% translate "Préventif" %}</a>
       <a href="{% url 'report' 'curatif' %}" {% if section in 'report report_create report_edit report_detail' and kind == 'curatif' %}aria-current="page"{% endif %}>{% include "icons/ticket.svg" %}{% translate "Curatif" %}</a>
       <a href="{% url 'report' 'trimestriel' %}" {% if section in 'report report_create report_edit report_detail' and kind == 'trimestriel' %}aria-current="page"{% endif %}>{% include "icons/clock.svg" %}{% translate "Trimestriel" %}</a>
+      {% if user.profile == "aptitude_admin" or user.profile == "aptitude_manager" %}<a href="{% url 'comex' %}" {% if section == 'comex' %}aria-current="page"{% endif %}>{% include "icons/download.svg" %}{% translate "COMEX" %}</a>{% endif %}
       {% if user.is_staff %}
       <div class="grp">{% translate "Configuration" %}</div>
       <a href="{% url 'admin:sla_sla_changelist' %}">{% include "icons/clock.svg" %}{% translate "SLA et jours fériés" %}</a>

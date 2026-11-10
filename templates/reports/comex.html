@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% load i18n %}
+{% block title %}{% translate "COMEX" %}{% endblock %}
+{% block content %}
+<div class="page-head"><div>
+  <h1>{% translate "COMEX — comité de direction" %}</h1>
+</div></div>
+<section class="panel" style="max-width:820px"><div class="panel-body">
+  <form method="post" class="stack">{% csrf_token %}
+    {% include "_form_fields.html" %}
+    <div class="form-row">
+      <span class="help">{% translate "Raccourcis :" %}
+      {% for label, start, end in shortcuts %}<a href="?du={{ start|date:'Y-m-d' }}&amp;au={{ end|date:'Y-m-d' }}{% if scope %}&amp;perimetre={{ scope|urlencode }}{% endif %}">{{ label }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</span>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">{% include "icons/download.svg" %}{% translate "Télécharger le PowerPoint" %}</button></div>
+  </form>
+</div></section>
+{% endblock %}

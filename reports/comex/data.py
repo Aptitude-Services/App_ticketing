@@ -101,9 +101,17 @@ def comex_data(esn, end_client, start, end, now=None):
 
     now = now or timezone.now()
     contracts = list(contracts_for(esn, end_client))
-    tickets = list(Ticket.objects.filter(contract__in=contracts, created_at__date__gte=start,
-                                         created_at__date__lte=end)
-                   .select_related("contract").prefetch_related("solutions").order_by("created_at"))
+    all_tickets = list(Ticket.objects.filter(contract__in=contracts, created_at__date__gte=start,
+                                             created_at__date__lte=end)
+                       .select_related("contract", "requester__organisation").prefetch_related("solutions").order_by("created_at"))
+    # Un ticket n'est rattaché qu'à son contrat. Sur un contrat partagé entre plusieurs clients finaux,
+    # seuls comptent les tickets ouverts par un utilisateur de ce client final ; ceux ouverts par l'ESN
+    # ou par Aptitude ne peuvent être attribués à aucun client et sont écartés (comptés à part).
+    shared = {c.pk for c in contracts if c.end_clients.count() > 1}
+    tickets = [t for t in all_tickets
+               if t.contract_id not in shared or t.requester.organisation_id == end_client.pk]
+    excluded_shared = len([t for t in all_tickets if t.contract_id in shared
+                           and not t.requester.organisation.is_end_client])
     resolved_statuses = {Status.RESOLVED, Status.CLOSED}
     resolved = [t for t in tickets if t.status in resolved_statuses]
     open_ = [t for t in tickets if t.status in OPEN_STATUSES]
@@ -238,4 +246,5 @@ def comex_data(esn, end_client, start, end, now=None):
         "decisions": decisions,
         "next_point": _first(quarterlies, "next_point"),
         "quarterly_reports": [r.reference for r in quarterlies],
+        "excluded_shared": excluded_shared,
     }

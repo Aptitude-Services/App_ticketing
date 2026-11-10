@@ -563,7 +563,10 @@ def _notes(d):
         f"Bilan {period} pour {d['end_client']} ({d['esn']}). Saisies reprises de : {sources}.",
         f"Message clé : {d['headline']}. Résolution dans les délais : {fmt_pct(d['resolution_pct'])} "
         f"pour un objectif de {fmt_pct(d['resolution_target'])}.",
-        f"{r} tickets résolus sur {t} ; {d['tickets_open']} encore ouverts.",
+        f"{r} tickets résolus sur {t} ; {d['tickets_open']} encore ouverts."
+        + (f" {d['excluded_shared']} ticket(s) d'un contrat partagé avec d'autres clients finaux, ouverts "
+           "par l'ESN ou par Aptitude, ne sont pas comptés : ils ne peuvent être attribués à ce client."
+           if d.get("excluded_shared") else ""),
         "Engagements de délai calculés sur les tickets de la période ; disponibilité reprise des rapports "
         "trimestriels.",
         "Causes issues des rapports curatifs validés ; équipements cités dans les tickets.",

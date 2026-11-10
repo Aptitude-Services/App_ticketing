@@ -126,3 +126,34 @@ def test_form_rejects_bad_scope_and_period(w):
     assert resp.status_code == 200 and resp["Content-Type"].startswith("text/html")
     resp = c.post(reverse("comex"), {"scope": "999:999", "start": "2026-10-01", "end": "2026-12-31"})
     assert resp["Content-Type"].startswith("text/html")
+
+
+def test_shared_contract_counts_only_this_end_clients_tickets(w):
+    from accounts.models import Organisation, Profile, User
+    from tickets import services as T
+
+    other = Organisation.objects.create(name="Clinique Nord", code="CNOR", kind=Organisation.Kind.END_CLIENT,
+                                        activity_sector=Organisation.ActivitySector.HEALTH)
+    w["esn"].end_clients.add(other)
+    w["contract"].end_clients.add(other)  # contrat partagé entre deux clients finaux
+    other_user = User.objects.create_user("it@cnor.ci", "Motdepasse-tres-long-1", organisation=other,
+                                          profile=Profile.CLIENT_RW)
+    when = datetime.datetime(2026, 11, 3, 10, tzinfo=datetime.timezone.utc)
+    T.create_ticket(other_user, w["contract"], "Imprimante", "HS", now=when)
+    T.create_ticket(w["esn_admin"], w["contract"], "Pour le compte du client", "?", now=when)
+
+    d = comex_data(w["esn"], w["end"], *T4)
+    assert d["tickets_total"] == 1  # seul le ticket ouvert par Banque Lagune
+    assert d["excluded_shared"] == 1  # le ticket ouvert par l'ESN
+    assert comex_data(w["esn"], other, *T4)["tickets_total"] == 1
+    _prs, texts = _deck(build_comex(d))
+    assert "contrat partagé" in texts[2]
+
+
+def test_single_end_client_contract_keeps_all_tickets(w):
+    from tickets import services as T
+
+    T.create_ticket(w["esn_admin"], w["contract"], "Ouvert par l'ESN", "?",
+                    now=datetime.datetime(2026, 11, 3, 10, tzinfo=datetime.timezone.utc))
+    d = comex_data(w["esn"], w["end"], *T4)
+    assert d["tickets_total"] == 2 and d["excluded_shared"] == 0

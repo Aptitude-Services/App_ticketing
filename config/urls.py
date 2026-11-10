@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.urls import include, path
 
+from core.admin_guard import admin_login
 from core.mail_views import mail_settings, mail_test
 from core.notification_views import (notification_list, notification_open, notification_panel,
                                      notification_read_all)
@@ -26,5 +27,7 @@ urlpatterns = [
     path("configuration/messagerie/", mail_settings, name="mail_settings"),
     path("configuration/messagerie/test/", mail_test, name="mail_test"),
     path("i18n/", include("django.conf.urls.i18n")),
+    # Avant admin.site.urls : remplace la connexion de l'administration (aucune information divulguée).
+    path("gestion/login/", admin_login),
     path("gestion/", admin.site.urls),
 ]

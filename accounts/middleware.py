@@ -40,8 +40,11 @@ class MFARequiredMiddleware:
                     paths.append(reverse(name))
                 except Exception:
                     pass
-            # Les liens de réinitialisation contiennent des jetons : on exempte le préfixe.
-            paths.append("/compte/mot-de-passe/")
+            # Les liens de réinitialisation contiennent des jetons : on exempte leur préfixe
+            # (/compte/mot-de-passe/definir/), et lui seul. Surtout pas tout /compte/mot-de-passe/ :
+            # le changement de mot de passe (…/changer/) doit rester derrière la double authentification.
+            confirm = reverse("password_reset_confirm", kwargs={"uidb64": "u", "token": "t"})
+            paths.append(confirm[: -len("u/t/")])
             self._exempt_paths = tuple(paths)
         return path.startswith(self._exempt_paths)
 

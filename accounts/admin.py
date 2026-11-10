@@ -12,7 +12,8 @@ from django.utils.translation import gettext_lazy as _
 
 from core.assets import versioned
 
-from .models import STANDBY_PROFILES, AuditEvent, Organisation, Profile, User, file_data_uri
+from . import permissions
+from .models import AuditEvent, Organisation, Profile, User, file_data_uri
 
 
 class WrappedFilteredSelectMultiple(FilteredSelectMultiple):
@@ -224,13 +225,38 @@ class UserAdmin(BaseUserAdmin):
     )
     filter_horizontal = ()
 
+    # Même périmètre que la gestion des comptes dans l'application (accounts.permissions) :
+    # un Manager ne voit, ne crée et ne modifie que des comptes clients, avec des profils clients.
+    # Sans cela, il pourrait se donner le profil Super Admin ou changer le mot de passe d'un
+    # compte Aptitude depuis l'administration. Le Super Admin garde l'accès complet.
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(pk__in=permissions.manageable_users(request.user).values("pk"))
+
+    def _in_scope(self, request, obj):
+        return obj is None or permissions.manageable_users(request.user).filter(pk=obj.pk).exists()
+
+    def has_change_permission(self, request, obj=None):
+        return self._in_scope(request, obj) and super().has_change_permission(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        return self._in_scope(request, obj) and super().has_delete_permission(request, obj)
+
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
+        allowed = {p.value for p in permissions.assignable_profiles(request.user)}
         field = form.base_fields.get("profile")
         if field:
-            # Profils en réserve masqués, sauf celui que porte déjà le compte modifié.
+            # Profils attribuables par l'acteur (profils en réserve exclus), plus celui que porte
+            # déjà le compte modifié.
             keep = {obj.profile} if obj else set()
-            field.choices = [c for c in field.choices if c[0] not in STANDBY_PROFILES or c[0] in keep]
+            field.choices = [c for c in field.choices if c[0] in allowed or c[0] in keep or c[0] == ""]
+        org = form.base_fields.get("organisation")
+        if org:
+            org.queryset = permissions.manageable_organisations(request.user)
+        manager = form.base_fields.get("manager")
+        if manager and request.user.profile != Profile.APTITUDE_ADMIN:
+            manager.disabled = True  # rattachement hiérarchique de l'équipe interne : Super Admin seul
         return form
 
 

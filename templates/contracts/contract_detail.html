@@ -37,37 +37,58 @@
       {% else %}<div class="empty"><strong>{% translate "Aucun engagement de service" %}</strong>{% translate "Ce contrat n'a pas encore de type de contrat associé." %}</div>{% endif %}
     </section>
 
-    {% if features_annotated %}
+    {% if features_by_category %}
     <section class="panel">
       <div class="panel-head" style="padding-bottom:14px">
         <h2>{% translate "Prestations et périmètre couvert" %}</h2>
         {% if contract.contract_type %}<span class="tag brand">{{ contract.contract_type.name }}</span>{% endif %}
       </div>
-      {% if contract.contract_type.positioning or contract.contract_type.scope %}
-      <p class="muted small" style="margin:0 24px 14px">
-        {% if contract.contract_type.positioning %}<strong>{{ contract.contract_type.positioning }}</strong>{% endif %}
-        {% if contract.contract_type.scope %} — {{ contract.contract_type.scope }}{% endif %}
-      </p>
+
+      {% if contract.contract_type %}
+      <div class="features-hero-meta">
+        {% if contract.contract_type.positioning %}
+        <div class="meta-chip"><span class="lbl">{% translate "Positionnement" %} :</span> <span class="val">{{ contract.contract_type.positioning }}</span></div>
+        {% endif %}
+        {% if contract.contract_type.scope %}
+        <div class="meta-chip"><span class="lbl">{% translate "Périmètre" %} :</span> <span class="val">{{ contract.contract_type.scope }}</span></div>
+        {% endif %}
+        {% if contract.contract_type.billing_mode %}
+        <div class="meta-chip"><span class="lbl">{% translate "Facturation" %} :</span> <span class="val">{{ contract.contract_type.billing_mode }}</span></div>
+        {% endif %}
+        {% if contract.contract_type.commitment_period %}
+        <div class="meta-chip"><span class="lbl">{% translate "Engagement" %} :</span> <span class="val">{{ contract.contract_type.commitment_period }}</span></div>
+        {% endif %}
+      </div>
       {% endif %}
-      <div class="table-wrap"><table>
-        <thead><tr><th>{% translate "Prestation / Critère" %}</th><th>{% translate "Catégorie" %}</th><th class="num">{% translate "Inclusion" %}</th></tr></thead>
-        <tbody>{% for row in features_annotated %}
-          <tr>
-            <td>
-              <strong>{{ row.feature.name }}</strong>
-              {% if row.feature.description %}<div class="def">{{ row.feature.description }}</div>{% endif %}
-            </td>
-            <td>{{ row.feature.get_category_display }}</td>
-            <td class="num">
-              {% if row.is_custom %}
-              <span class="tag ok" title="{% translate 'Option personnalisée ajoutée pour ce contrat' %}">✓ {{ row.badge }}</span>
-              {% else %}
-              <span class="tag outline">✓ {{ row.badge }}</span>
-              {% endif %}
-            </td>
-          </tr>{% endfor %}
-        </tbody>
-      </table></div>
+
+      <div class="features-card-grid">
+        {% for cat_label, items in features_by_category.items %}
+        <div class="feature-cat-card">
+          <div class="cat-card-header">
+            <h3>{{ cat_label }}</h3>
+            <span class="cat-badge">{{ items|length }}</span>
+          </div>
+          <ul class="feature-cat-list">
+            {% for row in items %}
+            <li class="feature-cat-item {% if row.is_custom %}custom-item{% endif %}">
+              <span class="chk">✓</span>
+              <div class="feature-cat-body">
+                <div class="title-row">
+                  <strong>{{ row.feature.name }}</strong>
+                  {% if row.is_custom %}
+                  <span class="tag ok" style="font-size:11px;padding:1px 7px;">{% translate "Option personnalisée" %}</span>
+                  {% endif %}
+                </div>
+                {% if row.feature.description %}
+                <p class="desc">{{ row.feature.description }}</p>
+                {% endif %}
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endfor %}
+      </div>
     </section>
     {% endif %}
 

@@ -235,24 +235,26 @@ def _add_contract(env, **data):
     return Contract.objects.order_by("-pk").first()
 
 
-def test_contract_reference_built_from_esn_and_end_client(env):
+def test_contract_reference_numbered_per_day(env):
+    """Référence APT<n° du jour>-<JJMM>/COM/<AAAA> : le compteur repart à 1 chaque jour."""
+    import datetime as dt
+
     from django.utils import timezone
-    year = timezone.localdate().year
-    esn, end = env["esn"], env["end"]
-    first = _add_contract(env, end_clients=[end.pk])
-    second = _add_contract(env, title="Autre", end_clients=[end.pk])
-    assert first.reference == f"{esn.code}-{end.code}-{year}-001"
-    assert second.reference == f"{esn.code}-{end.code}-{year}-002"
 
+    from contracts.models import ContractSequence, contract_reference
+    today = timezone.localdate()
+    tag = f"{today:%d%m}/COM/{today:%Y}"
+    end = env["end"]
+    first = _add_contract(env, end_clients=end.pk)
+    second = _add_contract(env, title="Autre", end_clients=end.pk)
     alone = _add_contract(env, title="ESN seule")
-    assert alone.reference == f"{esn.code}-{year}-001"
-
-    # Plusieurs clients finaux (contrats existants) : référence « MULTI ».
-    other = Organisation.objects.create(name="Clinique Nord", kind=Organisation.Kind.END_CLIENT,
-                                        activity_sector=SECTOR)
-    from contracts.models import contract_reference_prefix
-    assert contract_reference_prefix(esn, [end, other], year) == f"{esn.code}-MULTI-{year}"
-
+    assert first.reference == f"APT1-{tag}"
+    assert second.reference == f"APT2-{tag}"
+    assert alone.reference == f"APT3-{tag}"
+    # Le lendemain, la numérotation repart à 1
+    tomorrow = today + dt.timedelta(days=1)
+    assert ContractSequence.next_reference(tomorrow) == f"APT1-{tomorrow:%d%m}/COM/{tomorrow:%Y}"
+    assert contract_reference(1, dt.date(2026, 11, 9)) == "APT1-0911/COM/2026"
 
 def test_end_client_is_a_dropdown_of_the_esn_clients(env):
     from django import forms as dj_forms

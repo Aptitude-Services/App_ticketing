@@ -162,7 +162,7 @@
 <body>
 <div class="toolbar no-print">
   <a href="{% if user.is_aptitude %}{% url 'report' report.kind %}{% else %}{% url 'report' 'tous' %}{% endif %}">← {% translate "Rapports" %}</a>
-  <span class="chip {% if report.status == 'sent' or report.status == 'validated' %}ok{% elif report.status == 'rejected' %}ko{% elif report.status == 'submitted' %}warn{% endif %}">{{ report.get_status_display }}</span>
+  {% if user.is_aptitude %}<span class="chip {% if report.status == 'sent' or report.status == 'validated' %}ok{% elif report.status == 'rejected' %}ko{% elif report.status == 'submitted' %}warn{% endif %}">{{ report.get_status_display }}</span>{% endif %}
   <span class="spacer"></span>
   {% if can_edit %}<a href="{% url 'report_edit' report.pk %}">{% translate "Modifier" %}</a>
     <form method="post" action="{% url 'report_action' report.pk 'soumettre' %}">{% csrf_token %}<button class="primary">{% translate "Soumettre à validation" %}</button></form>{% endif %}

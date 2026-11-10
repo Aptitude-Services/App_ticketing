@@ -97,7 +97,9 @@ def test_parcours_complet():
         "accesses-TOTAL_FORMS": "0", "accesses-INITIAL_FORMS": "0",
     }), 302)
     contract = Contract.objects.get(title="Support SOC")
-    assert contract.reference.startswith(f"{esn.code}-{end.code}-")
+    today = timezone.localdate()
+    # 2e contrat créé aujourd'hui (le contrat de l'autre ESN est le 1er)
+    assert contract.reference == f"APT2-{today:%d%m}/COM/{today:%Y}"
     firewall = Solution.objects.get(contract=contract, name="FW-LYN-01")
 
     # Équipe Aptitude : un Manager, supérieur d'un Engineer ; un autre Manager

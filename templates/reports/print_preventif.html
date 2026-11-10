@@ -3,9 +3,9 @@
 <div class="hero">
   <div class="kicker">{% translate "Rapport d'intervention · Maintenance préventive" %}</div>
   <h1>{{ auto.end_client|default:auto.esn }}</h1>
-  <div class="sub">{% if m.visit_no %}{% translate "Visite" %} {{ m.visit_no }}{% if m.visit_total %} {% translate "sur" %} {{ m.visit_total }}{% endif %}{% if m.periodicity %} ({{ m.periodicity }}){% endif %} · {% endif %}{% translate "Rédigé le" %} {{ report.created_at|date:"d/m/Y" }}{% if report.validated_at %} · {% translate "Validé le" %} {{ report.validated_at|date:"d/m/Y" }}{% endif %}</div>
+  <div class="sub">{% if m.visit_no %}{% translate "Visite" %} {{ m.visit_no }}{% if m.visit_total %} {% translate "sur" %} {{ m.visit_total }}{% endif %}{% if m.periodicity %} ({{ m.periodicity }}){% endif %} · {% endif %}{% translate "Rédigé le" %} {{ report.created_at|date:"d/m/Y" }}{% if report.validated_at and user.is_aptitude %} · {% translate "Validé le" %} {{ report.validated_at|date:"d/m/Y" }}{% endif %}</div>
   <div class="chips">
-    <span class="chip {% if report.is_locked %}ok{% endif %}">{{ report.get_status_display }}</span>
+    {% if user.is_aptitude %}<span class="chip {% if report.is_locked %}ok{% endif %}">{{ report.get_status_display }}</span>{% endif %}
     <span class="chip">{% translate "Réf." %} {{ report.reference }}</span>
   </div>
 </div>

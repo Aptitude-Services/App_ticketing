@@ -7,10 +7,10 @@
   <div class="chips">
     <span class="chip">{% translate "Ticket" %} : {{ t.status_label }}</span>
     <span class="chip {% if t.priority <= 2 %}ko{% elif t.priority == 3 %}warn{% endif %}">{% translate "Priorité" %} {{ t.priority_label }}</span>
-    <span class="chip {% if report.is_locked %}ok{% endif %}">{{ report.get_status_display }}</span>
+    {% if user.is_aptitude %}<span class="chip {% if report.is_locked %}ok{% endif %}">{{ report.get_status_display }}</span>{% endif %}
     <span class="chip">{% translate "Réf." %} {{ report.reference }}</span>
   </div>
-  <div class="sub small">{% translate "Rédigé le" %} {{ report.created_at|date:"d/m/Y" }}{% if report.validated_at %} · {% translate "Validé le" %} {{ report.validated_at|date:"d/m/Y" }}{% endif %}</div>
+  <div class="sub small">{% translate "Rédigé le" %} {{ report.created_at|date:"d/m/Y" }}{% if report.validated_at and user.is_aptitude %} · {% translate "Validé le" %} {{ report.validated_at|date:"d/m/Y" }}{% endif %}</div>
 </div>
 
 <section class="s"><h2><span class="n">1</span>{% translate "Informations du ticket" %}</h2>

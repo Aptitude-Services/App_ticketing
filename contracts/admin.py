@@ -410,7 +410,7 @@ class ContractAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         if not obj.reference:
-            obj.assign_reference(form.cleaned_data.get("end_clients") or [])
+            obj.assign_reference()
         super().save_model(request, obj, form, change)
 
     def save_related(self, request, form, formsets, change):

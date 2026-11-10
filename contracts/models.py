@@ -9,21 +9,24 @@ from sla.models import SLA
 
 
 class ContractSequence(models.Model):
-    """Compteur des références de contrat, par préfixe ESN[-client final]-année.
+    """Compteur des références de contrat, remis à zéro chaque jour.
 
-    Ex. préfixe « HUD-BLAG-2026 » → HUD-BLAG-2026-001, HUD-BLAG-2026-002…
+    Format : APT<n>-<JJMM>/COM/<AAAA>, où <n> est le numéro du contrat dans la journée.
+    Ex. le 9 novembre 2026 : APT1-0911/COM/2026, APT2-0911/COM/2026…
+    La clé du compteur est la date du jour (« 2026-11-09 »).
     """
 
     prefix = models.CharField(max_length=40, primary_key=True)
     last = models.PositiveIntegerField(default=0)
 
     @classmethod
-    def next_reference(cls, prefix):
+    def next_reference(cls, day=None):
+        day = day or timezone.localdate()
         with transaction.atomic():
-            seq, _ = cls.objects.select_for_update().get_or_create(prefix=prefix)
+            seq, _ = cls.objects.select_for_update().get_or_create(prefix=day.isoformat())
             while True:
                 seq.last += 1
-                reference = f"{prefix}-{seq.last:03d}"
+                reference = contract_reference(seq.last, day)
                 # Une référence saisie à la main par le passé pourrait déjà exister.
                 if not Contract.objects.filter(reference=reference).exists():
                     break
@@ -31,17 +34,9 @@ class ContractSequence(models.Model):
             return reference
 
 
-def contract_reference_prefix(client, end_clients=(), year=None):
-    """Préfixe lisible : code ESN, code client final (ou MULTI s'il y en a plusieurs), année."""
-    year = year or timezone.localdate().year
-    parts = [client.code]
-    end_clients = list(end_clients)
-    if len(end_clients) == 1:
-        parts.append(end_clients[0].code)
-    elif len(end_clients) > 1:
-        parts.append("MULTI")
-    parts.append(str(year))
-    return "-".join(parts)
+def contract_reference(number, day):
+    """APT<n>-<JJMM>/COM/<AAAA> : ex. contrat n° 1 du 9 novembre 2026 → APT1-0911/COM/2026."""
+    return f"APT{number}-{day:%d%m}/COM/{day:%Y}"
 
 
 class ServiceFeature(models.Model):
@@ -136,7 +131,8 @@ class Contract(models.Model):
 
     reference = models.CharField(
         _("référence"), max_length=50, unique=True, blank=True,
-        help_text=_("Attribuée automatiquement à la création : ESN-CLIENTFINAL-AAAA-NNN (ex. HUD-BLAG-2026-001)."),
+        help_text=_("Attribuée automatiquement à la création : APT<n° du jour>-<JJMM>/COM/<AAAA> "
+                    "(ex. APT1-0911/COM/2026, 1er contrat du 9 novembre 2026)."),
     )
     title = models.CharField(_("intitulé"), max_length=200)
     client = models.ForeignKey(
@@ -249,13 +245,13 @@ class Contract(models.Model):
         return grouped
 
     def assign_reference(self, end_clients=()):
-        """Attribue la référence (une seule fois). Les clients finaux sont passés
-        explicitement : à la création, la relation n'est pas encore enregistrée."""
-        if not self.reference and self.client_id:
-            self.reference = ContractSequence.next_reference(contract_reference_prefix(self.client, end_clients))
+        """Attribue la référence (une seule fois), au format APT<n>-<JJMM>/COM/<AAAA>.
+        `end_clients` est accepté pour compatibilité : il n'entre plus dans la référence."""
+        if not self.reference:
+            self.reference = ContractSequence.next_reference()
 
     def save(self, *args, **kwargs):
-        self.assign_reference()  # filet de sécurité hors admin : ESN seule
+        self.assign_reference()
         super().save(*args, **kwargs)
 
     def clean(self):

@@ -1,6 +1,5 @@
 {% extends "reports/_doc_base.html" %}{% load i18n report_tags %}
-{% block doc_label %}{% translate "Rapport de maintenance préventive" %}{% endblock %}
-{% block body %}
+{% block cover %}
 <div class="hero">
   <div class="kicker">{% translate "Rapport d'intervention · Maintenance préventive" %}</div>
   <h1>{{ auto.end_client|default:auto.esn }}</h1>
@@ -26,7 +25,8 @@
   <div class="field" style="margin-top:10px"><label>{% translate "Équipements ou services concernés" %}</label><div class="box">{% if m.equipments %}<div class="tags">{% for e in m.equipments %}<span class="tag">{{ e.0 }}</span>{% endfor %}</div>{% else %}—{% endif %}</div></div>
   <div style="margin-top:10px"><span class="lbl">{% translate "Prestataire de support" %}</span>{{ auto.provider }}</div>
 </section>
-
+{% endblock %}
+{% block body %}
 <section class="s"><h2><span class="n">2</span>{% translate "Synthèse" %}</h2>
   {% if m.summary %}<div class="card soft">{{ m.summary|linebreaksbr }}</div>{% endif %}
   <div class="grid-5" style="margin-top:10px">

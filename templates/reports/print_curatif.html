@@ -1,6 +1,5 @@
 {% extends "reports/_doc_base.html" %}{% load i18n report_tags %}
-{% block doc_label %}{% translate "Rapport de maintenance curative" %}{% endblock %}
-{% block body %}{% with t=auto.ticket %}
+{% block cover %}{% with t=auto.ticket %}
 <div class="hero">
   <div class="kicker">{% translate "Rapport d'intervention · Maintenance curative" %}</div>
   <h1>{{ m.title|default:report.title }}</h1>
@@ -33,7 +32,8 @@
     <div><span class="lbl">{% translate "Prestataire de support" %}</span>{{ auto.provider }}</div>
   </div>
 </section>
-
+{% endwith %}{% endblock %}
+{% block body %}{% with t=auto.ticket %}
 <section class="s"><h2><span class="n">2</span>{% translate "Respect des engagements de service" %}</h2>
   <div class="grid">
     <div class="card kpi">
@@ -59,7 +59,7 @@
 </section>
 
 <section class="s"><h2><span class="n">4</span>{% translate "Chronologie" %}</h2>
-  {% if m.timeline %}<ul class="timeline">{% for row in m.timeline %}<li><span class="t">{{ row.0 }}</span><span>{{ row.1 }}</span></li>{% endfor %}</ul>{% else %}<p class="muted">—</p>{% endif %}
+  {% if m.timeline %}<ul class="timeline">{% for row in m.timeline %}<li>{% if row|length > 2 %}<span class="t">{% if row.0 %}{{ row.0|day }} {% endif %}{{ row.1 }}</span><span>{{ row.2 }}</span>{% else %}<span class="t">{{ row.0 }}</span><span>{{ row.1 }}</span>{% endif %}</li>{% endfor %}</ul>{% else %}<p class="muted">—</p>{% endif %}
 </section>
 
 <section class="s"><h2><span class="n">5</span>{% translate "Diagnostic" %}</h2>

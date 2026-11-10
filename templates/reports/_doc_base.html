@@ -99,7 +99,7 @@
   tr.group td { background: var(--soft); font-weight: 700; color: var(--accent); }
   tr { break-inside: avoid; }
   .timeline { list-style: none; margin: 0; padding: 0; }
-  .timeline li { display: grid; grid-template-columns: 92px 1fr; gap: 12px; padding: 5px 0; border-left: 2px solid var(--line);
+  .timeline li { display: grid; grid-template-columns: 130px 1fr; gap: 12px; padding: 5px 0; border-left: 2px solid var(--line);
                  margin-left: 4px; padding-left: 14px; position: relative; }
   .timeline li::before { content: ""; position: absolute; left: -5px; top: 11px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
   .timeline .t { font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -135,10 +135,24 @@
   /* Marges de page nulles : le navigateur n'a plus de place pour ses propres en-têtes et
      pieds de page (adresse, date, n° de page). Les marges du document sont portées par
      .doc, répétées sur chaque page imprimée (box-decoration-break: clone). */
+  /* Page de garde */
+  .cover { display: flex; flex-direction: column; min-height: 250mm; padding-bottom: 8mm; margin-bottom: 14mm;
+           border-bottom: 1px dashed var(--line); }
+  .cover-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  .cover-logo img { max-height: 70px; max-width: 260px; object-fit: contain; }
+  .cover-logo .brand-name { font-size: 26px; font-weight: 700; }
+  .cover-head .right { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .cover-main { margin-top: 30mm; }
+  .cover .hero { margin: 0 0 14mm; padding-left: 18px; border-left-width: 4px; }
+  .cover .hero h1 { font-size: 30px; margin: 8px 0 6px; }
+  .cover .hero .sub { font-size: 14px; }
+  .cover-foot { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); font-size: 10px; color: var(--faint);
+                display: flex; justify-content: space-between; gap: 12px; }
   @page { size: A4; margin: 0; }
   @media print {
     html, body { background: #fff; }
     .no-print { display: none !important; }
+    .cover { min-height: 271mm; margin: 0; padding-bottom: 0; border-bottom: 0; break-after: page; }
     .doc { margin: 0; padding: 12mm 13mm 14mm; box-shadow: none; max-width: none;
            -webkit-box-decoration-break: clone; box-decoration-break: clone; }
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -167,9 +181,21 @@
 {% if report.status == 'submitted' and user.is_aptitude and not can_validate %}<div class="notice no-print">{% translate "En attente de validation par le supérieur du rédacteur. Le rapport ne peut pas partir chez le client avant." %}</div>{% endif %}
 
 <article class="doc{% if not report.is_locked %} draft{% endif %}">
+  {# Page de garde : logo de l'ESN, intitulé, statut, et les premières informations du rapport #}
+  <section class="cover">
+    <header class="cover-head">
+      <div class="cover-logo">{% if logo %}<img src="{{ logo }}" alt="{{ esn.name }}">{% else %}<span class="brand-name">{{ esn.name }}</span>{% endif %}</div>
+      <div class="right">{{ doc_label }}</div>
+    </header>
+    <div class="cover-main">{% block cover %}{% endblock %}</div>
+    <footer class="cover-foot">
+      <span>{{ esn.name }} — {% translate "Document confidentiel, destiné au client et à ses prestataires désignés." %}</span>
+      <span class="mono">{{ report.reference }}</span>
+    </footer>
+  </section>
   <header class="doc-head">
     <div>{% if logo %}<img src="{{ logo }}" alt="{{ esn.name }}">{% else %}<span class="brand-name">{{ esn.name }}</span>{% endif %}</div>
-    <div class="right">{% block doc_label %}{{ report.get_kind_display }}{% endblock %} · <span class="mono">{{ report.reference }}</span></div>
+    <div class="right">{{ doc_label }} · <span class="mono">{{ report.reference }}</span></div>
   </header>
   {% block body %}{% endblock %}
   <footer class="doc-foot">

@@ -17,6 +17,11 @@ KIND_LEADS = {
     Report.Kind.PREVENTIVE: gettext_lazy("Un rapport par visite de maintenance planifiée : contrôles, opérations, recommandations."),
     Report.Kind.QUARTERLY: gettext_lazy("Synthèse du trimestre, consolidée à partir des tickets et des rapports validés."),
 }
+DOC_LABELS = {
+    Report.Kind.CURATIVE: gettext_lazy("Rapport de maintenance curative"),
+    Report.Kind.PREVENTIVE: gettext_lazy("Rapport de maintenance préventive"),
+    Report.Kind.QUARTERLY: gettext_lazy("Rapport trimestriel de maintenance"),
+}
 STATUS_TABS = [
     ("tous", gettext_lazy("Tous"), None),
     ("brouillons", gettext_lazy("Brouillons"), [Report.Status.DRAFT, Report.Status.REJECTED]),
@@ -126,6 +131,7 @@ def report_detail(request, pk):
         "can_edit": S.can_edit(user, report), "can_validate": S.can_validate(user, report),
         "can_send": S.can_send(user, report), "can_client_confirm": S.can_client_confirm(user, report),
         "reject_form": RejectForm(), "fingerprint_short": report.fingerprint[:24], "kind": report.kind,
+        "doc_label": DOC_LABELS[report.kind],
     }
     if report.kind == Report.Kind.PREVENTIVE:
         ctx["counts"] = control_counts(report.data.get("controls"))

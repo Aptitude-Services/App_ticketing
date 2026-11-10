@@ -306,3 +306,36 @@ def test_license_alert_retried_when_mail_fails(w, monkeypatch):
     monkeypatch.setattr(N, "send_mail", _broken_mail)
     assert notify_expiring_licenses(today) == (0, 0)
     assert not LicenseNotice.objects.exists(), "rien n'est tracé : l'alerte sera retentée"
+
+
+# --- Chronologie : date | heure | action -------------------------------------------------------------
+
+def test_timeline_prefilled_as_date_time_action(w):
+    r = _curative(w)
+    first = r.data["timeline"][0]
+    assert first[0] == "2026-11-02" and first[1] == "10:00" and "Ouverture du ticket" in first[2]
+
+
+def test_timeline_is_normalised_and_validated(w):
+    r = _curative(w)
+    form = ReportContentForm({"timeline": "04/11/2026 | 8:42 | Ouverture\n2026-11-04 | 09:10 | Correctif"}, report=r)
+    assert form.is_valid(), form.errors
+    form.apply()
+    assert r.data["timeline"] == [["2026-11-04", "08:42", "Ouverture"], ["2026-11-04", "09:10", "Correctif"]]
+    bad = ReportContentForm({"timeline": "31/02/2026 | 25:00 |"}, report=r)
+    assert not bad.is_valid()
+    assert len(bad.errors["timeline"]) == 3, "date, heure et action signalées"
+
+
+def test_old_two_column_timeline_is_converted(w):
+    r = _curative(w)
+    r.data["timeline"] = [["04/11 08:42", "Ouverture du ticket"]]
+    form = ReportContentForm(report=r)
+    assert form.initial["timeline"] == "2026-11-04 | 08:42 | Ouverture du ticket"
+
+
+def test_edit_page_offers_the_timeline_table(w):
+    c = w["client"]
+    c.force_login(w["tech"])
+    page = c.get(reverse("report_edit", args=[_curative(w).pk])).content.decode()
+    assert "data-row-editor" in page and "js/row_editor.js" in page and "Ajouter une étape" in page

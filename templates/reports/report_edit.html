@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% load i18n report_tags %}
+{% extends "base.html" %}{% load i18n report_tags assets %}
 {% block title %}{{ report.reference }}{% endblock %}
 {% block content %}
 <div class="page-head"><div>
@@ -54,4 +54,6 @@
   </div></section>
 </aside>
 </div>
+<link rel="stylesheet" href="{% versioned 'css/row_editor.css' %}">
+<script src="{% versioned 'js/row_editor.js' %}" defer></script>
 {% endblock %}

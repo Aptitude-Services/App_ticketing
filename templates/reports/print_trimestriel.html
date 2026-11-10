@@ -1,6 +1,5 @@
 {% extends "reports/_doc_base.html" %}{% load i18n report_tags %}
-{% block doc_label %}{% translate "Rapport trimestriel de maintenance" %}{% endblock %}
-{% block body %}
+{% block cover %}
 <div class="hero">
   <div class="kicker">{% translate "Rapport trimestriel · Support et maintenance" %}</div>
   <h1>{{ report.quarter_label }} — {{ auto.end_client|default:auto.esn }}</h1>
@@ -23,7 +22,8 @@
   {% if auto.sites %}<div style="margin-top:10px"><span class="lbl">{% translate "Sites concernés" %}</span><div class="tags">{% for s in auto.sites %}<span class="tag">{{ s.name }} · {{ s.count }} {% translate "rapport(s)" %}</span>{% endfor %}</div></div>{% endif %}
   </div>
 </section>
-
+{% endblock %}
+{% block body %}
 <section class="s"><h2><span class="n">2</span>{% translate "Synthèse exécutive" %}</h2>
   {% if m.headline %}<div class="card soft" style="font-weight:700;margin-bottom:10px">{{ m.headline }}</div>{% endif %}
   <div class="grid-4">

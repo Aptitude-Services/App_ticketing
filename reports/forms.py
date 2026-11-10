@@ -5,6 +5,10 @@
   dans ``report.data``. Les tableaux se saisissent une ligne par entrée, colonnes
   séparées par « | » (ex. « 08:42 | Ouverture du ticket »).
 """
+import datetime
+import json
+import re
+
 from django import forms
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -42,7 +46,8 @@ SCHEMA = {
             ("services_impacted", _("Services indisponibles ou dégradés"), "text", {}),
         ]),
         (_("Chronologie"), [
-            ("timeline", _("Chronologie"), "lines", {"columns": [_("Heure"), _("Événement")],
+            ("timeline", _("Chronologie"), "lines", {"columns": [_("Date"), _("Heure"), _("Action")],
+                                                     "editor": ["date", "time", "text"],
                                                      "help": _("Préremplie depuis l'historique du ticket.")}),
         ]),
         (_("Diagnostic et solution"), [
@@ -174,6 +179,35 @@ def format_lines(rows):
     return "\n".join(" | ".join(str(c) for c in row).rstrip(" |") for row in rows or [])
 
 
+def _iso_day(value):
+    """« 2026-11-04 » ou « 04/11/2026 » → « 2026-11-04 » ; None si la date est invalide."""
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.datetime.strptime(value.strip(), fmt).date().isoformat()
+        except (ValueError, AttributeError):
+            continue
+    return None
+
+
+def timeline_rows(rows, created_at=None):
+    """Chronologie au format date | heure | action. Convertit l'ancien format à deux
+    colonnes (« 04/11 08:42 » | action) en reprenant l'année du rapport."""
+    year = (created_at or timezone.now()).year
+    out = []
+    for row in rows or []:
+        if len(row) >= 3:
+            out.append(list(row[:3]))
+            continue
+        moment, action = (list(row) + ["", ""])[:2]
+        m = re.fullmatch(r"\s*(\d{1,2})/(\d{1,2})(?:/(\d{4}))?\s+(\d{1,2}:\d{2})\s*", moment or "")
+        if m:
+            day = datetime.date(int(m.group(3) or year), int(m.group(2)), int(m.group(1))).isoformat()
+            out.append([day, m.group(4).zfill(5), action])
+        else:
+            out.append(["", (moment or "").strip(), action])
+    return out
+
+
 def fields_of(kind):
     return [f for _section, fields in SCHEMA[kind] for f in fields]
 
@@ -186,6 +220,8 @@ class ReportContentForm(forms.Form):
         initial = {}
         for key, _label, ftype, opts in fields_of(report.kind):
             value = report.data.get(key, "")
+            if key == "timeline":
+                value = timeline_rows(value, report.created_at)
             initial[key] = format_lines(value) if ftype == "lines" else value
         super().__init__(*args, initial=initial, **kwargs)
         for key, label, ftype, opts in fields_of(report.kind):
@@ -196,6 +232,14 @@ class ReportContentForm(forms.Form):
         common = {"label": label, "required": False, "help_text": opts.get("help", "")}
         if ftype == "textarea":
             return forms.CharField(widget=forms.Textarea(attrs={"rows": 3}), **common)
+        if ftype == "lines" and opts.get("editor"):
+            # Tableau de saisie (date, heure, texte…) : le JS remplace la zone de texte,
+            # qui reste le support envoyé au serveur (colonnes séparées par « | »).
+            spec = [{"label": str(label), "type": kind} for label, kind in zip(opts["columns"], opts["editor"])]
+            return forms.CharField(widget=forms.Textarea(attrs={
+                "rows": 4, "class": "mono", "data-row-editor": json.dumps(spec, ensure_ascii=False),
+                "data-add-label": str(_("Ajouter une étape")),
+            }), **common)
         if ftype == "lines":
             cols = " | ".join(str(c) for c in opts["columns"])
             hint = _("Une ligne par entrée") if len(opts["columns"]) == 1 else                 _("Une ligne par entrée, colonnes séparées par « | » : %(c)s") % {"c": cols}
@@ -211,6 +255,23 @@ class ReportContentForm(forms.Form):
         if ftype == "choice":
             return forms.ChoiceField(choices=[("", "—")] + [c for c in opts["choices"] if c[0]], **common)
         return forms.CharField(max_length=300, **common)
+
+    def clean_timeline(self):
+        """Date au format AAAA-MM-JJ (ou JJ/MM/AAAA), heure HH:MM ; une erreur indique la ligne."""
+        rows = parse_lines(self.cleaned_data.get("timeline"), 3)
+        out, errors = [], []
+        for n, (day, hour, action) in enumerate(rows, start=1):
+            iso = _iso_day(day)
+            if day and iso is None:
+                errors.append(_("Étape %(n)d : date invalide « %(d)s ».") % {"n": n, "d": day})
+            if hour and not re.fullmatch(r"([01]?\d|2[0-3]):[0-5]\d", hour):
+                errors.append(_("Étape %(n)d : heure invalide « %(h)s » (HH:MM).") % {"n": n, "h": hour})
+            if (day or hour) and not action:
+                errors.append(_("Étape %(n)d : décrivez l'action.") % {"n": n})
+            out.append([iso or day, hour.zfill(5) if hour else "", action])
+        if errors:
+            raise forms.ValidationError(errors)
+        return format_lines(out)
 
     def sections(self):
         """Champs liés regroupés par section, pour l'affichage."""

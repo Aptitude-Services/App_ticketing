@@ -234,7 +234,8 @@ def test_parcours_complet():
         "diagnosis_category": "Certificat expiré", "cause_state": "Cause identifiée",
         "diagnosis": "Certificat du fournisseur d'identité expiré.", "fix_state": "Appliquée",
         "fix": "Certificat renouvelé.", "tests": "Connexion VPN | Validé",
-        "timeline": "08:42 | Ouverture du ticket\n09:10 | Certificat renouvelé", "submit": "",
+        "timeline": "2026-11-04 | 08:42 | Ouverture du ticket\n04/11/2026 | 9:10 | Certificat renouvelé",
+        "submit": "",
     }), 302)
     report.refresh_from_db()
     assert report.status == Report.Status.SUBMITTED

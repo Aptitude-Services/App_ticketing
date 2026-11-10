@@ -109,7 +109,8 @@ def ticket_info(ticket):
 
 
 def ticket_timeline(ticket):
-    """Chronologie proposée au rédacteur (modifiable) : événements publics du ticket."""
+    """Chronologie proposée au rédacteur (modifiable) : événements publics du ticket,
+    en lignes date (AAAA-MM-JJ) | heure (HH:MM) | action."""
     from tickets.models import Event, Status
 
     labels = dict(Status.choices)
@@ -127,7 +128,8 @@ def ticket_timeline(ticket):
             text = _("Priorité passée en P%(p)s.") % {"p": e.data.get("new")}
         else:
             continue
-        rows.append([timezone.localtime(e.created_at).strftime("%d/%m %H:%M"), str(text)])
+        at = timezone.localtime(e.created_at)
+        rows.append([at.date().isoformat(), at.strftime("%H:%M"), str(text)])
     return rows
 
 

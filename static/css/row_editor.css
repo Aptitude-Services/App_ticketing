@@ -1,0 +1,26 @@
+/* Saisie en tableau (voir js/row_editor.js) */
+.row-editor table { width: 100%; border-collapse: separate; border-spacing: 0 6px; }
+.row-editor th {
+  text-align: left; font-size: 12px; font-weight: 600; color: var(--muted, #6b7280); padding: 0 6px 0 2px;
+}
+.row-editor th.re-date { width: 170px; }
+.row-editor th.re-time { width: 120px; }
+.row-editor th.re-del, .row-editor td.re-del { width: 40px; }
+.row-editor td { padding: 0 6px 0 0; vertical-align: middle; }
+.row-editor td input { width: 100%; margin: 0; }
+.row-editor .re-remove {
+  display: inline-grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 6px;
+  background: transparent; color: #9aa3ad; cursor: pointer;
+}
+.row-editor .re-remove:hover, .row-editor .re-remove:focus-visible { background: #FBECEC; color: #B42318; }
+.row-editor .re-add { margin-top: 4px; }
+@media (max-width: 640px) {
+  .row-editor th.re-date { width: 130px; }
+  .row-editor th.re-time { width: 92px; }
+}
+/* Date et heure au même style que les champs texte de l'application */
+.row-editor td input[type=date], .row-editor td input[type=time] {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--field-line); border-radius: 8px; font: inherit;
+  font-size: 15px; background: var(--surface); color: var(--ink);
+}
+.row-editor td input:focus { outline: none; border-color: var(--orange); box-shadow: var(--focus); }

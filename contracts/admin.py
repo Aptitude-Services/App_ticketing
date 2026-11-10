@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404, render
 from django.urls import path
 from django.utils.translation import gettext_lazy as _
 
+from core.admin_cascade import SuperAdminCascadeDeleteMixin
 from core.assets import versioned
 
 from accounts.models import Organisation
@@ -364,7 +365,7 @@ class ContractForm(forms.ModelForm):
 
 
 @admin.register(Contract)
-class ContractAdmin(admin.ModelAdmin):
+class ContractAdmin(SuperAdminCascadeDeleteMixin, admin.ModelAdmin):
     form = ContractForm
     change_form_template = "admin/contracts/contract/change_form.html"
     list_display = ("reference", "title", "client", "contract_type", "status", "start_date", "end_date")
@@ -389,6 +390,12 @@ class ContractAdmin(admin.ModelAdmin):
     # dans la zone « Solutions », au-dessus du tableau (solution_inline.html).
     inlines = [SolutionInline, ContractAccessInline]
     actions = ["notify_esn_licenses"]
+
+    def cascade_querysets(self, objs):
+        """Super Admin : un contrat (de test) part avec ses rapports puis ses tickets."""
+        from reports.models import Report
+        from tickets.models import Ticket
+        return [Report.objects.filter(contract__in=objs), Ticket.objects.filter(contract__in=objs)]
 
     @admin.action(description=_("Notifier l'ESN : licences expirant sous 60 jours"))
     def notify_esn_licenses(self, request, queryset):

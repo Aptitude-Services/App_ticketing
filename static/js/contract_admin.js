@@ -95,8 +95,7 @@
   var typeMap = parseMap(typeSel, "data-features");
   var hint = document.createElement("p");
   hint.className = "fc-hint";
-  hint.textContent = "Choisissez d'abord une formule : ses critères s'afficheront comme inclus, "
-    + "et vous pourrez activer des suppléments.";
+  hint.textContent = "Choisissez d'abord une formule.";
   rowOf(extraBox).parentNode.insertBefore(hint, rowOf(extraBox));
 
   function boxes(container) {

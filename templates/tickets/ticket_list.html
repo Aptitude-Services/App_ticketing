@@ -4,7 +4,6 @@
 <div class="page-head" style="margin-bottom:18px">
   <div>
     <h1>{% if user.is_aptitude %}{% translate "Tickets" %}{% else %}{% translate "Mes tickets" %}{% endif %}</h1>
-    <p class="lead">{% if user.is_aptitude %}{% translate "Triés par échéance : les délais les plus proches d'abord." %}{% else %}{% blocktranslate with org=user.organisation %}Les demandes de {{ org }} sur les contrats auxquels vous avez accès.{% endblocktranslate %}{% endif %}</p>
   </div>
   {% if can_create %}<a class="btn btn-primary" href="{% url 'ticket_create' %}">{% include "icons/plus.svg" %}{% translate "Nouveau ticket" %}</a>{% endif %}
 </div>

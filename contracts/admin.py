@@ -183,10 +183,6 @@ class ContractTypeAdmin(admin.ModelAdmin):
         (None, {"fields": ("name", "description", "sla", "allowance_tickets", "is_active")}),
         (_("Critères & Prestations incluses"), {
             "fields": ("features",),
-            "description": _(
-                "Activez les critères compris dans cette formule. Dans chaque contrat qui l'utilise, ils "
-                "apparaîtront « Inclus » et les autres seront proposés en suppléments."
-            ),
         }),
     )
 
@@ -383,15 +379,10 @@ class ContractAdmin(admin.ModelAdmin):
         }),
         (_("Composition du contrat"), {
             "fields": ("extra_features",),
-            "description": _(
-                "Les critères de la formule choisie sont marqués « Inclus ». Activez les suppléments "
-                "propres à ce client (ex. Support N3 expert sur une formule BRONZE), sans modifier la formule."
-            ),
         }),
         (_("Dérogations (exceptionnel)"), {
             "classes": ("collapse",),
             "fields": ("excluded_features",),
-            "description": _("Retirer pour ce contrat un critère normalement inclus dans la formule."),
         }),
     )
     # « solutions_file » (champ déclaré du formulaire) n'est dans aucun bloc : il s'affiche

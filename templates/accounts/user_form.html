@@ -4,7 +4,7 @@
 <p class="crumb">{% if audience == "equipe" %}<a href="{% url 'user_list' %}?type=equipe">{% translate "Équipe interne" %}</a>{% elif user.is_aptitude %}<a href="{% url 'user_list' %}">{% translate "Clients" %}</a>{% else %}<a href="{% url 'user_list' %}">{% translate "Utilisateurs" %}</a>{% endif %}</p>
 <div class="page-head"><div>
   <h1>{% if creating %}{% translate "Inviter un utilisateur" %}{% else %}{{ target.display_name }}{% endif %}</h1>
-  <p class="lead">{% if creating %}{% translate "La personne recevra un email pour choisir son mot de passe." %}{% else %}{{ target.email }}{% endif %}</p>
+  {% if not creating %}<p class="lead">{{ target.email }}</p>{% endif %}
 </div></div>
 
 <form method="post" class="panel" style="max-width:820px" novalidate>{% csrf_token %}
@@ -21,14 +21,12 @@
 
   <div class="form-section">
     <h2>{% translate "Droits" %}</h2>
-    <p class="muted">{% translate "Client Viewer : consulte contrats et tickets. Client User : ouvre et suit des tickets. Client Admin : gère aussi les utilisateurs." %}</p>
-    <div class="form-grid"><div class="form-row"><label for="{{ form.profile.id_for_label }}">{{ form.profile.label }}</label>{{ form.profile }}{{ form.profile.errors }}</div>
+    <div class="form-grid"><div class="form-row"><label for="{{ form.profile.id_for_label }}">{{ form.profile.label }}</label>{{ form.profile }}<div class="help">{% translate "Client Viewer : consulte contrats et tickets. Client User : ouvre et suit des tickets. Client Admin : gère aussi les utilisateurs." %}</div>{{ form.profile.errors }}</div>
     {% if form.manager and audience == "equipe" %}<div class="form-row"><label for="{{ form.manager.id_for_label }}">{{ form.manager.label }}</label>{{ form.manager }}<div class="help">{{ form.manager.help_text }}</div>{{ form.manager.errors }}</div>{% endif %}</div>
   </div>
 
   <div class="form-section">
     <h2>{% translate "Accès aux contrats" %}</h2>
-    <p class="muted">{% translate "Par défaut, la personne voit tous les contrats de l'organisation. Décochez pour choisir." %}</p>
     <div class="form-row"><label class="check">{{ form.all_contracts }}<span>{{ form.all_contracts.label|capfirst }}</span></label>{{ form.all_contracts.errors }}</div>
     <div class="form-row choices" id="contract-choices">
       <label>{{ form.contracts.label }}</label>

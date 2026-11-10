@@ -390,3 +390,23 @@ def test_read_solutions_rejects_bad_files(env):
     resp = env["client"].post(url, {"file": _xlsx([["Nom"], ["FW"]])})
     assert resp.status_code == 400 and not resp.json()["ok"]
     assert env["client"].get(url).status_code == 405
+
+
+def test_quick_delete_from_admin_lists(env):
+    """Corbeille sur chaque ligne et « Supprimer la sélection » : la confirmation de Django reste."""
+    sol = Solution.objects.create(contract=env["contract"], category="hardware", name="À supprimer")
+    other = Solution.objects.create(contract=env["contract"], category="hardware", name="Lot 2")
+    listing = env["client"].get(reverse("admin:contracts_solution_changelist")).content.decode()
+    assert "js/admin_quick_delete.js" in listing and 'value="delete_selected"' in listing
+    # Corbeille : le lien de la ligne mène à la page de confirmation, puis à la suppression
+    delete_url = reverse("admin:contracts_solution_delete", args=[sol.pk])
+    assert reverse("admin:contracts_solution_change", args=[sol.pk]).replace("/change/", "/delete/") == delete_url
+    assert env["client"].get(delete_url).status_code == 200
+    assert env["client"].post(delete_url, {"post": "yes"}).status_code == 302
+    assert not Solution.objects.filter(pk=sol.pk).exists()
+    # Sélection : action delete_selected, confirmée
+    url = reverse("admin:contracts_solution_changelist")
+    confirm = env["client"].post(url, {"action": "delete_selected", "_selected_action": [other.pk]})
+    assert confirm.status_code == 200 and "Lot 2" in confirm.content.decode()
+    env["client"].post(url, {"action": "delete_selected", "_selected_action": [other.pk], "post": "yes"})
+    assert not Solution.objects.filter(pk=other.pk).exists()

@@ -2,7 +2,7 @@
 {% block title %}{{ kind_label }}{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>{{ kind_label }}</h1><p class="lead">{{ lead }}</p></div>
+  <div><h1>{{ kind_label }}</h1></div>
   {% if can_create %}<a class="btn btn-primary" href="{% url 'report_create' kind %}">{% include "icons/plus.svg" %}{% translate "Nouveau rapport" %}</a>{% endif %}
 </div>
 

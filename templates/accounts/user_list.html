@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-head">
   <div><h1>{% if audience == "equipe" %}{% translate "Équipe interne" %}{% elif user.is_aptitude %}{% translate "Utilisateurs clients" %}{% else %}{% translate "Utilisateurs" %}{% endif %}</h1>
-    <p class="lead">{% if user.is_client %}{% blocktranslate with org=user.organisation %}Les comptes de {{ org }}. Chaque personne ne voit que les contrats que vous lui ouvrez.{% endblocktranslate %}{% elif audience == "equipe" %}{% translate "Les comptes des collaborateurs d'Aptitude : Super Admin, Manager, Engineer." %}{% else %}{% translate "Les comptes des clients : Client Admin, Client User, Client Viewer." %}{% endif %}</p></div>
+    </div>
   <a class="btn btn-primary" href="{% url 'user_create' %}{% if audience == 'equipe' %}?type=equipe{% endif %}">{% include "icons/plus.svg" %}{% if audience == "equipe" %}{% translate "Inviter un collaborateur" %}{% elif user.is_aptitude %}{% translate "Inviter un client" %}{% else %}{% translate "Inviter un utilisateur" %}{% endif %}</a>
 </div>
 <section class="panel"><div class="table-wrap"><table>

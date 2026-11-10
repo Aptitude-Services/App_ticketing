@@ -4,7 +4,6 @@
 <p class="crumb"><a href="{% url 'ticket_list' %}">{% if user.is_aptitude %}{% translate "Tickets" %}{% else %}{% translate "Mes tickets" %}{% endif %}</a></p>
 <div class="page-head"><div>
   <h1>{% translate "Nouveau ticket" %}</h1>
-  <p class="lead">{% translate "Décrivez le problème : l'équipe Aptitude est notifiée dès l'envoi." %}</p>
 </div></div>
 
 {% if not contracts %}

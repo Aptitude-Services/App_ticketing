@@ -1,0 +1,32 @@
+/* Icône d'aide « i » et sa bulle (voir js/help_tips.js) */
+.help-tip {
+  position: relative; display: inline-grid; place-items: center; width: 15px; height: 15px; margin-left: 6px;
+  border-radius: 50%; border: 1px solid currentColor; color: #8a929c; font: italic 700 10px/1 Georgia, serif;
+  cursor: help; vertical-align: 1px; user-select: none;
+}
+.help-tip:hover, .help-tip:focus-visible, .help-tip.is-open { color: #F58436; outline: none; }
+.help-tip::after {
+  content: attr(data-tip); position: absolute; z-index: 50; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%);
+  width: max-content; max-width: 280px; padding: 8px 10px; border-radius: 6px; background: #1F2D3D; color: #fff;
+  font: normal 400 12.5px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; text-transform: none; letter-spacing: 0;
+  white-space: normal; text-align: left; box-shadow: 0 6px 18px rgba(0,0,0,.18);
+  opacity: 0; visibility: hidden; transition: opacity .12s; pointer-events: none;
+}
+.help-tip:hover::after, .help-tip:focus-visible::after, .help-tip.is-open::after { opacity: 1; visibility: visible; }
+
+/* Administration : suppression rapide (voir js/admin_quick_delete.js) */
+#changelist .actions .button.quick-action {
+  display: inline-flex; align-items: center; gap: 6px; margin: 0 8px 0 0;
+}
+#changelist .actions .button.quick-action:disabled { opacity: .35; cursor: not-allowed; }
+#changelist .actions .button.quick-delete-selected {
+  background: #B42318; border-color: #B42318; color: #fff;
+}
+#changelist .actions .button.quick-delete-selected:hover:not(:disabled) { background: #912018; }
+#changelist .actions .button.quick-delete-selected:disabled { opacity: .35; cursor: not-allowed; }
+#result_list th.column-quick-delete, #result_list td.quick-delete { width: 1%; text-align: center; white-space: nowrap; }
+#result_list td.quick-delete a {
+  display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; color: #9aa3ad;
+}
+#result_list td.quick-delete a.quick-trash:hover, #result_list td.quick-delete a.quick-trash:focus-visible { background: #FBECEC; color: #B42318; }
+#result_list td.quick-delete a.quick-edit:hover, #result_list td.quick-delete a.quick-edit:focus-visible { background: #EEF2F6; color: #1F2D3D; }

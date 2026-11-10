@@ -2,7 +2,6 @@
 {% block head_title %}Aptitude | Assistance Center{% endblock %}
 {% block auth %}
 <h1>{% translate "Connexion" %}</h1>
-<p class="intro">{% translate "Accédez à votre espace avec votre email professionnel." %}</p>
 <form method="post" novalidate>{% csrf_token %}
   {% include "_form_fields.html" %}
   <input type="hidden" name="next" value="{{ next }}">

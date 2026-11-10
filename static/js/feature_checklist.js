@@ -46,14 +46,18 @@
 
     var summary = root.querySelector(".fc-summary");
     if (!summary) return;
+    // Compteurs compacts ; l'explication s'affiche au survol (attribut title).
+    function pill(text, tip, cls) {
+      return '<span class="fc-pill' + (cls ? " " + cls : "") + '" title="' + tip + '">' + text + "</span>";
+    }
     if (mode === "contract") {
-      summary.innerHTML = "<strong>" + plural(totals.included, "critère inclus", "critères inclus")
-        + "</strong> dans la formule · <strong>" + plural(totals.chosen, "supplément", "suppléments") + "</strong>";
+      summary.innerHTML = pill(totals.included + " inclus", "Critères inclus dans la formule")
+        + (totals.chosen ? pill("+" + totals.chosen, "Suppléments activés pour ce client", "is-extra") : "");
     } else if (mode === "exclusions") {
-      summary.innerHTML = "<strong>" + plural(totals.chosen, "critère retiré", "critères retirés") + "</strong>";
+      summary.innerHTML = totals.chosen ? pill(totals.chosen + " retiré" + (totals.chosen > 1 ? "s" : ""),
+        "Critères de la formule retirés pour ce contrat", "is-removed") : "";
     } else {
-      summary.innerHTML = "<strong>" + totals.chosen + "</strong> sur " + plural(totals.all, "critère", "critères")
-        + " dans cette formule";
+      summary.innerHTML = pill(totals.chosen + " / " + totals.all, "Critères compris dans cette formule");
     }
   }
 

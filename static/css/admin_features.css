@@ -319,3 +319,20 @@
 .sol-import { padding: 10px 16px; }
 .sol-import__actions { order: -1; }
 .sol-import__body:not(:has(> :not([hidden]))) { display: none; }
+
+/* Compteurs des critères (inclus / suppléments / retirés) */
+.feature-checklist .fc-summary { display: inline-flex; gap: 6px; align-items: center; }
+.feature-checklist .fc-pill {
+  display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; cursor: default;
+  background: #EEF2F6; color: var(--body-fg, #1F2D3D);
+}
+.feature-checklist .fc-pill.is-extra { background: #FEF1E7; color: #A85A25; }
+.feature-checklist .fc-pill.is-removed { background: #FBECEC; color: #8F2424; }
+
+/* Description d'un critère : icône « i » à côté du nom, texte au survol */
+.feature-checklist .fc-row { align-items: center; }
+.feature-checklist .fc-info { margin: 0 8px 0 2px; flex: none; }
+.feature-checklist .fc-info::after { left: auto; right: -8px; transform: none; }
+.feature-checklist .fc-row > .fc-label { flex: 0 1 auto; }
+.feature-checklist .fc-row > .fc-info { margin-right: auto; margin-left: 0; }
+.feature-checklist .fc-info::after { left: 0; right: auto; }

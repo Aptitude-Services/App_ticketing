@@ -1,8 +1,8 @@
 {% load i18n %}<li class="fc-row{% if widget.included %} is-included{% endif %}" data-search="{{ widget.label|lower }} {{ widget.description|lower }}">
   <label class="fc-label"{% if widget.attrs.id %} for="{{ widget.attrs.id }}"{% endif %}>
     <span class="fc-name">{{ widget.label }}</span>
-    {% if widget.description %}<span class="fc-desc" title="{{ widget.description }}">{{ widget.description }}</span>{% endif %}
   </label>
+  {% if widget.description %}<span class="help-tip fc-info" tabindex="0" role="note" aria-label="{{ widget.description }}" data-tip="{{ widget.description }}">i</span>{% endif %}
   <span class="fc-tag"><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>{% translate "Inclus" %}</span>
   <span class="fc-switch"><input type="{{ widget.type }}" name="{{ widget.name }}"{% if widget.value != None %} value="{{ widget.value|stringformat:'s' }}"{% endif %}{% include "django/forms/widgets/attrs.html" %}></span>
 </li>

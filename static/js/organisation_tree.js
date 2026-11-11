@@ -26,7 +26,7 @@
     for (var i = 0; i < heads.length; i++) if (heads[i].classList.contains("column-" + name)) return i;
     return -1;
   }
-  var COLS = { name: col("name"), code: col("code"), kind: col("kind"), sector: col("sector"),
+  var COLS = { name: col("name"), kind: col("kind"), sector: col("sector"),
                active: col("is_active"), domains: col("email_domains"), actions: col("quick-delete") };
 
   function text(td, value) { td.textContent = value || "—"; }
@@ -43,7 +43,6 @@
       cells[COLS.name].className = "org-child-name";
       cells[COLS.name].appendChild(a);
     }
-    if (COLS.code >= 0) text(cells[COLS.code], child.code);
     if (COLS.kind >= 0) text(cells[COLS.kind], child.kind);
     if (COLS.sector >= 0) text(cells[COLS.sector], child.sector);
     if (COLS.domains >= 0) text(cells[COLS.domains], child.domains);

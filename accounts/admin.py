@@ -115,7 +115,8 @@ class EndClientForm(forms.ModelForm):
 class OrganisationAdmin(admin.ModelAdmin):
     form = OrganisationForm
     change_form_template = "admin/accounts/organisation/change_form.html"
-    list_display = ("logo_thumb", "name", "code", "kind", "sector", "nb_end_clients", "is_active", "email_domains")
+    # Le code (HUD, BLAG…) est calculé tout seul et ne se saisit jamais : pas de colonne dans la liste.
+    list_display = ("logo_thumb", "name", "kind", "sector", "nb_end_clients", "is_active", "email_domains")
     list_display_links = ("logo_thumb", "name")
     list_filter = ("kind", "activity_sector", "is_active")
     search_fields = ("name", "email_domains")
@@ -207,7 +208,7 @@ class OrganisationAdmin(admin.ModelAdmin):
         if not obj._nb_end_clients:
             return obj._nb_end_clients
         children = [{
-            "name": c.name, "code": c.code, "kind": c.get_kind_display(), "sector": c.get_activity_sector_display(),
+            "name": c.name, "kind": c.get_kind_display(), "sector": c.get_activity_sector_display(),
             "active": c.is_active, "domains": c.email_domains,
             "url": reverse("admin:accounts_organisation_change", args=[c.pk]),
         } for c in obj.end_clients.order_by("name")]

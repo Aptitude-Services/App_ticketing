@@ -1,3 +1,5 @@
+import json
+
 from django import forms
 from django.contrib import admin
 from django.contrib.admin.options import IS_POPUP_VAR, TO_FIELD_VAR
@@ -7,7 +9,7 @@ from django.contrib.auth.models import Group
 from django.core.exceptions import PermissionDenied
 from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import path
+from django.urls import path, reverse
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
@@ -122,10 +124,33 @@ class OrganisationAdmin(admin.ModelAdmin):
 
     class Media:
         css = {"all": (versioned("css/admin_features.css"),)}
-        js = (versioned("js/organisation_admin.js"),)
+        js = (versioned("js/organisation_admin.js"), versioned("js/organisation_tree.js"))
+
+    # Vue par ESN : sans recherche ni filtre de type / secteur, les clients finaux rattachés
+    # à une ESN ne sont pas listés au premier niveau ; ils se déplient sous leur ESN.
+    TREE_BREAKING_PARAMS = ("q", "kind__exact", "activity_sector__exact")
 
     def get_queryset(self, request):
-        return super().get_queryset(request).annotate(_nb_end_clients=Count("end_clients"))
+        return super().get_queryset(request).annotate(
+            _nb_end_clients=Count("end_clients", distinct=True),
+            _nb_esns=Count("partner_esns", distinct=True),
+        )
+
+    @classmethod
+    def _tree_view(cls, request):
+        return not any(request.GET.get(p) for p in cls.TREE_BREAKING_PARAMS)
+
+    def changelist_view(self, request, extra_context=None):
+        request._org_tree = self._tree_view(request)
+        return super().changelist_view(request, extra_context)
+
+    def get_changelist_instance(self, request):
+        cl = super().get_changelist_instance(request)
+        if getattr(request, "_org_tree", False):
+            linked = Organisation.objects.filter(kind=Organisation.Kind.END_CLIENT, partner_esns__isnull=False)
+            cl.queryset = cl.queryset.exclude(pk__in=linked.values("pk"))
+            cl.get_results(request)  # recompte et repagine sur la liste réduite
+        return cl
 
     @staticmethod
     def _is_end_client_popup(request):
@@ -176,7 +201,19 @@ class OrganisationAdmin(admin.ModelAdmin):
 
     @admin.display(description=_("clients finaux"), ordering="_nb_end_clients")
     def nb_end_clients(self, obj):
-        return obj._nb_end_clients
+        if obj.kind == Organisation.Kind.END_CLIENT:
+            return "—" if obj._nb_esns else format_html('<span class="org-no-esn">{}</span>', _("sans ESN"))
+        if not obj._nb_end_clients:
+            return obj._nb_end_clients
+        children = [{
+            "name": c.name, "code": c.code, "kind": c.get_kind_display(), "sector": c.get_activity_sector_display(),
+            "active": c.is_active, "domains": c.email_domains,
+            "url": reverse("admin:accounts_organisation_change", args=[c.pk]),
+        } for c in obj.end_clients.order_by("name")]
+        return format_html(
+            '<button type="button" class="org-toggle" aria-expanded="false" data-children="{}" '
+            'title="{}">▸ {}</button>',
+            json.dumps(children), _("Afficher les clients finaux"), obj._nb_end_clients)
 
     def get_urls(self):
         urls = super().get_urls()

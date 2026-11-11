@@ -127,3 +127,51 @@ def test_logo_ignored_for_end_client(admin_client_nomfa):
         "logo": SimpleUploadedFile("f.svg", SVG, content_type="image/svg+xml"),
     })
     assert not Organisation.objects.get(name="Final Logo").logo
+
+
+# --- Liste par ESN (clients finaux dépliables) ---------------------------------------------------------
+
+@pytest.fixture
+def esn_tree():
+    esn = Organisation.objects.create(name="ESN Arbre", kind=Organisation.Kind.CLIENT)
+    linked = Organisation.objects.create(name="Final Rattache", kind=Organisation.Kind.END_CLIENT, activity_sector=BANK)
+    alone = Organisation.objects.create(name="Final Seul", kind=Organisation.Kind.END_CLIENT, activity_sector=BANK)
+    esn.end_clients.add(linked)
+    return esn, linked, alone
+
+
+def _rows(page):
+    """Noms affichés comme lignes du tableau (liens de la colonne Nom)."""
+    import re
+    return re.findall(r'class="field-name"><a href="[^"]+">([^<]+)</a>', page)
+
+
+def test_changelist_shows_esn_with_foldable_end_clients(admin_client_nomfa, esn_tree):
+    import json
+    import re
+    from django.urls import reverse
+    esn, linked, alone = esn_tree
+    page = admin_client_nomfa.get(reverse("admin:accounts_organisation_changelist")).content.decode()
+    rows = _rows(page)
+    assert "ESN Arbre" in rows and "Final Seul" in rows       # client final sans ESN : visible, mention « sans ESN »
+    assert "Final Rattache" not in rows                        # rattaché : replié sous son ESN
+    assert "sans ESN" in page and "organisation_tree.js" in page
+    data = re.search(r'class="org-toggle"[^>]*data-children="([^"]+)"', page).group(1)
+    import html
+    children = json.loads(html.unescape(data))
+    assert [c["name"] for c in children] == ["Final Rattache"]
+    assert children[0]["url"] == reverse("admin:accounts_organisation_change", args=[linked.pk])
+
+
+@pytest.mark.parametrize("query", ["q=Final", "kind__exact=end_client", "activity_sector__exact=bank"])
+def test_search_or_filter_lists_end_clients_flat(admin_client_nomfa, esn_tree, query):
+    from django.urls import reverse
+    page = admin_client_nomfa.get(reverse("admin:accounts_organisation_changelist") + "?" + query).content.decode()
+    assert {"Final Rattache", "Final Seul"} <= set(_rows(page))
+
+
+def test_end_client_change_page_still_reachable(admin_client_nomfa, esn_tree):
+    from django.urls import reverse
+    _esn, linked, _alone = esn_tree
+    resp = admin_client_nomfa.get(reverse("admin:accounts_organisation_change", args=[linked.pk]))
+    assert resp.status_code == 200

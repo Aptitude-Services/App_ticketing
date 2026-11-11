@@ -60,3 +60,23 @@ def test_command_once_really_sends_license_alerts(monkeypatch):
     monkeypatch.setattr(S.timezone, "localtime", lambda: at(9))
     call_command("run_scheduler", "--once")
     assert sent == [1]
+
+
+def test_sending_hours_come_from_admin_settings(calls):
+    from contracts.models import LicenseAlertSettings
+    conf = LicenseAlertSettings.get()
+    conf.start_hour, conf.end_hour = 10, 12
+    conf.save()
+    S.run_due_jobs(at(9), {})
+    assert calls == ["close"]
+    S.run_due_jobs(at(11), {})
+    assert calls == ["close", "close", "licences"]
+
+
+def test_scheduler_records_its_last_run(monkeypatch):
+    import contracts.notifications as N
+    from contracts.models import LicenseAlertSettings
+    monkeypatch.setattr(N, "notify_expiring_licenses", lambda: (0, 0))
+    monkeypatch.setattr(S, "_close_tickets", lambda: "ok")
+    S.run_due_jobs(at(9), {})
+    assert LicenseAlertSettings.get().last_run is not None

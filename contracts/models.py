@@ -1,5 +1,6 @@
 """Référentiel contrats : types de contrat (porteurs du SLA), contrats, solutions, accès."""
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator
 from django.db import models, transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -375,3 +376,86 @@ class LicenseNotice(models.Model):
 
     def __str__(self):
         return f"{self.solution} — {self.license_end:%d/%m/%Y} (J-{self.threshold})"
+
+
+class LicenseAlertSettings(models.Model):
+    """Réglages des alertes d'expiration de licence, modifiables dans l'administration.
+
+    Une seule fiche (``LicenseAlertSettings.get()``), relue par le planificateur à chaque
+    passage : une modification s'applique dès l'heure suivante, sans redémarrage."""
+
+    class Unit(models.TextChoices):
+        MONTHS = "months", _("mois")
+        DAYS = "days", _("jours")
+
+    enabled = models.BooleanField(
+        _("alertes automatiques activées"), default=True,
+        help_text=_("Décocher suspend l'envoi automatique ; l'envoi manuel « Notifier l'ESN » reste possible."))
+    thresholds = models.CharField(
+        _("seuils de rappel"), max_length=60, default="5, 3, 1",
+        help_text=_("Nombre de rappels et leur écart : valeurs séparées par des virgules, ex. « 5, 3, 1 » "
+                    "(trois rappels) ou « 6, 2 » (deux rappels). 0 = le jour de l'expiration."))
+    unit = models.CharField(_("unité des seuils"), max_length=10, choices=Unit.choices, default=Unit.MONTHS)
+    notify_esn = models.BooleanField(_("prévenir le client ESN"), default=True)
+    notify_end_client = models.BooleanField(_("prévenir le client final"), default=True)
+    notify_managers = models.BooleanField(_("prévenir les managers Aptitude"), default=True)
+    start_hour = models.PositiveSmallIntegerField(
+        _("envoi à partir de (heure)"), default=7, validators=[MaxValueValidator(23)],
+        help_text=_("Heure d'Abidjan. Les alertes ne partent pas en dehors de cette plage."))
+    end_hour = models.PositiveSmallIntegerField(
+        _("envoi jusqu'à (heure)"), default=19, validators=[MaxValueValidator(23)])
+    last_run = models.DateTimeField(_("dernier passage du planificateur"), null=True, blank=True, editable=False)
+
+    class Meta:
+        verbose_name = _("paramètres des alertes de licence")
+        verbose_name_plural = _("paramètres des alertes de licence")
+
+    def __str__(self):
+        return str(_("Paramètres des alertes de licence"))
+
+    @classmethod
+    def get(cls):
+        obj, _created = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def save(self, *args, **kwargs):
+        self.pk = 1  # fiche unique
+        super().save(*args, **kwargs)
+
+    def threshold_values(self):
+        """Seuils triés du plus éloigné au plus proche, ex. [5, 3, 1]."""
+        values = []
+        for part in self.thresholds.replace(";", ",").split(","):
+            part = part.strip()
+            if part:
+                values.append(int(part))
+        return sorted(set(values), reverse=True)
+
+    def clean(self):
+        super().clean()
+        try:
+            values = self.threshold_values()
+        except ValueError:
+            raise ValidationError({"thresholds": _("Uniquement des nombres entiers séparés par des virgules, "
+                                                   "ex. 5, 3, 1.")})
+        if not values:
+            raise ValidationError({"thresholds": _("Indiquez au moins un seuil de rappel.")})
+        if min(values) < 0:
+            raise ValidationError({"thresholds": _("Un seuil ne peut pas être négatif.")})
+        limit = 24 if self.unit == self.Unit.MONTHS else 730
+        if max(values) > limit:
+            raise ValidationError({"thresholds": _("Seuil trop éloigné : %(n)d %(u)s au plus.")
+                                   % {"n": limit, "u": self.get_unit_display()}})
+        self.thresholds = ", ".join(str(v) for v in values)
+        if self.start_hour > self.end_hour:
+            raise ValidationError({"end_hour": _("L'heure de fin doit suivre l'heure de début.")})
+        if not (self.notify_esn or self.notify_end_client or self.notify_managers):
+            raise ValidationError(_("Choisissez au moins un destinataire."))
+
+    def threshold_days(self, value):
+        """Valeur tracée sur LicenseNotice (en jours) : 1 mois compte pour 30 jours."""
+        return value * 30 if self.unit == self.Unit.MONTHS else value
+
+    def horizon_days(self):
+        values = self.threshold_values() or [0]
+        return max(values) * 31 + 1 if self.unit == self.Unit.MONTHS else max(values)

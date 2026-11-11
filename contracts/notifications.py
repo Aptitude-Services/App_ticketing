@@ -1,10 +1,12 @@
 """Alertes d'expiration de licence.
 
-Destinataires : le client ESN, le client final couvert par le contrat et les managers
-d'Aptitude. Deux déclencheurs :
+Réglages (seuils, destinataires, plage d'envoi, activation) : fiche « Paramètres des alertes
+de licence » de l'administration (modèle LicenseAlertSettings). Par défaut : trois alertes,
+5 mois, 3 mois puis 1 mois avant l'échéance, au client ESN, au client final et aux managers.
+Deux déclencheurs :
 - automatique : le planificateur intégré (service « scheduler », commande ``run_scheduler``)
-  vérifie chaque heure en journée et envoie trois alertes, 5 mois, 3 mois puis 1 mois
-  avant l'échéance (``notify_license_expiry`` reste disponible pour un lancement manuel) ;
+  vérifie chaque heure dans la plage d'envoi (``notify_license_expiry`` reste disponible
+  pour un lancement manuel) ;
 - manuel : l'action « Notifier l'ESN » de l'administration (solutions ou contrats).
 
 Un email par ESN et par client final : chaque client final ne voit que ses licences.
@@ -20,13 +22,7 @@ from django.utils.translation import gettext as _
 
 from accounts.models import Profile, User
 
-from .models import Contract, LicenseNotice, Solution
-
-# Alertes à 5, 3 puis 1 mois de l'échéance (mois calendaires). Le seuil tracé sur
-# LicenseNotice est exprimé en jours : 150, 90 et 30.
-THRESHOLD_MONTHS = (5, 3, 1)
-THRESHOLDS = tuple(m * 30 for m in THRESHOLD_MONTHS)
-HORIZON = 155  # jours : couvre les 5 mois calendaires les plus longs
+from .models import Contract, LicenseAlertSettings, LicenseNotice, Solution
 
 
 class LicenseMailError(Exception):
@@ -65,16 +61,23 @@ def months_before(day, months):
     return datetime.date(y, m, min(day.day, calendar.monthrange(y, m)[1]))
 
 
-def threshold_for(license_end, today):
-    """Plus proche alerte atteinte, en jours (150, 90 ou 30) ; None avant les 5 mois ou après l'échéance."""
+def threshold_for(license_end, today, conf=None):
+    """Plus proche seuil atteint, exprimé en jours (un mois compte pour 30) ; None avant le
+    premier seuil ou après l'échéance. Seuils par défaut : 5, 3 et 1 mois → 150, 90 ou 30."""
+    conf = conf or LicenseAlertSettings.get()
     if license_end < today:
         return None
-    reached = [m for m in THRESHOLD_MONTHS if today >= months_before(license_end, m)]
-    return min(reached) * 30 if reached else None
+    if conf.unit == LicenseAlertSettings.Unit.MONTHS:
+        reached = [v for v in conf.threshold_values() if today >= months_before(license_end, v)]
+    else:
+        reached = [v for v in conf.threshold_values() if today >= license_end - datetime.timedelta(days=v)]
+    return conf.threshold_days(min(reached)) if reached else None
 
 
-def expiring_solutions(today=None, horizon=HORIZON):
+def expiring_solutions(today=None, horizon=None):
     today = today or timezone.localdate()
+    if horizon is None:
+        horizon = LicenseAlertSettings.get().horizon_days()
     return (Solution.objects.filter(
         is_active=True, license_end__isnull=False,
         license_end__gte=today, license_end__lte=today + datetime.timedelta(days=horizon),
@@ -138,11 +141,19 @@ def send_license_notice(esn, solutions, actor=None, threshold=0, manual=False, t
 
 def _send_group(esn, solutions, actor, threshold, manual, today):
     solutions = list(solutions)
-    recipients = esn_recipients(esn)
-    if not solutions or not recipients:
+    if not solutions:
         return []
-    recipients = list(dict.fromkeys(recipients + end_client_recipients(solutions[0].contract)
-                                    + manager_recipients()))
+    conf = LicenseAlertSettings.get()
+    recipients = []
+    if conf.notify_esn:
+        recipients += esn_recipients(esn)
+    if conf.notify_end_client:
+        recipients += end_client_recipients(solutions[0].contract)
+    if conf.notify_managers:
+        recipients += manager_recipients()
+    recipients = list(dict.fromkeys(recipients))
+    if not recipients:
+        return []
     soonest = min(s.license_end for s in solutions)
     subject = _("[Aptitude] %(n)d licence(s) expirent bientôt — première échéance le %(d)s") % {
         "n": len(solutions), "d": soonest.strftime("%d/%m/%Y")}
@@ -165,9 +176,12 @@ def _send_group(esn, solutions, actor, threshold, manual, today):
 def notify_expiring_licenses(today=None):
     """Alertes automatiques : une par solution et par seuil atteint. Renvoie (emails, solutions)."""
     today = today or timezone.localdate()
+    conf = LicenseAlertSettings.get()
+    if not conf.enabled:
+        return 0, 0
     by_esn = defaultdict(list)
-    for sol in expiring_solutions(today):
-        threshold = threshold_for(sol.license_end, today)
+    for sol in expiring_solutions(today, conf.horizon_days()):
+        threshold = threshold_for(sol.license_end, today, conf)
         if threshold is None:
             continue
         already = LicenseNotice.objects.filter(solution=sol, license_end=sol.license_end, manual=False,

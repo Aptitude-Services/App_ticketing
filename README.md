@@ -51,13 +51,19 @@ Le service `scheduler` de docker-compose (même image que le site) démarre et r
 **aucun cron à configurer**. Il vérifie chaque minute et lance, au plus une fois par heure :
 
 - la **clôture automatique** des tickets résolus depuis plus d'un jour ;
-- les **alertes d'expiration de licence**, de 7 h à 19 h (heure d'Abidjan ; début réglable par
-  `LICENSE_ALERT_HOUR` dans `.env`).
+- les **alertes d'expiration de licence**, dans la plage d'envoi choisie.
 
-Trois alertes par licence : 5 mois, 3 mois puis 1 mois avant la fin de licence. Destinataires : le client ESN
-(ses administrateurs, à défaut tous ses comptes actifs), les administrateurs du client final du contrat et
-les managers d'Aptitude ; un client final ne reçoit que ses propres licences. Une alerte déjà envoyée à un
-seuil ne repart pas ; si l'email échoue, elle est retentée l'heure suivante. Les envois sont tracés dans
+Les alertes se règlent dans `/gestion` → Contrats et solutions → **Paramètres des alertes de licence**,
+sans redéploiement (prise en compte au passage suivant, dans l'heure) :
+
+- activation ou suspension de l'envoi automatique ;
+- nombre et écart des rappels (par défaut « 5, 3, 1 » mois ; ex. « 6, 2 » ou, en jours, « 30, 7, 0 ») ;
+- destinataires : client ESN (ses administrateurs, à défaut tous ses comptes actifs), administrateurs du
+  client final du contrat, managers d'Aptitude ; un client final ne reçoit que ses propres licences ;
+- plage d'envoi (par défaut 7 h – 19 h, heure d'Abidjan).
+
+La fiche affiche aussi le dernier passage du planificateur. Une alerte déjà envoyée à un seuil ne repart
+pas ; si l'email échoue, elle est retentée l'heure suivante. Les envois sont tracés dans
 `/gestion` → Alertes d'expiration de licence. L'envoi manuel reste possible (Solutions ou Contrats →
 action « Notifier l'ESN »).
 

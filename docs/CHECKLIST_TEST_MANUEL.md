@@ -176,6 +176,7 @@ Contrôles d'accès :
 - [ ] Licences : Administration → Solutions → filtre « Fin de licence » → action **« Notifier l'ESN »** → email reçu
 - [ ] `python manage.py notify_license_expiry` → alerte au seuil atteint (5 mois, 3 mois ou 1 mois avant la fin) ; relancée aussitôt → **pas** de doublon
 - [ ] Destinataires de l'alerte : client ESN, administrateurs du client final du contrat et managers Aptitude
+- [ ] Paramètres des alertes de licence : passer les seuils à « 6, 2 » → aperçu « 2 rappel(s) » ; une saisie invalide est refusée ; « Dernier passage du planificateur » renseigné
 - [ ] Service `scheduler` démarré (`docker compose ps scheduler`) ; ses journaux montrent les tâches lancées
 - [ ] Un envoi manuel n'empêche pas l'alerte automatique suivante
 

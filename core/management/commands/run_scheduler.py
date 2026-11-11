@@ -5,8 +5,9 @@ Démarré par le service « scheduler » de docker-compose (même image que le s
 
 Tâches, vérifiées chaque minute et lancées au plus une fois par heure :
 - clôture automatique des tickets résolus depuis plus d'un jour ;
-- alertes d'expiration de licence (5, 3 et 1 mois avant), de LICENSE_ALERT_HOUR à 19 h
-  pour ne pas envoyer d'email la nuit.
+- alertes d'expiration de licence, dans la plage d'envoi et selon les seuils réglés dans
+  l'administration (« Paramètres des alertes de licence » ; par défaut 5, 3 et 1 mois avant,
+  de 7 h à 19 h).
 
 Les deux tâches sont sans risque de doublon : une alerte déjà envoyée à un seuil ne repart
 pas, et un email en échec est retenté à l'heure suivante. Une erreur dans une tâche est
@@ -15,14 +16,11 @@ journalisée sans arrêter le planificateur.
 import logging
 import time
 
-from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 from django.utils import timezone
 
 log = logging.getLogger("scheduler")
-
-LAST_ALERT_HOUR = 19
 
 
 def _close_tickets():
@@ -31,19 +29,29 @@ def _close_tickets():
 
 
 def _license_alerts():
+    from contracts.models import LicenseAlertSettings
     from contracts.notifications import notify_expiring_licenses
     emails, solutions = notify_expiring_licenses()
+    # Visible sur la fiche des paramètres : preuve que l'envoi automatique tourne.
+    LicenseAlertSettings.objects.filter(pk=LicenseAlertSettings.get().pk).update(last_run=timezone.now())
     return f"{emails} email(s) d'alerte pour {solutions} licence(s)"
+
+
+def _alert_hours():
+    """Plage d'envoi des alertes, réglée dans « Paramètres des alertes de licence »."""
+    from contracts.models import LicenseAlertSettings
+    conf = LicenseAlertSettings.get()
+    return conf.start_hour, conf.end_hour
 
 
 def jobs_due(now, last_runs):
     """Tâches à lancer à `now` (heure locale) : chacune au plus une fois par heure."""
     slot = now.strftime("%Y-%m-%d %H")
-    first_hour = getattr(settings, "LICENSE_ALERT_HOUR", 7)
+    first_hour, last_hour = _alert_hours()
     due = []
     if last_runs.get("close_tickets") != slot:
         due.append(("close_tickets", _close_tickets))
-    if first_hour <= now.hour <= LAST_ALERT_HOUR and last_runs.get("license_alerts") != slot:
+    if first_hour <= now.hour <= last_hour and last_runs.get("license_alerts") != slot:
         due.append(("license_alerts", _license_alerts))
     return slot, due
 

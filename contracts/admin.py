@@ -11,7 +11,8 @@ from core.admin_cascade import SuperAdminCascadeDeleteMixin
 from core.assets import versioned
 
 from accounts.models import Organisation, Profile, User
-from .models import Contract, ContractAccess, ContractType, LicenseNotice, ServiceFeature, Solution
+from .models import (Contract, ContractAccess, ContractType, LicenseAlertSettings, LicenseNotice, ServiceFeature,
+                     Solution)
 from .widgets import FeatureChecklist
 
 
@@ -420,7 +421,7 @@ class ContractAdmin(SuperAdminCascadeDeleteMixin, admin.ModelAdmin):
         from tickets.models import Ticket
         return [Report.objects.filter(contract__in=objs), Ticket.objects.filter(contract__in=objs)]
 
-    @admin.action(description=_("Notifier l'ESN : licences expirant sous 5 mois"))
+    @admin.action(description=_("Notifier l'ESN : licences arrivant à échéance (premier seuil de rappel)"))
     def notify_esn_licenses(self, request, queryset):
         from .notifications import expiring_solutions
         _notify_esn(self, request, expiring_solutions().filter(contract__in=queryset))
@@ -674,6 +675,63 @@ class SolutionAdmin(admin.ModelAdmin):
     exclude = ("version",)  # champ retiré de la saisie (colonne conservée en base)
     search_fields = ("name", "vendor", "model", "serial_number", "contract__reference")
     autocomplete_fields = ("contract",)
+
+
+@admin.register(LicenseAlertSettings)
+class LicenseAlertSettingsAdmin(admin.ModelAdmin):
+    """Fiche unique : la liste ouvre directement les paramètres."""
+
+    fieldsets = (
+        (None, {"fields": ("enabled", "last_run_display")}),
+        (_("Rappels"), {"fields": ("thresholds", "unit", "schedule_preview")}),
+        (_("Destinataires"), {"fields": ("notify_esn", "notify_end_client", "notify_managers")}),
+        (_("Plage d'envoi"), {"fields": ("start_hour", "end_hour")}),
+    )
+    readonly_fields = ("last_run_display", "schedule_preview")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        from django.shortcuts import redirect
+        obj = LicenseAlertSettings.get()
+        return redirect("admin:contracts_licensealertsettings_change", obj.pk)
+
+    @admin.display(description=_("Dernier passage du planificateur"))
+    def last_run_display(self, obj):
+        from django.utils import timezone
+        from django.utils.formats import date_format
+        if not obj.last_run:
+            return _("Jamais : vérifiez que le service « scheduler » est démarré (docker compose ps scheduler).")
+        when = date_format(timezone.localtime(obj.last_run), "d/m/Y H:i")
+        stale = timezone.now() - obj.last_run > datetime.timedelta(days=1, hours=1)
+        if stale:
+            return _("%(d)s — plus d'un jour sans passage : le service « scheduler » est-il arrêté ?") % {"d": when}
+        return when
+
+    @admin.display(description=_("Calendrier des rappels"))
+    def schedule_preview(self, obj):
+        try:
+            values = obj.threshold_values()
+        except ValueError:
+            return "—"
+        unit = obj.get_unit_display()
+        parts = [str(_("le jour de l'expiration")) if v == 0 else f"{v} {unit}" for v in values]
+        return _("%(n)d rappel(s) : %(list)s avant la fin de licence.") % {"n": len(values), "list": ", ".join(parts)}
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        self.message_user(request, _("Paramètres enregistrés : ils s'appliquent dès le prochain passage du "
+                                     "planificateur (dans l'heure)."), messages.SUCCESS)
+
+    def response_change(self, request, obj):
+        from django.shortcuts import redirect
+        if "_continue" in request.POST or "_save" in request.POST:
+            return redirect("admin:contracts_licensealertsettings_change", obj.pk)
+        return super().response_change(request, obj)
 
 
 @admin.register(LicenseNotice)

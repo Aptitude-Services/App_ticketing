@@ -466,3 +466,72 @@ def test_quarterly_needs_no_input_everything_comes_from_intervention_reports(w):
     R.validate(w["boss"], q)
     q.refresh_from_db()
     assert q.data["availability"] == "99,5" and q.data["action_plan"] == d["action_plan"]
+
+
+# --- Paramètres des alertes de licence (administration) ----------------------------------------------
+
+def _conf(**kw):
+    from contracts.models import LicenseAlertSettings
+    conf = LicenseAlertSettings.get()
+    for k, v in kw.items():
+        setattr(conf, k, v)
+    conf.full_clean()
+    conf.save()
+    return conf
+
+
+def test_license_settings_change_number_and_spacing_of_reminders(w):
+    """Deux rappels en jours (30 et 7) au lieu de trois en mois."""
+    _conf(thresholds="7, 30", unit="days")
+    end = datetime.date(2027, 3, 31)
+    assert threshold_for(end, datetime.date(2027, 2, 28)) is None
+    assert threshold_for(end, datetime.date(2027, 3, 1)) == 30
+    assert threshold_for(end, datetime.date(2027, 3, 24)) == 7
+    w["sol"].license_end = end
+    w["sol"].save()
+    assert notify_expiring_licenses(datetime.date(2027, 1, 1)) == (0, 0), "plus de rappel à 5 mois"
+    assert notify_expiring_licenses(datetime.date(2027, 3, 2)) == (1, 1)
+    assert notify_expiring_licenses(datetime.date(2027, 3, 25)) == (1, 1)
+    assert sorted(LicenseNotice.objects.values_list("threshold", flat=True)) == [7, 30]
+
+
+def test_license_alerts_can_be_switched_off(w):
+    _conf(enabled=False)
+    w["sol"].license_end = datetime.date(2026, 12, 1)
+    w["sol"].save()
+    assert notify_expiring_licenses(datetime.date(2026, 11, 9)) == (0, 0)
+
+
+def test_license_alert_recipients_follow_settings(w):
+    _conf(notify_managers=False)
+    w["sol"].license_end = datetime.date(2026, 12, 1)
+    w["sol"].save()
+    mail.outbox.clear()
+    notify_expiring_licenses(datetime.date(2026, 11, 9))
+    assert set(mail.outbox[0].to) == {"admin@hudson.ci", "it@blag.ci"}, "ESN et client final, sans les managers"
+
+
+@pytest.mark.parametrize("bad", ["", "5, -1", "trois", "30"])
+def test_license_settings_reject_bad_thresholds(bad):
+    from django.core.exceptions import ValidationError
+    from contracts.models import LicenseAlertSettings
+    conf = LicenseAlertSettings.get()
+    conf.thresholds = bad
+    with pytest.raises(ValidationError):
+        conf.full_clean()
+
+
+def test_license_settings_admin_page(w, client):
+    admin = User.objects.create_superuser("root@aptitudes.net", "Motdepasse-tres-long-1")
+    client.force_login(admin)
+    listing = client.get(reverse("admin:contracts_licensealertsettings_changelist"))
+    assert listing.status_code == 302, "la liste ouvre directement la fiche unique"
+    page = client.get(listing["Location"]).content.decode()
+    assert "Seuils de rappel" in page and "3 rappel(s) : 5 mois, 3 mois, 1 mois" in page
+    assert "Jamais" in page, "le planificateur n'est pas encore passé"
+    data = {"enabled": "on", "thresholds": "6, 2", "unit": "months", "notify_esn": "on",
+            "notify_end_client": "on", "start_hour": 8, "end_hour": 17}
+    assert client.post(listing["Location"], data).status_code == 302
+    from contracts.models import LicenseAlertSettings
+    conf = LicenseAlertSettings.get()
+    assert (conf.thresholds, conf.notify_managers, conf.start_hour) == ("6, 2", False, 8)

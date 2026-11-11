@@ -13,6 +13,12 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY --chown=app:app . .
+# Certificat de confiance du relais SMTP Postfix : installé s'il est présent dans certs/
+# (fichier propre au serveur, hors Git). Sans lui, l'image se construit quand même.
+RUN if [ -f certs/postfix-mail.crt ]; then \
+        cp certs/postfix-mail.crt /usr/local/share/ca-certificates/postfix-mail.crt \
+        && update-ca-certificates; \
+    fi
 RUN DJANGO_DEBUG=1 python manage.py collectstatic --noinput \
     && mkdir -p /app/media && chown -R app:app /app/media /app/staticfiles \
     && chmod +x /app/docker/entrypoint.sh

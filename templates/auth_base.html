@@ -16,6 +16,7 @@
       {% if messages %}<ul class="messages">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}
       {% block auth %}{% endblock %}
     </div>
+    <p class="auth-copyright">© {% now "Y" %} Aptitude Services. All rights reserved.</p>
   </section>
 </div>
 {% endblock %}

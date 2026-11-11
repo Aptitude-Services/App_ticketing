@@ -130,12 +130,13 @@
 {% endif %}
       {% if messages %}<ul class="messages">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}
       {% block content %}{% endblock %}
-      {% if not user.is_aptitude %}
       <footer class="foot">
+        {% if not user.is_aptitude %}
         <span>Aptitude Services · {% translate "Abidjan, Côte d'Ivoire" %}</span>
         <span><a href="mailto:support@aptitudes.net">support@aptitudes.net</a></span>
+        {% endif %}
+        <span class="copyright">© {% now "Y" %} Aptitude Services. All rights reserved.</span>
       </footer>
-      {% endif %}
     </main>
 {% if not user.is_aptitude %}  </div>{% endif %}
 </div>

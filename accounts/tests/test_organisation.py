@@ -156,7 +156,7 @@ def test_changelist_shows_esn_with_foldable_end_clients(admin_client_nomfa, esn_
     assert "ESN Arbre" in rows and "Final Seul" in rows       # client final sans ESN : visible, mention « sans ESN »
     assert "Final Rattache" not in rows                        # rattaché : replié sous son ESN
     assert "sans ESN" in page and "organisation_tree.js" in page
-    data = re.search(r'class="org-toggle"[^>]*data-children="([^"]+)"', page).group(1)
+    data = re.search(r'class="org-children"[^>]*data-children="([^"]+)"', page).group(1)
     import html
     children = json.loads(html.unescape(data))
     assert [c["name"] for c in children] == ["Final Rattache"]

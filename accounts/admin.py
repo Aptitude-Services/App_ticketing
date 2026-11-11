@@ -210,10 +210,9 @@ class OrganisationAdmin(admin.ModelAdmin):
             "active": c.is_active, "domains": c.email_domains,
             "url": reverse("admin:accounts_organisation_change", args=[c.pk]),
         } for c in obj.end_clients.order_by("name")]
-        return format_html(
-            '<button type="button" class="org-toggle" aria-expanded="false" data-children="{}" '
-            'title="{}">▸ {}</button>',
-            json.dumps(children), _("Afficher les clients finaux"), obj._nb_end_clients)
+        # Le nombre reste affiché ici ; le JS place le bouton de dépliage devant le nom de l'ESN.
+        return format_html('<span class="org-children" data-children="{}">{}</span>',
+                           json.dumps(children), obj._nb_end_clients)
 
     def get_urls(self):
         urls = super().get_urls()

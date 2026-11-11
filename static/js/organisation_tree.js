@@ -1,6 +1,7 @@
 /* Liste des organisations : déplier une ESN pour voir ses clients finaux.
-   Le bouton « ▸ N » de la colonne « Clients finaux » porte la liste (data-children, JSON) ;
-   un clic insère une ligne par client final sous l'ESN, un second clic les retire.
+   La colonne « Clients finaux » porte la liste (span.org-children, data-children en JSON) ;
+   un chevron placé devant le nom de l'ESN insère une ligne par client final sous l'ESN,
+   un second clic les retire.
    Lancé après admin_quick_delete.js (chargé en « defer ») : la colonne d'icônes existe déjà. */
 (function (init) {
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
@@ -75,20 +76,39 @@
     return tr;
   }
 
+  // Un bouton chevron devant le nom de chaque ESN qui a des clients finaux.
+  var CHEVRON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" '
+    + 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+  table.querySelectorAll(".org-children").forEach(function (data) {
+    var row = data.closest("tr");
+    var nameCell = COLS.name >= 0 ? row.children[COLS.name] : null;
+    if (!nameCell) return;
+    var name = (nameCell.textContent || "").trim();
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "org-toggle";
+    btn.setAttribute("aria-expanded", "false");
+    btn.setAttribute("aria-label", "Afficher les clients finaux de " + name);
+    btn.title = "Afficher les clients finaux";
+    btn.innerHTML = CHEVRON;
+    btn._children = data;
+    nameCell.classList.add("org-has-children");
+    nameCell.insertBefore(btn, nameCell.firstChild);
+  });
+
   table.addEventListener("click", function (event) {
     var btn = event.target.closest(".org-toggle");
     if (!btn) return;
     event.preventDefault();
     var row = btn.closest("tr");
     var open = btn.getAttribute("aria-expanded") === "true";
-    var count = btn.textContent.replace(/[^0-9]/g, "");
     if (open) {
       while (row.nextElementSibling && row.nextElementSibling.classList.contains("org-child-row")) {
         row.nextElementSibling.remove();
       }
     } else {
       var children = [];
-      try { children = JSON.parse(btn.getAttribute("data-children") || "[]"); } catch (e) { children = []; }
+      try { children = JSON.parse(btn._children.getAttribute("data-children") || "[]"); } catch (e) { children = []; }
       var anchor = row;
       children.forEach(function (child) {
         var tr = childRow(child);
@@ -97,7 +117,7 @@
       });
     }
     btn.setAttribute("aria-expanded", open ? "false" : "true");
-    btn.textContent = (open ? "▸ " : "▾ ") + count;
+    btn.title = open ? "Afficher les clients finaux" : "Masquer les clients finaux";
     row.classList.toggle("org-expanded", !open);
   });
 });

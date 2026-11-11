@@ -77,7 +77,7 @@ Complète `PLAN_DEMONSTRATION.md` (parcours de démo) avec les contrôles négat
 - [ ] **Import Excel** : télécharger le modèle `modele-import-solutions.xlsx`, le remplir, « Choisir un fichier » → tableau rempli
 - [ ] Import d'un fichier non `.xlsx` ou mal formé → message d'erreur, rien n'est enregistré
 - [ ] Solutions : saisie manuelle d'une ligne, suppression d'une ligne dans la zone du tableau, aide au survol des catégories
-- [ ] Une solution avec fin de licence < 60 jours (servira en partie 8)
+- [ ] Une solution avec fin de licence dans moins de 5 mois (servira en partie 8)
 - [ ] Statuts du contrat : Brouillon / Actif / Expiré / Résilié
 
 ---
@@ -174,7 +174,9 @@ Contrôles d'accès :
 - [ ] Rapport **trimestriel** : année + trimestre ; chiffres tickets, causes curatifs, recommandations préventifs consolidés automatiquement
 - [ ] Références des rapports `CUR`, `PRV`, `TRI` qui s'incrémentent
 - [ ] Licences : Administration → Solutions → filtre « Fin de licence » → action **« Notifier l'ESN »** → email reçu
-- [ ] `python manage.py notify_license_expiry` → alerte au seuil (60/30/15/7/0 jours) ; relancée aussitôt → **pas** de doublon
+- [ ] `python manage.py notify_license_expiry` → alerte au seuil atteint (5 mois, 3 mois ou 1 mois avant la fin) ; relancée aussitôt → **pas** de doublon
+- [ ] Destinataires de l'alerte : client ESN, administrateurs du client final du contrat et managers Aptitude
+- [ ] Tâche quotidienne `notify_license_expiry` planifiée dans la crontab du VPS (voir README)
 - [ ] Un envoi manuel n'empêche pas l'alerte automatique suivante
 
 ---

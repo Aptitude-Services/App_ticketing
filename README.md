@@ -53,6 +53,27 @@ Le jalon 1 pose le socle (comptes, profils, cloisonnement, MFA, audit) ; le jalo
 0 * * * * cd /opt/aptitude-support && docker compose exec -T web python manage.py close_resolved_tickets
 ```
 
+### Alertes d'expiration de licence
+
+À planifier une fois par jour sur le VPS (crontab de l'utilisateur qui lance Docker), par exemple à 7 h :
+
+```bash
+0 7 * * * cd /opt/aptitude-support && docker compose exec -T web python manage.py notify_license_expiry
+```
+
+Trois alertes par licence : 5 mois, 3 mois puis 1 mois avant la fin de licence. Destinataires : le client ESN
+(ses administrateurs, à défaut tous ses comptes actifs), les administrateurs du client final du contrat et
+les managers d'Aptitude ; un client final ne reçoit que ses propres licences. Une alerte déjà envoyée à un
+seuil ne repart pas ; si l'email échoue, elle est retentée le lendemain. Les envois sont tracés dans
+`/gestion` → Alertes d'expiration de licence. Sans cette tâche, seul l'envoi manuel fonctionne
+(Solutions ou Contrats → action « Notifier l'ESN »).
+
+Vérification ponctuelle (affiche le nombre d'emails envoyés) :
+
+```bash
+docker compose exec web python manage.py notify_license_expiry
+```
+
 ### Jours fériés : entretien annuel
 
 ```bash

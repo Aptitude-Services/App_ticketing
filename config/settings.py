@@ -114,6 +114,9 @@ LANGUAGE_CODE = "fr"
 LANGUAGES = [("fr", _("Français")), ("en", _("English"))]
 LOCALE_PATHS = [BASE_DIR / "locale"]
 TIME_ZONE = "Africa/Abidjan"
+# Planificateur intégré (python manage.py run_scheduler) : heure locale à partir de laquelle
+# partent les alertes d'expiration de licence (jusqu'à 19 h).
+LICENSE_ALERT_HOUR = int(os.environ.get("LICENSE_ALERT_HOUR", "7"))
 USE_I18N = True
 USE_TZ = True
 

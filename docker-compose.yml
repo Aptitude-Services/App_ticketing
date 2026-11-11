@@ -54,6 +54,23 @@ services:
       - traefik.http.routers.support-admin.middlewares=admin-ip
       - traefik.http.middlewares.admin-ip.ipallowlist.sourcerange=${ADMIN_ALLOWED_IPS}
 
+  # Tâches automatiques (alertes de licence, clôture des tickets résolus) : aucun cron à configurer.
+  scheduler:
+    build: .
+    restart: unless-stopped
+    command: ["python", "manage.py", "run_scheduler"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      SKIP_MIGRATE: "1"
+    volumes:
+      - media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_started
+
   db:
     image: postgres:16-alpine
     restart: unless-stopped

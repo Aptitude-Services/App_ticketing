@@ -25,6 +25,25 @@ services:
       db:
         condition: service_healthy
 
+  # Tâches automatiques (alertes de licence, clôture des tickets résolus) : aucun cron à configurer.
+  scheduler:
+    build: .
+    restart: unless-stopped
+    command: ["python", "manage.py", "run_scheduler"]
+    env_file:
+      - path: .env.local
+        required: false
+    environment:
+      DJANGO_DEBUG: "1"
+      DJANGO_SECRET_KEY: local-demo-only-not-for-production
+      DATABASE_URL: postgres://aptitude:aptitude-local@db:5432/aptitude_support
+      SKIP_MIGRATE: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_started
+
   db:
     image: postgres:16-alpine
     restart: unless-stopped

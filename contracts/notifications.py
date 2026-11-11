@@ -2,8 +2,9 @@
 
 Destinataires : le client ESN, le client final couvert par le contrat et les managers
 d'Aptitude. Deux déclencheurs :
-- automatique : la commande ``notify_license_expiry`` (tâche planifiée quotidienne)
-  envoie trois alertes, 5 mois, 3 mois puis 1 mois avant l'échéance ;
+- automatique : le planificateur intégré (service « scheduler », commande ``run_scheduler``)
+  vérifie chaque heure en journée et envoie trois alertes, 5 mois, 3 mois puis 1 mois
+  avant l'échéance (``notify_license_expiry`` reste disponible pour un lancement manuel) ;
 - manuel : l'action « Notifier l'ESN » de l'administration (solutions ou contrats).
 
 Un email par ESN et par client final : chaque client final ne voit que ses licences.

@@ -92,6 +92,6 @@ ne déclenche jamais d'email.
    curatifs et recommandations des préventifs, consolidés automatiquement.
 3. **Licences** : une solution dont la licence expire dans moins de 5 mois →
    Administration → Solutions → filtre « Fin de licence » → action **« Notifier l'ESN »**.
-   En production, la tâche quotidienne `notify_license_expiry` (crontab du VPS, voir README)
-   envoie seule trois alertes — 5 mois, 3 mois et 1 mois avant — au client ESN, au client
+   En production, le planificateur intégré (service `scheduler`, aucun cron à configurer)
+   envoie seul trois alertes — 5 mois, 3 mois et 1 mois avant — au client ESN, au client
    final et aux managers.

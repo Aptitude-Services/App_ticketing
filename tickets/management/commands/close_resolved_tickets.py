@@ -1,6 +1,7 @@
 """Clôt les tickets résolus depuis plus d'un jour sans réouverture.
 
-À planifier toutes les heures (cron du VPS ; Celery beat au jalon 5) :
+Lancée automatiquement toutes les heures par le planificateur intégré (service « scheduler »,
+commande run_scheduler). Lancement manuel possible :
     docker compose exec -T web python manage.py close_resolved_tickets
 """
 from django.core.management.base import BaseCommand

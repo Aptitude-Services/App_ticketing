@@ -45,33 +45,34 @@ Le jalon 1 pose le socle (comptes, profils, cloisonnement, MFA, audit) ; le jalo
 | Interface | Console pour l'équipe Aptitude, portail aéré pour les clients, thème clair ou sombre enregistré par utilisateur |
 | Tableaux de bord | Console : tickets ouverts, SLA à risque et dépassés, délais tenus, courbe 30 jours, respect par couverture, clients, solutions, priorités, activité. Portail : demandes en cours, réponse attendue, contrats, résolues récemment |
 
-### Clôture automatique
+### Tâches automatiques (planificateur intégré)
 
-À planifier toutes les heures sur le VPS (crontab de l'utilisateur qui lance Docker) :
+Le service `scheduler` de docker-compose (même image que le site) démarre et redémarre avec lui :
+**aucun cron à configurer**. Il vérifie chaque minute et lance, au plus une fois par heure :
 
-```bash
-0 * * * * cd /opt/aptitude-support && docker compose exec -T web python manage.py close_resolved_tickets
-```
-
-### Alertes d'expiration de licence
-
-À planifier une fois par jour sur le VPS (crontab de l'utilisateur qui lance Docker), par exemple à 7 h :
-
-```bash
-0 7 * * * cd /opt/aptitude-support && docker compose exec -T web python manage.py notify_license_expiry
-```
+- la **clôture automatique** des tickets résolus depuis plus d'un jour ;
+- les **alertes d'expiration de licence**, de 7 h à 19 h (heure d'Abidjan ; début réglable par
+  `LICENSE_ALERT_HOUR` dans `.env`).
 
 Trois alertes par licence : 5 mois, 3 mois puis 1 mois avant la fin de licence. Destinataires : le client ESN
 (ses administrateurs, à défaut tous ses comptes actifs), les administrateurs du client final du contrat et
 les managers d'Aptitude ; un client final ne reçoit que ses propres licences. Une alerte déjà envoyée à un
-seuil ne repart pas ; si l'email échoue, elle est retentée le lendemain. Les envois sont tracés dans
-`/gestion` → Alertes d'expiration de licence. Sans cette tâche, seul l'envoi manuel fonctionne
-(Solutions ou Contrats → action « Notifier l'ESN »).
+seuil ne repart pas ; si l'email échoue, elle est retentée l'heure suivante. Les envois sont tracés dans
+`/gestion` → Alertes d'expiration de licence. L'envoi manuel reste possible (Solutions ou Contrats →
+action « Notifier l'ESN »).
 
-Vérification ponctuelle (affiche le nombre d'emails envoyés) :
+Vérifier que le planificateur tourne et voir ce qu'il a fait :
+
+```bash
+docker compose ps scheduler
+docker compose logs --tail 50 scheduler
+```
+
+Lancement manuel ponctuel (affiche le nombre d'emails envoyés) :
 
 ```bash
 docker compose exec web python manage.py notify_license_expiry
+docker compose exec web python manage.py close_resolved_tickets
 ```
 
 ### Jours fériés : entretien annuel

@@ -179,7 +179,7 @@ def test_quarterly_consolidates_tickets_and_reports(w):
     assert (auto["tickets_total"], auto["tickets_resolved"]) == (1, 1)
     assert auto["visits_done"] == 1 and auto["anomalies"] == 1
     assert auto["causes"][0]["name"] == "Configuration"
-    assert ["Renouveler le certificat", "Support"] == q.data["pending"][0][:2]
+    assert ["Renouveler le certificat", "Support"] == auto["derived"]["pending"][0][:2]
 
 
 def test_quarter_bounds():
@@ -423,3 +423,46 @@ def test_controls_use_the_one_click_editor(w):
     conf = json.loads(widget.attrs["data-controls-editor"])
     assert conf["results"] == ["Conforme", "À surveiller", "Non conforme", "N/A"]
     assert conf["equipments"] == ["FW-01"]
+
+
+def test_quarterly_needs_no_input_everything_comes_from_intervention_reports(w):
+    """Le trimestriel se remplit à partir des rapports curatifs et préventifs validés."""
+    prev = R.create_report(w["tech"], Report.Kind.PREVENTIVE, w["contract"], end_client=w["end"])
+    prev.data.update({"site": "Siège", "started_at": "2026-11-04T09:00", "visit_total": 4,
+                      "controls": [["Sécurité", "TLS", "Portail", "Non conforme", ""]],
+                      "operations": [["09:30", "Mise à jour du firmware", "FW-01"]],
+                      "recommendations": [["Renouveler le certificat", "Haute", "Support", "30/11/2026", ""]]})
+    prev.save()
+    R.submit(w["tech"], prev)
+    R.validate(w["boss"], prev)
+    cur = _curative(w)
+    cur.data.update({"interruption": "2 h 50", "fix_state": "Appliquée", "fix": "Certificat renouvelé",
+                     "followups": [["Superviser l'expiration", "Exploitation", "15/12/2026", ""]]})
+    cur.save()
+    R.submit(w["tech"], cur)
+    R.validate(w["boss"], cur)
+
+    q = R.create_report(w["tech"], Report.Kind.QUARTERLY, w["contract"], end_client=w["end"], year=2026, quarter=4)
+    d = R.auto_data(q)["derived"]
+    assert d["visits_planned"] == 4
+    assert d["availability"] == "99,87"  # 170 min d'interruption sur 92 jours
+    assert ["Mise à jour du firmware (FW-01)"] in d["done_actions"]
+    assert any("Certificat renouvelé" in row[0] for row in d["done_actions"])
+    assert any(row[0].startswith("Non conforme : TLS") for row in d["attention"])
+    assert d["recommendations"][0][:3] == ["Renouveler le certificat", f"Visite {prev.reference}", "élevé"]
+    assert [row[0] for row in d["action_plan"]] == ["Renouveler le certificat", "Superviser l'expiration"]
+    assert d["next_point"] == "Prochain point : rapport trimestriel T1 2027."
+
+    c = w["client"]
+    c.force_login(w["tech"])
+    page = c.get(reverse("report_detail", args=[q.pk])).content.decode()
+    assert "Mise à jour du firmware" in page and "Superviser l&#x27;expiration" in page and "99,87 %" in page
+    assert "highlights" not in ReportContentForm(report=q).fields, "plus rien à saisir hormis les ajustements"
+
+    # Une valeur saisie remplace la valeur déduite ; à la validation, le contenu est figé dans le rapport.
+    q.data["availability"] = "99,5"
+    q.save()
+    R.submit(w["tech"], q)
+    R.validate(w["boss"], q)
+    q.refresh_from_db()
+    assert q.data["availability"] == "99,5" and q.data["action_plan"] == d["action_plan"]

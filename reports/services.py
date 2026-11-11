@@ -136,11 +136,9 @@ def create_report(author, kind, contract, end_client=None, ticket=None, year=Non
     else:
         start, end = B.quarter_bounds(year, quarter)
         report.period_start, report.period_end = start, end
-        info = B.quarterly_info(contract, end_client, start, end)
-        data["pending"] = info["pending_suggestions"]
+        # Le reste du contenu est déduit des rapports d'intervention validés (B.quarterly_content).
         data["availability_target"] = "99,9"
         data["resolution_target"] = "95"
-        data["visits_planned"] = len(info["visits"]) or ""
         report.title = _("Rapport trimestriel %(q)s") % {"q": f"T{quarter} {year}"}
     report.data = data
     report.save()
@@ -191,6 +189,9 @@ def validate(user, report):
     _require(can_validate(user, report), _("Vous ne pouvez pas valider ce rapport."))
     data = dict(report.data)
     data["snapshot"] = auto_data(report)
+    if report.kind == Report.Kind.QUARTERLY:
+        # Contenu figé avec le rapport : rubriques déduites, sauf celles saisies par le rédacteur.
+        data = B.merged_quarterly(data, data["snapshot"])
     report.data = data
     report.status = Report.Status.VALIDATED
     report.validator = user

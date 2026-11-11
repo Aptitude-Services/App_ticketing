@@ -4,6 +4,7 @@ Tout ce qui sort d'ici est sérialisable en JSON (dates en chaînes ISO, heure l
 à la validation, le résultat est figé tel quel dans ``report.data["snapshot"]``.
 """
 import datetime
+import re
 from collections import Counter, OrderedDict
 
 from django.utils import timezone
@@ -337,7 +338,11 @@ def quarterly_info(contract, end_client, start, end):
 
     sites = Counter((r.data.get("site") or "").strip() for r in curatives + preventives if r.data.get("site"))
 
+    derived = quarterly_content(start, end, tickets, curatives, preventives, total_controls, pending,
+                                resolution_pct)
+
     return {
+        "derived": derived,
         **contract_info(contract, end_client),
         "period_start": start.isoformat(), "period_end": end.isoformat(),
         "tickets_total": len(tickets),
@@ -364,6 +369,173 @@ def quarterly_info(contract, end_client, start, end):
         "pending_suggestions": pending,
         "sites": [{"name": n, "count": c} for n, c in sites.most_common()],
     }
+
+
+# --- Contenu du trimestriel déduit des rapports d'intervention ----------------------------------------
+
+def duration_minutes(text):
+    """« 2 h 50 », « 45 min », « 1 j 3 h », « 1:30 » → minutes ; None si illisible."""
+    text = (text or "").lower().replace(",", ".")
+    if not text.strip():
+        return None
+    m = re.fullmatch(r"\s*(\d+):(\d{2})\s*", text)
+    if m:
+        return int(m.group(1)) * 60 + int(m.group(2))
+    total, found, after_hours = 0.0, False, False
+    for value, unit in re.findall(r"(\d+(?:\.\d+)?)\s*(j|jours?|h|heures?|min|mn|minutes?)?", text):
+        found = True
+        if unit.startswith("j"):
+            total += float(value) * 1440
+        elif unit.startswith("h"):
+            total += float(value) * 60
+        elif unit.startswith("m"):
+            total += float(value)
+        elif after_hours:
+            total += float(value)  # « 2 h 50 » : les minutes suivent les heures sans unité
+        else:
+            total += float(value) * 60  # nombre seul : des heures
+        after_hours = unit.startswith("h")
+    return int(round(total)) if found else None
+
+
+def _fmt_pct(value):
+    return f"{value:.2f}".rstrip("0").rstrip(".").replace(".", ",")
+
+
+def _ticket_of(report):
+    return (report.data.get("snapshot") or {}).get("ticket") or {}
+
+
+def quarterly_content(start, end, tickets, curatives, preventives, controls, pending, resolution_pct):
+    """Rubriques du rapport trimestriel déduites des rapports curatifs et préventifs validés :
+    rien n'est à saisir. Le rédacteur peut encore remplacer l'appréciation générale, la
+    disponibilité et les décisions attendues du COMEX."""
+    out = {}
+
+    # Disponibilité estimée : durées d'interruption des rapports curatifs, sur 24 h × 7 j.
+    days = (end - start).days + 1
+    down_by_month = Counter()
+    for r in curatives:
+        minutes = duration_minutes(r.data.get("interruption"))
+        if minutes:
+            when = (_ticket_of(r).get("created_at") or r.data.get("incident_start") or start.isoformat())[:7]
+            down_by_month[when] += minutes
+    out["availability"] = _fmt_pct(max(0.0, 100 - sum(down_by_month.values()) * 100 / (days * 1440)))
+    months, m = [], start
+    while m <= end:
+        nxt = datetime.date(m.year + (m.month == 12), m.month % 12 + 1, 1)
+        month_days = (min(nxt - datetime.timedelta(days=1), end) - m).days + 1
+        down = down_by_month.get(m.isoformat()[:7], 0)
+        months.append([MONTHS[m.month - 1], _fmt_pct(max(0.0, 100 - down * 100 / (month_days * 1440)))])
+        m = nxt
+    out["availability_months"] = months
+
+    # Visites prévues : le plus grand « nombre de visites prévues » des rapports préventifs.
+    planned = [int(str(r.data.get("visit_total"))) for r in preventives
+               if str(r.data.get("visit_total") or "").isdigit()]
+    out["visits_planned"] = max(planned + [len(preventives)]) if preventives else ""
+
+    # Dépassements : rapports curatifs dont un engagement de service n'a pas été tenu.
+    overruns = []
+    for r in curatives:
+        t = _ticket_of(r)
+        late = [str(label) for key, label in (("response", _("prise en charge")), ("resolution", _("résolution")))
+                if (t.get(key) or {}).get("met") is False]
+        if late:
+            overruns.append([str(_("P%(p)s · %(ref)s : %(title)s — %(what)s hors délai.") % {
+                "p": t.get("priority", ""), "ref": t.get("reference", r.reference),
+                "title": (t.get("title") or "")[:70], "what": ", ".join(late)})])
+    out["overruns"] = overruns
+
+    # Incidents récurrents : même catégorie de cause sur au moins deux rapports curatifs.
+    by_cause = OrderedDict()
+    for r in curatives:
+        cat = (r.data.get("diagnosis_category") or "").strip()
+        if cat:
+            by_cause.setdefault(cat, []).append(r)
+    out["recurring"] = [[cat, str(len(rs)), (rs[-1].data.get("fix") or rs[-1].data.get("recurrence") or "")
+                         .strip()[:160]] for cat, rs in by_cause.items() if len(rs) >= 2]
+
+    # Actions réalisées : opérations des visites préventives et corrections appliquées.
+    operations = [row for r in preventives for row in r.data.get("operations") or [] if len(row) > 1 and row[1]]
+    fixes = [r for r in curatives
+             if r.data.get("fix_state") == "Appliquée" and (r.data.get("fix") or "").strip()]
+    kpis = [(len(curatives), _("incident(s) traité(s)")), (len(preventives), _("visite(s) préventive(s)")),
+            (controls.get("total", 0), _("contrôles effectués")), (len(operations), _("opérations de maintenance")),
+            (len(fixes), _("corrections définitives appliquées"))]
+    out["done_kpis"] = [[str(n), str(label)] for n, label in kpis if n]
+    done = [row[1] + (f" ({row[2]})" if len(row) > 2 and row[2] else "") for row in operations]
+    done += [f"{_ticket_of(r).get('reference', r.reference)} : {r.data['fix'].strip().splitlines()[0][:140]}"
+             for r in fixes]
+    out["done_actions"] = [[x] for x in done]
+
+    # Faits marquants et points d'attention.
+    resolved = [t for t in tickets if t.resolved_at or t.closed_at]
+    highlights = []
+    if tickets:
+        highlights.append(_("%(r)d incident(s) résolu(s) sur %(n)d traité(s).") % {"r": len(resolved),
+                                                                                   "n": len(tickets)})
+    if resolution_pct is not None:
+        highlights.append(_("Résolution dans les délais : %(p)s %%.") % {"p": _fmt_pct(resolution_pct)})
+    if preventives:
+        highlights.append(_("%(v)d visite(s) préventive(s), %(c)d contrôles dont %(ok)d conformes.") % {
+            "v": len(preventives), "c": controls.get("total", 0), "ok": controls.get("ok", 0)})
+    if fixes:
+        highlights.append(_("%(n)d correction(s) définitive(s) appliquée(s).") % {"n": len(fixes)})
+    out["highlights"] = [[str(x)] for x in highlights]
+    attention = []
+    for r in preventives:
+        where = r.data.get("site") or r.reference
+        for row in r.data.get("controls") or []:
+            row = (list(row) + [""] * 5)[:5]
+            if row[3] in ("Non conforme", "À surveiller"):
+                attention.append(f"{row[3]} : {row[1]}" + (f" ({row[2]})" if row[2] else "") + f" — {where}")
+    open_tickets = len(tickets) - len(resolved)
+    if open_tickets:
+        attention.append(str(_("%(n)d incident(s) encore ouvert(s) en fin de période.") % {"n": open_tickets}))
+    if overruns:
+        attention.append(str(_("%(n)d engagement(s) de service non tenu(s).") % {"n": len(overruns)}))
+    out["attention"] = [[x] for x in attention[:8]]
+
+    # Recommandations (mesure, justification, impact, effort) et plan d'action.
+    recs, plan = [], []
+    for r in preventives:
+        for row in r.data.get("recommendations") or []:
+            row = (list(row) + [""] * 5)[:5]
+            if row[0].strip():
+                impact = "élevé" if row[1] == "Haute" else "moyen"
+                recs.append([row[0], str(_("Visite %(ref)s") % {"ref": r.reference}), impact, "moyen"])
+                plan.append([row[0], row[1], row[2], row[3], str(_("À planifier"))])
+    for r in curatives:
+        for row in r.data.get("followups") or []:
+            row = (list(row) + [""] * 4)[:4]
+            if row[0].strip():
+                plan.append([row[0], "", row[1], row[2], str(_("En cours"))])
+    out["recommendations"] = recs
+    out["action_plan"] = plan
+    out["pending"] = pending
+
+    # Appréciation générale proposée et prochain point.
+    if not tickets and not preventives:
+        headline = _("Aucune intervention sur la période")
+    elif overruns:
+        headline = _("Engagements globalement tenus, délais à surveiller")
+    elif attention:
+        headline = _("Parc globalement sain, points d'attention ciblés")
+    else:
+        headline = _("Engagements de service tenus, parc sain")
+    out["headline"] = str(headline)
+    q = (start.month - 1) // 3 + 1
+    nq, ny = (1, start.year + 1) if q == 4 else (q + 1, start.year)
+    out["next_point"] = str(_("Prochain point : rapport trimestriel T%(q)d %(y)d.") % {"q": nq, "y": ny})
+    return out
+
+
+def merged_quarterly(data, auto):
+    """Contenu affiché : valeurs déduites des rapports, remplacées par celles saisies (non vides)."""
+    merged = dict(auto.get("derived") or {})
+    merged.update({k: v for k, v in data.items() if v not in (None, "", [])})
+    return merged
 
 
 def format_period(start, end):

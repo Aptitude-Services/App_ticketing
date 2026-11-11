@@ -8,7 +8,7 @@ from django.utils.translation import gettext_lazy
 from django.views.decorators.http import require_POST
 
 from . import services as S
-from .builders import control_counts
+from .builders import control_counts, merged_quarterly
 from .forms import RejectForm, ReportContentForm, ReportCreateForm
 from .models import Report
 
@@ -140,7 +140,9 @@ def report_detail(request, pk):
         ctx["counts"] = control_counts(report.data.get("controls"))
         ctx["control_groups"] = _group_controls(report.data.get("controls"))
     if report.kind == Report.Kind.QUARTERLY:
-        ctx.update(_quarterly_ctx(report.data, auto))
+        # Contenu déduit des rapports d'intervention, remplacé par ce que le rédacteur a saisi.
+        ctx["m"] = merged_quarterly(report.data, auto)
+        ctx.update(_quarterly_ctx(ctx["m"], auto))
     return render(request, f"reports/print_{report.kind}.html", ctx)
 
 

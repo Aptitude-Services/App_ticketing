@@ -129,51 +129,25 @@ SCHEMA = {
             ("annexes", _("Annexes jointes"), "lines", {"columns": [_("Annexe")]}),
         ]),
     ],
+    # Tout le reste (faits marquants, dépassements, actions, recommandations, plan d'action…)
+    # est déduit des rapports curatifs et préventifs validés de la période.
     Report.Kind.QUARTERLY: [
-        (_("Synthèse exécutive"), [
+        (_("Ajustements facultatifs"), [
             ("headline", _("Appréciation générale"), "text",
-             {"help": _("Ex. Parc globalement sain, points d'attention ciblés")}),
-            ("availability", _("Disponibilité des services critiques (%)"), "text", {"help": _("Ex. 99,92")}),
+             {"help": _("Vide : proposée automatiquement d'après les rapports de la période.")}),
+            ("availability", _("Disponibilité des services critiques (%)"), "text",
+             {"help": _("Vide : estimée d'après les durées d'interruption des rapports curatifs. "
+                        "Saisissez-la si vous disposez d'une mesure de supervision (ex. 99,92).")}),
             ("availability_target", _("Objectif de disponibilité (%)"), "text", {}),
-            ("availability_months", _("Disponibilité par mois"), "lines",
-             {"columns": [_("Mois"), _("Disponibilité %")]}),
             ("resolution_target", _("Objectif de résolution dans les délais (%)"), "text", {}),
-            ("highlights", _("Faits marquants"), "lines", {"columns": [_("Fait marquant")]}),
-            ("attention", _("Points d'attention"), "lines", {"columns": [_("Point d'attention")]}),
-        ]),
-        (_("Maintenances préventives"), [
-            ("visits_planned", _("Visites préventives planifiées"), "int",
-             {"help": _("Les visites réalisées sont reprises des rapports préventifs validés.")}),
-            ("visits_note", _("Commentaire"), "text", {}),
-        ]),
-        (_("Engagements et incidents"), [
-            ("overruns", _("Dépassements du trimestre"), "lines", {"columns": [_("Dépassement")]}),
-            ("recurring", _("Incidents récurrents"), "lines",
-             {"columns": [_("Incident"), _("Occurrences"), _("Action")]}),
-        ]),
-        (_("Actions"), [
-            ("done_kpis", _("Chiffres clés des actions réalisées"), "lines",
-             {"columns": [_("Valeur"), _("Libellé")], "help": _("Ex. 42, correctifs de sécurité appliqués.")}),
-            ("done_actions", _("Actions réalisées"), "lines", {"columns": [_("Action")]}),
-            ("pending", _("Actions en attente"), "lines",
-             {"columns": [_("Action ou anomalie"), _("Attendue de"), _("Situation")],
-              "help": _("Préremplies avec les recommandations et actions de suivi des rapports de la période.")}),
-        ]),
-        (_("Recommandations et plan d'action"), [
-            ("recommendations", _("Recommandations"), "lines",
-             {"columns": [_("Mesure"), _("Justification"), _("Impact"), _("Effort")],
-              "editor": ["text", "text", "select:impact", "select:effort"]}),
-            ("action_plan", _("Plan d'action"), "lines",
-             {"columns": [_("Action"), _("Priorité"), _("Responsable"), _("Échéance"), _("Statut")],
-              "editor": ["text", "select:priority", "text", "text", "text"],
-              "help": _("Échéance au format JJ/MM/AAAA : elle place l'action sur la feuille de route du COMEX.")}),
         ]),
         (_("Comité de direction (COMEX)"), [
             ("decisions", _("Décisions attendues"), "lines",
              {"columns": [_("Décision"), _("Détail")],
-              "help": _("Trois au plus. Ex. Extension du stockage SAN-01 : valider le budget avant décembre.")}),
+              "help": _("Facultatif, trois au plus. Ex. Extension du stockage SAN-01 : valider le budget "
+                        "avant décembre.")}),
             ("next_point", _("Prochain point"), "text",
-             {"help": _("Ex. Prochain point : rapport trimestriel T4 2026, début janvier 2027.")}),
+             {"help": _("Vide : « Prochain point : rapport trimestriel » du trimestre suivant.")}),
         ]),
     ],
 }

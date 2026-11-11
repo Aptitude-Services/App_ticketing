@@ -3,7 +3,13 @@
 # Ne pas utiliser en production : voir docker-compose.yml et la procédure de mise en production.
 services:
   web:
-    build: .
+    build:
+      context: .
+      args:
+        # 0 : image sans LibreOffice (pas d'export PDF du COMEX) si le serveur ne peut pas
+        # télécharger les paquets Debian. Réglable dans .env : INSTALL_LIBREOFFICE=0
+        INSTALL_LIBREOFFICE: ${INSTALL_LIBREOFFICE:-1}
+    image: aptitude-support-local:latest
     restart: unless-stopped
     # Réglages email facultatifs (vrai envoi) : voir .env.local
     env_file:
@@ -27,7 +33,9 @@ services:
 
   # Tâches automatiques (alertes de licence, clôture des tickets résolus) : aucun cron à configurer.
   scheduler:
-    build: .
+    # Même image que « web », construite une seule fois.
+    image: aptitude-support-local:latest
+    pull_policy: never
     restart: unless-stopped
     command: ["python", "manage.py", "run_scheduler"]
     env_file:

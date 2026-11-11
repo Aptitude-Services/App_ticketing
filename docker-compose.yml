@@ -29,7 +29,13 @@ services:
       - ./certs:/certs:ro
 
   web:
-    build: .
+    build:
+      context: .
+      args:
+        # 0 : image sans LibreOffice (pas d'export PDF du COMEX) si le serveur ne peut pas
+        # télécharger les paquets Debian. Réglable dans .env : INSTALL_LIBREOFFICE=0
+        INSTALL_LIBREOFFICE: ${INSTALL_LIBREOFFICE:-1}
+    image: aptitude-support:latest
     restart: unless-stopped
     env_file: .env
     environment:
@@ -56,7 +62,9 @@ services:
 
   # Tâches automatiques (alertes de licence, clôture des tickets résolus) : aucun cron à configurer.
   scheduler:
-    build: .
+    # Même image que « web », construite une seule fois.
+    image: aptitude-support:latest
+    pull_policy: never
     restart: unless-stopped
     command: ["python", "manage.py", "run_scheduler"]
     env_file: .env

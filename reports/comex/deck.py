@@ -15,6 +15,7 @@ from pptx import Presentation
 from pptx.chart.data import CategoryChartData
 from pptx.dml.color import RGBColor
 from pptx.enum.dml import MSO_THEME_COLOR
+from pptx.enum.shapes import MSO_SHAPE_TYPE
 from pptx.util import Emu, Inches, Pt
 
 from .data import MONTHS_SHORT, fmt_pct
@@ -187,14 +188,72 @@ def _cover(slide, d):
         for r in big.text_frame.paragraphs[0].runs:
             r.font.size = Pt(54)
         _set(_shape(slide, "Text 6"), str(end.year) if start.year == end.year else f"{start.year}–{end.year}")
+    # En-tête de la page de garde : le logo de l'ESN à la place de celui d'Aptitude.
+    _remove_pictures(slide.shapes)
+    logo = _logo_png(d)
+    if logo:
+        _add_logo(slide, logo, Inches(0.70), Inches(0.55), Inches(3.2), Inches(0.9))
+    else:
+        box = slide.shapes.add_textbox(Inches(0.70), Inches(0.55), Inches(6.0), Inches(0.9))
+        box.name = "Nom ESN"
+        run = box.text_frame.paragraphs[0].add_run()
+        run.text = d["esn"]
+        run.font.size, run.font.bold, run.font.name = Pt(28), True, "Montserrat"
+
+
+# --- Identité de l'ESN : le COMEX est remis au nom de l'ESN, sans marque Aptitude ---------------------
+
+def _logo_png(d):
+    """Logo de l'ESN en PNG/JPEG/GIF (WebP converti) ; None si absent ou non convertible (SVG)."""
     logo = d.get("esn_logo") or ""
+    if not logo.startswith("data:image/") or "," not in logo:
+        return None
+    raw = base64.b64decode(logo.split(",", 1)[1])
     if logo.startswith(("data:image/png", "data:image/jpeg", "data:image/gif")):
-        raw = base64.b64decode(logo.split(",", 1)[1])
-        pic = slide.shapes.add_picture(io.BytesIO(raw), Inches(0.70), Inches(6.20), height=Inches(0.65))
-        pic.name = "Logo ESN"
-        if pic.width > Inches(3.0):
-            ratio = Inches(3.0) / pic.width
-            pic.width, pic.height = Inches(3.0), int(pic.height * ratio)
+        return raw
+    try:
+        from PIL import Image
+        img = Image.open(io.BytesIO(raw))
+        out = io.BytesIO()
+        img.save(out, "PNG")
+        return out.getvalue()
+    except Exception:  # SVG ou image illisible : le nom de l'ESN est affiché à la place
+        return None
+
+
+def _remove_pictures(shapes):
+    for shape in list(shapes):
+        if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
+            shape._element.getparent().remove(shape._element)
+
+
+def _add_logo(slide, raw, left, top, max_w, max_h, align_right=False):
+    """Logo inscrit dans le cadre (max_w × max_h), proportions conservées."""
+    pic = slide.shapes.add_picture(io.BytesIO(raw), left, top)
+    ratio = min(max_w / pic.width, max_h / pic.height)
+    pic.width, pic.height = int(pic.width * ratio), int(pic.height * ratio)
+    if align_right:
+        pic.left = left + max_w - pic.width
+    pic.top = top + (max_h - pic.height) // 2
+    pic.name = "Logo ESN"
+    return pic
+
+
+def _brand(prs, slides, d):
+    """Pages de contenu : logo Aptitude de la disposition retiré, logo de l'ESN en haut à droite
+    de chaque page, pied de page « ESN · rapport · Confidentiel »."""
+    q = d["quarter"]
+    label = (f"Rapport trimestriel T{q[0]} {q[1]}" if q
+             else f"Rapport de pilotage du {d['start']:%d/%m/%Y} au {d['end']:%d/%m/%Y}")
+    for layout in prs.slide_layouts:
+        _remove_pictures(layout.shapes)
+        for shape in layout.shapes:
+            if shape.has_text_frame and "Confidentiel" in shape.text_frame.text:
+                _set(shape, f"{d['esn']} · {label} · Confidentiel")
+    logo = _logo_png(d)
+    if logo:
+        for slide in slides[1:]:
+            _add_logo(slide, logo, Inches(10.58), Inches(0.36), Inches(2.15), Inches(0.62), align_right=True)
 
 
 def _synthesis(slide, d):
@@ -585,6 +644,7 @@ def build_comex(d):
     """Renvoie le fichier PowerPoint (octets) du COMEX décrit par `d` (voir data.comex_data)."""
     prs = Presentation(str(TEMPLATE))
     s = list(prs.slides)
+    _brand(prs, s, d)
     _cover(s[0], d)
     _synthesis(s[1], d)
     _tickets(s[2], d)
@@ -618,7 +678,7 @@ def build_comex(d):
     for slide in prs.slides:
         _unique_ids(slide)
     prs.core_properties.title = f"COMEX — {d['end_client']} — {d['start']:%d/%m/%Y} au {d['end']:%d/%m/%Y}"
-    prs.core_properties.author = "Aptitude Support"
+    prs.core_properties.author = d["esn"]
     out = io.BytesIO()
     prs.save(out)
     return out.getvalue()

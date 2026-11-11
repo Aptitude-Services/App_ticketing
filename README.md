@@ -81,6 +81,13 @@ docker compose exec web python manage.py notify_license_expiry
 docker compose exec web python manage.py close_resolved_tickets
 ```
 
+### COMEX : PowerPoint et PDF
+
+Le COMEX (menu Rapports → COMEX) porte uniquement l'identité de l'ESN : son logo en couverture et en haut
+de chaque page, son nom en pied de page (logo SVG : son nom remplace le logo). Il se télécharge en
+PowerPoint ou en PDF ; la conversion PDF utilise LibreOffice, installé dans l'image Docker avec la police
+Montserrat du modèle (hors Docker : variable `LIBREOFFICE_BIN` vers `soffice`).
+
 ### Jours fériés : entretien annuel
 
 ```bash

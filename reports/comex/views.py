@@ -1,4 +1,4 @@
-"""Page COMEX : choix du client final et de la période, téléchargement du PowerPoint.
+"""Page COMEX : choix du client final et de la période, téléchargement en PowerPoint ou en PDF.
 
 Réservée au Super Admin et aux Managers d'Aptitude : le fichier est relu dans PowerPoint
 avant d'être remis au client.
@@ -20,10 +20,12 @@ from accounts.models import Organisation, Profile
 from ..builders import quarter_bounds
 from .data import comex_data
 from .deck import build_comex
+from .pdf import PdfUnavailable, pptx_to_pdf
 
 ALLOWED = {Profile.APTITUDE_ADMIN, Profile.APTITUDE_MANAGER}
 MAX_DAYS = 2 * 366
 PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+PDF = "application/pdf"
 
 
 def scope_choices():
@@ -77,9 +79,9 @@ def shortcuts(today):
     ]
 
 
-def _filename(end_client, start, end):
+def _filename(end_client, start, end, ext="pptx"):
     slug = re.sub(r"[^A-Za-z0-9]+", "-", end_client.name).strip("-")[:40] or "client"
-    return f"COMEX_{slug}_{start:%Y%m%d}-{end:%Y%m%d}.pptx"
+    return f"COMEX_{slug}_{start:%Y%m%d}-{end:%Y%m%d}.{ext}"
 
 
 @login_required
@@ -94,9 +96,18 @@ def comex(request):
         if form.is_valid():
             d = form.cleaned_data
             content = build_comex(comex_data(d["esn"], d["end_client"], d["start"], d["end"]))
-            response = HttpResponse(content, content_type=PPTX)
-            response["Content-Disposition"] = f'attachment; filename="{_filename(d["end_client"], d["start"], d["end"])}"'
-            return response
+            ext, mime = "pptx", PPTX
+            if request.POST.get("format") == "pdf":
+                try:
+                    content, ext, mime = pptx_to_pdf(content), "pdf", PDF
+                except PdfUnavailable:
+                    form.add_error(None, _("La conversion en PDF a échoué sur ce serveur : téléchargez le "
+                                           "PowerPoint, ou vérifiez que LibreOffice est installé."))
+            if not form.errors:
+                response = HttpResponse(content, content_type=mime)
+                name = _filename(d["end_client"], d["start"], d["end"], ext)
+                response["Content-Disposition"] = f'attachment; filename="{name}"'
+                return response
     else:
         start, end = cuts[0][1], cuts[0][2]
         try:

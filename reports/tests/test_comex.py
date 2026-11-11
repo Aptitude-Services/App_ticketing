@@ -157,3 +157,81 @@ def test_single_end_client_contract_keeps_all_tickets(w):
                     now=datetime.datetime(2026, 11, 3, 10, tzinfo=datetime.timezone.utc))
     d = comex_data(w["esn"], w["end"], *T4)
     assert d["tickets_total"] == 2 and d["excluded_shared"] == 0
+
+
+# --- Identité de l'ESN et export PDF --------------------------------------------------------------------
+
+def _png(color=(31, 111, 178)):
+    from PIL import Image
+    out = io.BytesIO()
+    Image.new("RGB", (400, 100), color).save(out, "PNG")
+    return out.getvalue()
+
+
+def _aptitude_logo():
+    from reports.comex.deck import TEMPLATE
+    prs = Presentation(str(TEMPLATE))
+    return next(sh.image.blob for sh in prs.slides[0].shapes if sh.shape_type == 13)
+
+
+def test_deck_shows_only_the_esn_logo(w):
+    import base64
+    d = comex_data(w["esn"], w["end"], *T4)
+    d["esn_logo"] = "data:image/png;base64," + base64.b64encode(_png()).decode()
+    prs, texts = _deck(build_comex(d))
+    aptitude = _aptitude_logo()
+    blobs = [sh.image.blob for slide in prs.slides for sh in slide.shapes if sh.shape_type == 13]
+    blobs += [sh.image.blob for layout in prs.slide_layouts for sh in layout.shapes if sh.shape_type == 13]
+    assert aptitude not in blobs, "plus aucun logo Aptitude"
+    for slide in prs.slides:
+        assert any(sh.name == "Logo ESN" for sh in slide.shapes), "logo de l'ESN sur chaque page"
+    footers = [sh.text_frame.text for layout in prs.slide_layouts for sh in layout.shapes
+               if sh.has_text_frame and "Confidentiel" in sh.text_frame.text]
+    assert footers == ["Hudson · Rapport trimestriel T4 2026 · Confidentiel"]
+    assert prs.core_properties.author == "Hudson"
+
+
+def test_deck_without_logo_shows_esn_name(w):
+    d = comex_data(w["esn"], w["end"], *T4)
+    d["esn_logo"] = ""
+    prs, texts = _deck(build_comex(d))
+    assert "Hudson" in texts[0]
+    assert _aptitude_logo() not in [sh.image.blob for sh in prs.slides[0].shapes if sh.shape_type == 13]
+
+
+def test_comex_pdf_download(w, monkeypatch):
+    import reports.comex.views as V
+    seen = []
+    monkeypatch.setattr(V, "pptx_to_pdf", lambda content: seen.append(content[:2]) or b"%PDF-1.7 fake")
+    c = w["client"]
+    c.force_login(w["boss"])
+    resp = c.post(reverse("comex"), {"scope": f"{w['esn'].pk}:{w['end'].pk}", "start": "2026-10-01",
+                                     "end": "2026-12-31", "format": "pdf"})
+    assert resp["Content-Type"] == "application/pdf" and resp.content.startswith(b"%PDF")
+    assert 'filename="COMEX_Banque-Lagune_20261001-20261231.pdf"' in resp["Content-Disposition"]
+    assert seen == [b"PK"], "le PDF est converti depuis le PowerPoint généré"
+
+
+def test_comex_pdf_failure_is_explained(w, monkeypatch):
+    import reports.comex.pdf as P
+    monkeypatch.setattr(P, "soffice_path", lambda: None)
+    c = w["client"]
+    c.force_login(w["boss"])
+    resp = c.post(reverse("comex"), {"scope": f"{w['esn'].pk}:{w['end'].pk}", "start": "2026-10-01",
+                                     "end": "2026-12-31", "format": "pdf"})
+    assert resp.status_code == 200 and "conversion en PDF a échoué" in resp.content.decode()
+
+
+def test_pdf_converter_calls_libreoffice(monkeypatch, tmp_path):
+    import subprocess
+    import reports.comex.pdf as P
+    monkeypatch.setattr(P, "soffice_path", lambda: "soffice")
+
+    def fake_run(cmd, **kw):
+        outdir = cmd[cmd.index("--outdir") + 1]
+        assert "--headless" in cmd and cmd[cmd.index("--convert-to") + 1] == "pdf"
+        (__import__("pathlib").Path(outdir) / "comex.pdf").write_bytes(b"%PDF-ok")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(P.subprocess, "run", fake_run)
+    assert P.pptx_to_pdf(b"PK fake") == b"%PDF-ok"

@@ -11,7 +11,10 @@
       <span class="help">{% translate "Raccourcis :" %}
       {% for label, start, end in shortcuts %}<a href="?du={{ start|date:'Y-m-d' }}&amp;au={{ end|date:'Y-m-d' }}{% if scope %}&amp;perimetre={{ scope|urlencode }}{% endif %}">{{ label }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</span>
     </div>
-    <div class="form-actions"><button class="btn btn-primary" type="submit">{% include "icons/download.svg" %}{% translate "Télécharger le PowerPoint" %}</button></div>
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit" name="format" value="pptx">{% include "icons/download.svg" %}{% translate "Télécharger le PowerPoint" %}</button>
+      <button class="btn btn-secondary" type="submit" name="format" value="pdf">{% include "icons/download.svg" %}{% translate "Télécharger en PDF" %}</button>
+    </div>
   </form>
 </div></section>
 {% endblock %}

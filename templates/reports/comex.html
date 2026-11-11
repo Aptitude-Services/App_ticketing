@@ -13,8 +13,9 @@
     </div>
     <div class="form-actions">
       <button class="btn btn-primary" type="submit" name="format" value="pptx">{% include "icons/download.svg" %}{% translate "Télécharger le PowerPoint" %}</button>
-      <button class="btn btn-secondary" type="submit" name="format" value="pdf">{% include "icons/download.svg" %}{% translate "Télécharger en PDF" %}</button>
+      {% if pdf_available %}<button class="btn btn-secondary" type="submit" name="format" value="pdf">{% include "icons/download.svg" %}{% translate "Télécharger en PDF" %}</button>{% endif %}
     </div>
+    {% if not pdf_available %}<p class="help">{% translate "Version PDF : ouvrez le PowerPoint, puis Fichier → Enregistrer sous → PDF." %}</p>{% endif %}
   </form>
 </div></section>
 {% endblock %}

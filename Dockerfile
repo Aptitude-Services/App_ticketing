@@ -3,10 +3,9 @@ FROM python:3.13-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 WORKDIR /app
 
-# LibreOffice (sans interface) et la police du modèle : export du COMEX en PDF.
-# INSTALL_LIBREOFFICE=0 : image sans PDF (le PowerPoint reste disponible), utile si le
-# serveur ne peut pas télécharger les paquets Debian.
-ARG INSTALL_LIBREOFFICE=1
+# Facultatif (INSTALL_LIBREOFFICE=1) : LibreOffice sans interface et la police du modèle,
+# pour l'export PDF du COMEX depuis le site. Par défaut, image sans LibreOffice.
+ARG INSTALL_LIBREOFFICE=0
 RUN if [ "$INSTALL_LIBREOFFICE" = "1" ]; then \
         apt-get update \
         && apt-get install -y --no-install-recommends libreoffice-impress fonts-montserrat fonts-dejavu-core \

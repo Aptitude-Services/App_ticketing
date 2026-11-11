@@ -6,9 +6,10 @@ services:
     build:
       context: .
       args:
-        # 0 : image sans LibreOffice (pas d'export PDF du COMEX) si le serveur ne peut pas
-        # télécharger les paquets Debian. Réglable dans .env : INSTALL_LIBREOFFICE=0
-        INSTALL_LIBREOFFICE: ${INSTALL_LIBREOFFICE:-1}
+        # Par défaut, pas de LibreOffice : le COMEX se télécharge en PowerPoint (PDF via
+        # PowerPoint, Enregistrer sous). INSTALL_LIBREOFFICE=1 dans .env ajoute l'export PDF
+        # direct depuis le site (environ 400 Mo, paquets Debian à télécharger).
+        INSTALL_LIBREOFFICE: ${INSTALL_LIBREOFFICE:-0}
     image: aptitude-support-local:latest
     restart: unless-stopped
     # Réglages email facultatifs (vrai envoi) : voir .env.local

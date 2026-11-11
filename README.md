@@ -85,8 +85,11 @@ docker compose exec web python manage.py close_resolved_tickets
 
 Le COMEX (menu Rapports → COMEX) porte uniquement l'identité de l'ESN : son logo en couverture et en haut
 de chaque page, son nom en pied de page (logo SVG : son nom remplace le logo). Il se télécharge en
-PowerPoint ou en PDF ; la conversion PDF utilise LibreOffice, installé dans l'image Docker avec la police
-Montserrat du modèle (hors Docker : variable `LIBREOFFICE_BIN` vers `soffice`).
+PowerPoint ; pour un PDF, l'ouvrir puis *Fichier → Enregistrer sous → PDF*.
+
+Option : `INSTALL_LIBREOFFICE=1` dans `.env` puis `docker compose up -d --build` installe LibreOffice
+(environ 400 Mo, paquets Debian téléchargés à la construction) et ajoute le bouton « Télécharger en PDF »
+sur la page COMEX. Hors Docker : variable `LIBREOFFICE_BIN` vers `soffice`.
 
 ### Jours fériés : entretien annuel
 

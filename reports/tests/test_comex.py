@@ -235,3 +235,15 @@ def test_pdf_converter_calls_libreoffice(monkeypatch, tmp_path):
 
     monkeypatch.setattr(P.subprocess, "run", fake_run)
     assert P.pptx_to_pdf(b"PK fake") == b"%PDF-ok"
+
+
+@pytest.mark.parametrize("installed", [False, True])
+def test_pdf_button_only_when_libreoffice_is_installed(w, monkeypatch, installed):
+    import reports.comex.views as V
+    monkeypatch.setattr(V, "soffice_path", lambda: "soffice" if installed else None)
+    c = w["client"]
+    c.force_login(w["boss"])
+    page = c.get(reverse("comex")).content.decode()
+    assert "Télécharger le PowerPoint" in page
+    assert ("Télécharger en PDF" in page) is installed
+    assert ("Enregistrer sous → PDF" in page) is not installed

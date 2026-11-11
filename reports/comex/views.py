@@ -20,7 +20,7 @@ from accounts.models import Organisation, Profile
 from ..builders import quarter_bounds
 from .data import comex_data
 from .deck import build_comex
-from .pdf import PdfUnavailable, pptx_to_pdf
+from .pdf import PdfUnavailable, pptx_to_pdf, soffice_path
 
 ALLOWED = {Profile.APTITUDE_ADMIN, Profile.APTITUDE_MANAGER}
 MAX_DAYS = 2 * 366
@@ -116,5 +116,5 @@ def comex(request):
         except ValueError:
             pass
         form = ComexForm(initial={"start": start, "end": end, "scope": request.GET.get("perimetre", "")})
-    return render(request, "reports/comex.html", {"form": form, "shortcuts": cuts,
+    return render(request, "reports/comex.html", {"form": form, "shortcuts": cuts, "pdf_available": bool(soffice_path()),
                                                    "scope": request.POST.get("scope") or request.GET.get("perimetre", "")})

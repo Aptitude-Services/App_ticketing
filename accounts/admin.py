@@ -124,7 +124,8 @@ class OrganisationAdmin(admin.ModelAdmin):
 
     class Media:
         css = {"all": (versioned("css/admin_features.css"),)}
-        js = (versioned("js/organisation_admin.js"), versioned("js/organisation_tree.js"))
+        js = (versioned("js/organisation_admin.js"), versioned("js/organisation_tree.js"),
+              versioned("js/color_picker.js"))
 
     # Vue par ESN : sans recherche ni filtre de type / secteur, les clients finaux rattachés
     # à une ESN ne sont pas listés au premier niveau ; ils se déplient sous leur ESN.

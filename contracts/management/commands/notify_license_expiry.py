@@ -4,8 +4,8 @@ from contracts.notifications import notify_expiring_licenses
 
 
 class Command(BaseCommand):
-    help = ("Prévient les ESN des licences qui expirent (60, 30, 15, 7 jours avant, puis le jour même). "
-            "À planifier une fois par jour.")
+    help = ("Prévient le client ESN, le client final et les managers des licences qui expirent "
+            "(5 mois, 3 mois puis 1 mois avant). À planifier une fois par jour.")
 
     def handle(self, *args, **options):
         emails, solutions = notify_expiring_licenses()

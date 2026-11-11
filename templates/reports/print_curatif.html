@@ -1,7 +1,6 @@
 {% extends "reports/_doc_base.html" %}{% load i18n report_tags %}
 {% block cover %}{% with t=auto.ticket %}
 <div class="hero">
-  <div class="kicker">{% translate "Rapport d'intervention · Maintenance curative" %}</div>
   <h1>{{ m.title|default:report.title }}</h1>
   <div class="sub">{{ m.site|default:"" }}{% if m.site and t.solutions %} · {% endif %}{{ t.solutions|join:", " }}</div>
   <div class="chips">
@@ -23,7 +22,7 @@
       <div class="field"><label>{% translate "Signalement" %}</label><div class="box">{{ t.created_at|dt }}</div></div>
       <div class="field"><label>{% translate "Intervention" %}</label><div class="box">{{ t.acknowledged_at|dt }}</div></div>
     </div>
-    <div class="field"><label>{% translate "Technicien(s) intervenant(s)" %}</label><div class="box">{{ t.assignee|default:report.author.display_name }}{% if m.technician_title %}, {{ m.technician_title }}{% endif %}<br><small>{% translate "Niveau de traitement" %} : {{ m.level|default:"—" }}</small></div></div>
+    <div class="field"><label>{% translate "Technicien(s) intervenant(s)" %}</label><div class="box">{{ t.assignee|default:report.author.display_name }}{% if auto.technician_title %}, {{ auto.technician_title }}{% endif %}<br><small>{% translate "Niveau de traitement" %} : {{ m.level|default:"—" }}</small></div></div>
   </div>
   <div class="field" style="margin-top:10px"><label>{% translate "Équipement ou service concerné" %}</label><div class="box">{% if t.solutions %}<div class="tags">{% for s in t.solutions %}<span class="tag">{{ s }}</span>{% endfor %}</div>{% else %}—{% endif %}</div></div>
   <div class="grid-3" style="margin-top:10px">

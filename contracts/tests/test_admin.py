@@ -21,6 +21,8 @@ def setup(rf):
     users = {
         "admin": admin_user,
         "engineer": User.objects.create_user("ing@aptitudes.net", organisation=apt, profile=Profile.TECH_ASSIGNED),
+        "engineer_all": User.objects.create_user("ing2@aptitudes.net", organisation=apt, profile=Profile.TECH_ALL),
+        "manager": User.objects.create_user("mgr@aptitudes.net", organisation=apt, profile=Profile.APTITUDE_MANAGER),
         "client": User.objects.create_user("rw@hudson.ci", organisation=client, profile=Profile.CLIENT_RW),
         "stranger": User.objects.create_user("rw@autre.ci", organisation=other, profile=Profile.CLIENT_RW),
     }
@@ -52,7 +54,7 @@ def _validate(request, data):
     return contract, formset
 
 
-@pytest.mark.parametrize("who", ["admin", "stranger"])
+@pytest.mark.parametrize("who", ["admin", "stranger", "client", "manager"])
 def test_forbidden_access_is_a_form_error_not_a_crash(setup, who):
     client, users, request = setup
     contract, formset = _validate(request, _post(client, users[who]))
@@ -90,18 +92,34 @@ def test_formula_criteria_never_saved_as_supplements(setup):
     assert [f.pk for f in form.cleaned_data["extra_features"]] == [extra.pk]
 
 
+def test_derogations_hidden_on_contract_creation(setup):
+    """Le bloc « Dérogations (exceptionnel) » n'est plus proposé à la création d'un contrat."""
+    _client, _users, request = setup
+    admin = site._registry[Contract]
+    fields = [f for _title, opts in admin.get_fieldsets(request) for f in opts["fields"]]
+    assert "excluded_features" not in fields
+    titles = [str(title) for title, _opts in admin.get_fieldsets(request)]
+    assert "Dérogations (exceptionnel)" not in titles
+
+
 def test_only_formula_criteria_can_be_removed(setup):
+    """Un contrat qui porte déjà des dérogations garde le bloc pour pouvoir les retirer."""
     client, _users, request = setup
     admin = site._registry[Contract]
     formula = ContractType.objects.get(name="STARTER")
+    existing = Contract.objects.create(reference="HUD-777", title="x", client=client, contract_type=formula,
+                                       start_date=datetime.date(2026, 1, 1))
+    existing.excluded_features.add(formula.features.first())
+    assert "excluded_features" in admin.get_form(request, existing).base_fields
+    formula = ContractType.objects.get(name="STARTER")
     outside = ServiceFeature.objects.filter(is_active=True).exclude(pk__in=formula.features.all()).first()
     data = {**_post(client, _users["client"]), "contract_type": formula.pk, "excluded_features": [outside.pk]}
-    form = admin.get_form(request)(data)
+    form = admin.get_form(request, existing)(data, instance=existing)
     assert not form.is_valid()
     assert "excluded_features" in form.errors
 
     data["excluded_features"] = [formula.features.first().pk]
-    assert admin.get_form(request)(data).is_valid()
+    assert admin.get_form(request, existing)(data, instance=existing).is_valid()
 
 
 def test_formula_form_lists_criteria_grouped_by_category(setup):
@@ -114,7 +132,7 @@ def test_formula_form_lists_criteria_grouped_by_category(setup):
 
 
 @pytest.mark.parametrize("model, fields", [(ContractType, ["features"]),
-                                           (Contract, ["extra_features", "excluded_features"])])
+                                           (Contract, ["extra_features"])])
 def test_no_add_related_button_on_criteria(setup, model, fields):
     """Pas de « + » : les critères se créent dans le menu « Critères de service »."""
     _client, _users, request = setup
@@ -174,7 +192,7 @@ def test_category_options_have_hover_help(setup):
     assert 'value="software" title="' in html and 'value="other" title="' in html
 
 
-@pytest.mark.parametrize("who", ["engineer", "client"])
+@pytest.mark.parametrize("who", ["engineer", "engineer_all"])
 def test_allowed_access_is_saved_with_the_new_contract(setup, who):
     client, users, request = setup
     contract, formset = _validate(request, _post(client, users[who]))
@@ -213,3 +231,27 @@ def test_formula_form_has_no_commercial_block(setup):
     form = site._registry[ContractType].get_form(request)()
     for name in ("positioning", "target_clients", "scope", "billing_mode", "commitment_period"):
         assert name not in form.fields
+
+
+def test_assignment_list_offers_only_engineers(setup):
+    """Affectation au contrat : seuls les ingénieurs sont proposés."""
+    _client, users, request = setup
+    admin = site._registry[Contract]
+    formset_class = next(f for f in admin.get_formsets_with_inlines(request) if f[1].model is ContractAccess)[0]
+    offered = set(formset_class().empty_form.fields["user"].queryset)
+    assert offered == {users["engineer"], users["engineer_all"]}
+
+
+def test_add_another_labels_are_explicit(setup, client, monkeypatch):
+    from accounts.middleware import MFARequiredMiddleware
+    monkeypatch.setattr(MFARequiredMiddleware, "__call__", lambda self, request: self.get_response(request))
+    users = setup[1]
+    client.force_login(users["admin"])
+    from django.urls import reverse
+    resp = client.get(reverse("admin:contracts_contract_add"))
+    assert resp.status_code == 200
+    html = resp.content.decode()
+    # Libellés du lien d'ajout, en JSON dans un attribut (le « é » y est échappé).
+    assert "Ajouter une solution suppl" in html
+    assert "Ajouter une affectation suppl" in html
+    assert "Exporter modèle Excel" in html

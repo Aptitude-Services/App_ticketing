@@ -3,7 +3,7 @@ import mimetypes
 
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.core.exceptions import ValidationError
-from django.core.validators import FileExtensionValidator
+from django.core.validators import FileExtensionValidator, RegexValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -88,6 +88,11 @@ class Organisation(models.Model):
         _("logo"), upload_to="logos/", blank=True,
         validators=[FileExtensionValidator(["png", "jpg", "jpeg", "svg", "webp", "gif"])],
         help_text=_("Logo de l'ESN, repris en tête des rapports envoyés à ses clients finaux (PNG, JPG, SVG)."),
+    )
+    brand_color = models.CharField(
+        _("couleur de l'entreprise"), max_length=7, default="#3B4652", blank=True,
+        validators=[RegexValidator(r"^#[0-9A-Fa-f]{6}$", _("Couleur au format #RRVVBB, ex. #1F6FB2."))],
+        help_text=_("Couleur principale des rapports envoyés à ses clients finaux : choisissez-la d'après le logo."),
     )
     end_clients = models.ManyToManyField(
         "self", symmetrical=False, blank=True, related_name="partner_esns",
@@ -229,6 +234,10 @@ class User(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(_("prénom"), max_length=100, blank=True)
     last_name = models.CharField(_("nom"), max_length=100, blank=True)
     phone = models.CharField(_("téléphone"), max_length=30, blank=True)
+    job_title = models.CharField(
+        _("fonction"), max_length=120, blank=True,
+        help_text=_("Ex. Ingénieur support N2. Reprise automatiquement dans les rapports d'intervention."),
+    )
     organisation = models.ForeignKey(
         Organisation, on_delete=models.PROTECT, related_name="users", verbose_name=_("organisation")
     )
@@ -272,6 +281,15 @@ class User(AbstractBaseUser, PermissionsMixin):
     @property
     def display_name(self):
         return self.get_full_name() or self.email.split("@")[0]
+
+    @property
+    def title_label(self):
+        """Fonction affichée dans les rapports : celle de la fiche, à défaut le profil."""
+        if self.job_title:
+            return self.job_title
+        defaults = {Profile.TECH_ALL: _("Ingénieur support"), Profile.TECH_ASSIGNED: _("Ingénieur support"),
+                    Profile.APTITUDE_MANAGER: _("Manager support"), Profile.APTITUDE_ADMIN: _("Responsable support")}
+        return str(defaults.get(self.profile, ""))
 
     @property
     def initials(self):

@@ -10,7 +10,7 @@ from django.utils.translation import gettext_lazy as _
 from core.admin_cascade import SuperAdminCascadeDeleteMixin
 from core.assets import versioned
 
-from accounts.models import Organisation
+from accounts.models import Organisation, Profile, User
 from .models import Contract, ContractAccess, ContractType, LicenseNotice, ServiceFeature, Solution
 from .widgets import FeatureChecklist
 
@@ -215,6 +215,7 @@ def category_help():
 class SolutionInline(admin.TabularInline):
     model = Solution
     extra = 0
+    add_another_label = _("Ajouter une solution supplémentaire")
     # Ajoute au-dessus du tableau l'import Excel et le modèle de fichier à télécharger.
     template = "admin/contracts/contract/solution_inline.html"
     fields = ("category", "vendor", "model", "name", "serial_number", "location",
@@ -227,10 +228,31 @@ class SolutionInline(admin.TabularInline):
         return super().formfield_for_choice_field(db_field, request, **kwargs)
 
 
+ENGINEER_PROFILES = (Profile.TECH_ALL, Profile.TECH_ASSIGNED)
+
+
 class ContractAccessInline(admin.TabularInline):
+    """Ingénieurs qui traitent le contrat. Les Engineers voient déjà tous les contrats :
+    l'affectation désigne qui s'en occupe. La liste ne propose que des ingénieurs actifs."""
+
     model = ContractAccess
     extra = 0
-    autocomplete_fields = ("user",)
+    add_another_label = _("Ajouter une affectation supplémentaire")
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "user":
+            kwargs["queryset"] = User.objects.filter(profile__in=ENGINEER_PROFILES, is_active=True).order_by(
+                "first_name", "last_name")
+            kwargs["label"] = _("Ingénieur")
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        # Une simple liste d'ingénieurs : pas de boutons créer / modifier / voir l'utilisateur.
+        field = super().formfield_for_dbfield(db_field, request, **kwargs)
+        if db_field.name == "user" and hasattr(field.widget, "can_add_related"):
+            field.widget.can_add_related = field.widget.can_change_related = False
+            field.widget.can_view_related = field.widget.can_delete_related = False
+        return field
 
 
 class ContractForm(forms.ModelForm):
@@ -292,7 +314,8 @@ class ContractForm(forms.ModelForm):
             extra_qs = extra_qs | self.instance.extra_features.all()
             excluded_qs = excluded_qs | self.instance.excluded_features.all()
         self.fields["extra_features"].queryset = extra_qs.distinct()
-        self.fields["excluded_features"].queryset = excluded_qs.distinct()
+        if "excluded_features" in self.fields:
+            self.fields["excluded_features"].queryset = excluded_qs.distinct()
         widget = self.fields["extra_features"].widget
         widget = getattr(widget, "widget", widget)  # l'admin l'enveloppe (bouton « + »)
         widget.included = self._formula_ids(contract_type)
@@ -397,7 +420,7 @@ class ContractAdmin(SuperAdminCascadeDeleteMixin, admin.ModelAdmin):
         from tickets.models import Ticket
         return [Report.objects.filter(contract__in=objs), Ticket.objects.filter(contract__in=objs)]
 
-    @admin.action(description=_("Notifier l'ESN : licences expirant sous 60 jours"))
+    @admin.action(description=_("Notifier l'ESN : licences expirant sous 5 mois"))
     def notify_esn_licenses(self, request, queryset):
         from .notifications import expiring_solutions
         _notify_esn(self, request, expiring_solutions().filter(contract__in=queryset))
@@ -413,7 +436,24 @@ class ContractAdmin(SuperAdminCascadeDeleteMixin, admin.ModelAdmin):
             main = dict(fieldsets[0][1])
             main["fields"] = tuple(f for f in main["fields"] if f != "reference")
             fieldsets = ((fieldsets[0][0], main), *fieldsets[1:])
+        if obj is None or not obj.excluded_features.exists():
+            # Les dérogations ne sont plus proposées : seul un contrat qui en porte déjà
+            # garde le bloc, pour pouvoir les retirer.
+            fieldsets = tuple(fs for fs in fieldsets if "excluded_features" not in fs[1]["fields"])
         return fieldsets
+
+    def get_inline_formsets(self, request, formsets, inline_instances, obj=None):
+        """Libellé du lien d'ajout de ligne : « Ajouter une solution supplémentaire » plutôt
+        que le « Ajouter un objet Solution supplémentaire » générique de Django."""
+        inline_formsets = super().get_inline_formsets(request, formsets, inline_instances, obj)
+        for inline_formset in inline_formsets:
+            label = getattr(inline_formset.opts, "add_another_label", None)
+            if label:
+                data = json.loads(inline_formset.inline_formset_data())
+                data["options"]["addText"] = str(label)
+                payload = json.dumps(data)
+                inline_formset.inline_formset_data = lambda payload=payload: payload
+        return inline_formsets
 
     def save_model(self, request, obj, form, change):
         if not obj.reference:

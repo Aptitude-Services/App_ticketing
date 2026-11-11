@@ -55,7 +55,7 @@ class OrganisationForm(forms.ModelForm):
         model = Organisation
         # Le code (HUD, BLAG…) est calculé automatiquement depuis le nom : pas de saisie.
         exclude = ["code"]
-        widgets = {"logo": LogoInput}
+        widgets = {"logo": LogoInput, "brand_color": forms.TextInput(attrs={"type": "color"})}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -68,6 +68,9 @@ class OrganisationForm(forms.ModelForm):
         # « Maintenez appuyé Ctrl… » que l'admin ajoute aux listes multiples).
         for field in self.fields.values():
             field.help_text = ""
+        if "brand_color" in self.fields:
+            self.fields["brand_color"].help_text = _("Couleur des titres, bandeaux et graphiques des rapports : "
+                                                     "choisissez-la d'après le logo pour garder l'identité de l'ESN.")
         if "logo" in self.fields:
             self.fields["logo"].label = _("Logo de l'ESN")
             self.fields["logo"].help_text = _("PNG, JPG ou SVG, fond transparent de préférence. "
@@ -84,6 +87,9 @@ class OrganisationForm(forms.ModelForm):
         # Le secteur d'activité ne concerne que le client final.
         if kind != Organisation.Kind.END_CLIENT:
             data["activity_sector"] = ""
+        # Couleur vide (champ masqué ou effacé) : la couleur neutre par défaut.
+        if not data.get("brand_color"):
+            data["brand_color"] = Organisation._meta.get_field("brand_color").default
         # Le logo ne concerne que l'ESN (il figure sur les rapports de ses clients finaux).
         if kind != Organisation.Kind.CLIENT and "logo" in data:
             data["logo"] = False if self.instance.logo else None
@@ -112,7 +118,7 @@ class OrganisationAdmin(admin.ModelAdmin):
     list_filter = ("kind", "activity_sector", "is_active")
     search_fields = ("name", "email_domains")
     filter_horizontal = ("end_clients",)
-    fields = ("name", "kind", "activity_sector", "logo", "end_clients", "partner_esns", "is_active", "email_domains")
+    fields = ("name", "kind", "activity_sector", "logo", "brand_color", "end_clients", "partner_esns", "is_active", "email_domains")
 
     class Media:
         css = {"all": (versioned("css/admin_features.css"),)}
@@ -132,7 +138,7 @@ class OrganisationAdmin(admin.ModelAdmin):
         fields = list(super().get_fields(request, obj))
         if self._is_end_client_popup(request):
             # L'ESN d'origine reçoit le nouveau client : pas de rattachements ici.
-            fields = [f for f in fields if f not in ("end_clients", "partner_esns", "logo")]
+            fields = [f for f in fields if f not in ("end_clients", "partner_esns", "logo", "brand_color")]
         return fields
 
     def get_form(self, request, obj=None, **kwargs):
@@ -217,7 +223,7 @@ class UserAdmin(BaseUserAdmin):
     readonly_fields = ("last_login", "date_joined")
     fieldsets = (
         (None, {"fields": ("email", "password")}),
-        (_("Identité"), {"fields": ("first_name", "last_name", "phone", "language")}),
+        (_("Identité"), {"fields": ("first_name", "last_name", "job_title", "phone", "language")}),
         (_("Rattachement et droits"), {"fields": ("organisation", "profile", "manager", "all_contracts", "is_active")}),
         (_("Dates"), {"fields": ("last_login", "date_joined")}),
     )

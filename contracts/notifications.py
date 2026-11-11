@@ -1,11 +1,12 @@
-"""Alertes d'expiration de licence envoyées au client ESN.
+"""Alertes d'expiration de licence.
 
-Deux déclencheurs :
+Destinataires : le client ESN, le client final couvert par le contrat et les managers
+d'Aptitude. Deux déclencheurs :
 - automatique : la commande ``notify_license_expiry`` (tâche planifiée quotidienne)
-  prévient l'ESN à 60, 30, 15 et 7 jours de l'échéance, puis le jour même ;
+  envoie trois alertes, 5 mois, 3 mois puis 1 mois avant l'échéance ;
 - manuel : l'action « Notifier l'ESN » de l'administration (solutions ou contrats).
 
-Un seul email par ESN et par envoi, qui liste toutes ses licences concernées.
+Un email par ESN et par client final : chaque client final ne voit que ses licences.
 """
 import datetime
 from collections import defaultdict
@@ -20,8 +21,11 @@ from accounts.models import Profile, User
 
 from .models import Contract, LicenseNotice, Solution
 
-THRESHOLDS = (60, 30, 15, 7, 0)
-HORIZON = max(THRESHOLDS)
+# Alertes à 5, 3 puis 1 mois de l'échéance (mois calendaires). Le seuil tracé sur
+# LicenseNotice est exprimé en jours : 150, 90 et 30.
+THRESHOLD_MONTHS = (5, 3, 1)
+THRESHOLDS = tuple(m * 30 for m in THRESHOLD_MONTHS)
+HORIZON = 155  # jours : couvre les 5 mois calendaires les plus longs
 
 
 class LicenseMailError(Exception):
@@ -39,10 +43,33 @@ def esn_recipients(esn):
     return admins or [u.email for u in users]
 
 
-def threshold_for(days_left):
-    """Plus petit seuil atteint : 45 jours restants → seuil 60 ; 10 jours → seuil 15."""
-    reached = [t for t in THRESHOLDS if days_left <= t]
-    return min(reached) if reached else None
+def end_client_recipients(contract):
+    """Administrateurs des clients finaux du contrat ; à défaut, leurs utilisateurs actifs."""
+    emails = []
+    for end in contract.end_clients.all():
+        users = User.objects.filter(organisation=end, is_active=True)
+        emails += [u.email for u in users.filter(profile=Profile.CLIENT_ADMIN)] or [u.email for u in users]
+    return emails
+
+
+def manager_recipients():
+    return list(User.objects.filter(profile=Profile.APTITUDE_MANAGER, is_active=True).values_list("email", flat=True))
+
+
+def months_before(day, months):
+    """Même jour, `months` mois plus tôt (borné à la fin du mois : 31/07 - 5 mois → 28/02)."""
+    import calendar
+    y, m = divmod(day.year * 12 + day.month - 1 - months, 12)
+    m += 1
+    return datetime.date(y, m, min(day.day, calendar.monthrange(y, m)[1]))
+
+
+def threshold_for(license_end, today):
+    """Plus proche alerte atteinte, en jours (150, 90 ou 30) ; None avant les 5 mois ou après l'échéance."""
+    if license_end < today:
+        return None
+    reached = [m for m in THRESHOLD_MONTHS if today >= months_before(license_end, m)]
+    return min(reached) * 30 if reached else None
 
 
 def expiring_solutions(today=None, horizon=HORIZON):
@@ -59,6 +86,15 @@ def _contract_url(contract):
     return f"{settings.SITE_URL.rstrip('/')}{path}" if settings.SITE_URL else path
 
 
+def _when(days):
+    if days == 0:
+        return _("aujourd'hui")
+    if days >= 28:
+        months = round(days / 30.4)
+        return _("dans environ %(m)d mois (%(d)d jours)") % {"m": months, "d": days}
+    return _("dans %(d)d jour(s)") % {"d": days}
+
+
 def _body(esn, solutions, today):
     lines = [
         _("Bonjour,"),
@@ -69,15 +105,14 @@ def _body(esn, solutions, today):
     for sol in solutions:
         contract = sol.contract
         ends = ", ".join(e.name for e in contract.end_clients.all()) or "—"
-        days = (sol.license_end - today).days
-        when = _("aujourd'hui") if days == 0 else _("dans %(d)d jour(s)") % {"d": days}
+        when = _when((sol.license_end - today).days)
         lines.append(f"- {sol.name} ({sol.category_label}) — {_('fin de licence le')} "
                      f"{sol.license_end:%d/%m/%Y}, {when}")
         lines.append(f"  {_('Contrat')} {contract.reference} · {_('Client final')} : {ends}")
         lines.append(f"  {_contract_url(contract)}")
     lines += [
         "",
-        _("Pensez à engager le renouvellement auprès de vos clients finaux pour éviter toute interruption de service."),
+        _("Pensez à engager le renouvellement pour éviter toute interruption de service."),
         "",
         _("L'équipe Aptitude Support"),
     ]
@@ -85,12 +120,28 @@ def _body(esn, solutions, today):
 
 
 def send_license_notice(esn, solutions, actor=None, threshold=0, manual=False, today=None):
-    """Envoie l'alerte à l'ESN et la trace. Renvoie la liste des destinataires (vide si personne)."""
+    """Envoie l'alerte au client ESN, aux clients finaux concernés et aux managers, puis la trace.
+
+    Un email par groupe de clients finaux : un client final ne reçoit que ses licences.
+    Renvoie la liste des destinataires (vide si personne). Lève LicenseMailError si un envoi échoue."""
     today = today or timezone.localdate()
+    by_end = defaultdict(list)
+    for sol in solutions:
+        key = tuple(sorted(e.pk for e in sol.contract.end_clients.all()))
+        by_end[key].append(sol)
+    sent_to = []
+    for group in by_end.values():
+        sent_to += _send_group(esn, group, actor, threshold, manual, today)
+    return list(dict.fromkeys(sent_to))
+
+
+def _send_group(esn, solutions, actor, threshold, manual, today):
     solutions = list(solutions)
     recipients = esn_recipients(esn)
     if not solutions or not recipients:
         return []
+    recipients = list(dict.fromkeys(recipients + end_client_recipients(solutions[0].contract)
+                                    + manager_recipients()))
     soonest = min(s.license_end for s in solutions)
     subject = _("[Aptitude] %(n)d licence(s) expirent bientôt — première échéance le %(d)s") % {
         "n": len(solutions), "d": soonest.strftime("%d/%m/%Y")}
@@ -115,7 +166,7 @@ def notify_expiring_licenses(today=None):
     today = today or timezone.localdate()
     by_esn = defaultdict(list)
     for sol in expiring_solutions(today):
-        threshold = threshold_for((sol.license_end - today).days)
+        threshold = threshold_for(sol.license_end, today)
         if threshold is None:
             continue
         already = LicenseNotice.objects.filter(solution=sol, license_end=sol.license_end, manual=False,

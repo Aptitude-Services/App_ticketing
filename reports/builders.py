@@ -258,13 +258,17 @@ def period_reports(contract, end_client, start, end, kind):
 
 
 def quarterly_info(contract, end_client, start, end):
+    """Synthèse du trimestre, construite uniquement à partir des rapports d'intervention
+    validés de la période : les tickets pris en compte sont ceux des rapports curatifs."""
     from tickets.models import OPEN_STATUSES, Status, Ticket
 
     from .models import Report
 
     sla = contract.sla
-    tickets = list(Ticket.objects.filter(contract=contract, created_at__date__gte=start, created_at__date__lte=end)
-                   .prefetch_related("solutions"))
+    preventives = period_reports(contract, end_client, start, end, Report.Kind.PREVENTIVE)
+    curatives = period_reports(contract, end_client, start, end, Report.Kind.CURATIVE)
+    ticket_ids = {r.ticket_id for r in curatives if r.ticket_id}
+    tickets = list(Ticket.objects.filter(pk__in=ticket_ids).order_by("created_at").prefetch_related("solutions"))
     resolved_statuses = {Status.RESOLVED, Status.CLOSED}
     resolved = [t for t in tickets if t.status in resolved_statuses]
 
@@ -308,9 +312,6 @@ def quarterly_info(contract, end_client, start, end):
     eq_peak = max([1] + [n for _e, n in top_eq])
 
     # Rapports de la période
-    preventives = period_reports(contract, end_client, start, end, Report.Kind.PREVENTIVE)
-    curatives = period_reports(contract, end_client, start, end, Report.Kind.CURATIVE)
-
     visits, health = [], []
     total_controls = Counter()
     anomalies, pending = 0, []

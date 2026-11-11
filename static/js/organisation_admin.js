@@ -14,6 +14,7 @@
   var rows = {
     sector: document.querySelector(".field-activity_sector"),
     logo: document.querySelector(".field-logo"),
+    color: document.querySelector(".field-brand_color"),
     endClients: document.querySelector(".field-end_clients"),
     partnerEsns: document.querySelector(".field-partner_esns"),
   };
@@ -26,6 +27,7 @@
     var value = kind.value;
     show(rows.sector, value === "end_client");
     show(rows.logo, value === "client");
+    show(rows.color, value === "client");
     show(rows.endClients, value === "client");
     show(rows.partnerEsns, value === "end_client");
   }

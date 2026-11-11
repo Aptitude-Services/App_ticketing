@@ -343,8 +343,8 @@ class ContractAccess(models.Model):
             return
         if self.user.is_client and not self.user.organisation.relates_to(contract):
             raise ValidationError(_("Un utilisateur client ne peut accéder qu'aux contrats de son organisation."))
-        if self.user.is_aptitude and self.user.profile != Profile.TECH_ASSIGNED:
-            raise ValidationError(_("Seuls les profils « Engineer (restricted) » reçoivent des affectations."))
+        if self.user.is_aptitude and self.user.profile not in (Profile.TECH_ALL, Profile.TECH_ASSIGNED):
+            raise ValidationError(_("Seuls les ingénieurs (profils « Engineer ») reçoivent des affectations."))
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -355,7 +355,7 @@ class LicenseNotice(models.Model):
     """Trace d'une alerte d'expiration de licence envoyée à l'ESN.
 
     Évite d'envoyer deux fois la même alerte : une par solution, par date de fin
-    de licence et par seuil (60, 30, 15, 7 jours, puis jour d'expiration).
+    de licence et par seuil (150, 90 puis 30 jours : 5, 3 et 1 mois avant l'expiration).
     Un envoi manuel (depuis l'administration) est tracé à part (manual=True) et
     n'empêche pas les alertes automatiques suivantes.
     """

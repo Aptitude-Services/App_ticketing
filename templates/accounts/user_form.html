@@ -13,7 +13,7 @@
   <div class="form-section">
     <h2>{% translate "Identité" %}</h2>
     <div class="form-grid">
-      {% for name in form %}{% if name.name == "email" or name.name == "phone" or name.name == "first_name" or name.name == "last_name" or name.name == "language" or name.name == "organisation" %}
+      {% for name in form %}{% if name.name == "email" or name.name == "phone" or name.name == "first_name" or name.name == "last_name" or name.name == "language" or name.name == "organisation" or name.name == "job_title" and audience == "equipe" %}
       <div class="form-row"><label for="{{ name.id_for_label }}">{{ name.label }}</label>{{ name }}{% if name.help_text %}<div class="help">{{ name.help_text }}</div>{% endif %}{{ name.errors }}</div>
       {% endif %}{% endfor %}
     </div>
@@ -55,7 +55,7 @@
     var profile = document.getElementById("{{ form.profile.id_for_label }}");
     if (!box || !list) return;
     function sync() {
-      var assigned = profile && profile.value === "tech_assigned";
+      var assigned = profile && (profile.value === "tech_assigned" || profile.value === "tech_all");
       list.hidden = box.checked && !assigned;
     }
     box.addEventListener("change", sync);

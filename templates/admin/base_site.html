@@ -21,6 +21,14 @@
     --selected-row: #FEF1E7;
     --font-family-primary: "Montserrat", system-ui, sans-serif;
   }
+  /* Suppression : icône corbeille à la place du « X » de Django (lignes ajoutées d'un tableau,
+     bouton de suppression d'un objet lié). */
+  /* !important : widgets.css de Django est chargé après cette feuille. */
+  a.inline-deletelink, .related-widget-wrapper-link.delete-related img {
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23B42318' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18'/%3E%3Cpath d='M8 6V4h8v2'/%3E%3Cpath d='M19 6l-1 14H6L5 6'/%3E%3Cpath d='M10 11v6M14 11v6'/%3E%3C/svg%3E") center / 18px 18px no-repeat !important;
+  }
+  .related-widget-wrapper-link.delete-related img { content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23B42318' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18'/%3E%3Cpath d='M8 6V4h8v2'/%3E%3Cpath d='M19 6l-1 14H6L5 6'/%3E%3Cpath d='M10 11v6M14 11v6'/%3E%3C/svg%3E"); width: 18px; height: 18px; background: none !important; }
+  a.inline-deletelink:hover { background-color: #FBECEC; border-radius: 6px; }
   #branding h1 { display: flex; align-items: center; gap: 12px; margin: 0; }
   #branding h1 img { height: 26px; display: block; }
   #branding h1 span { font-size: 14px; font-weight: 500; color: #93A1B2; }

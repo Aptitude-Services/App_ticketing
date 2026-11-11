@@ -15,7 +15,7 @@ from .models import Report
 KIND_LEADS = {
     Report.Kind.CURATIVE: gettext_lazy("Un rapport par incident traité : données du ticket et du contrat reprises automatiquement."),
     Report.Kind.PREVENTIVE: gettext_lazy("Un rapport par visite de maintenance planifiée : contrôles, opérations, recommandations."),
-    Report.Kind.QUARTERLY: gettext_lazy("Synthèse du trimestre, consolidée à partir des tickets et des rapports validés."),
+    Report.Kind.QUARTERLY: gettext_lazy("Synthèse du trimestre, consolidée à partir des rapports d'intervention validés."),
 }
 DOC_LABELS = {
     Report.Kind.CURATIVE: gettext_lazy("Rapport de maintenance curative"),
@@ -123,7 +123,10 @@ def report_edit(request, pk):
 @login_required
 def report_detail(request, pk):
     report = _visible_or_404(request, pk)
-    auto = S.auto_data(report)
+    auto = dict(S.auto_data(report))
+    # Rapports validés avant la reprise automatique de la fonction : celle saisie à l'époque.
+    for key in ("author_title", "technician_title"):
+        auto.setdefault(key, report.data.get("technician_title", ""))
     user = request.user
     ctx = {
         "report": report, "auto": auto, "m": report.data, "esn": report.esn,

@@ -1,7 +1,6 @@
 {% extends "reports/_doc_base.html" %}{% load i18n report_tags %}
 {% block cover %}
 <div class="hero">
-  <div class="kicker">{% translate "Rapport trimestriel · Support et maintenance" %}</div>
   <h1>{{ report.quarter_label }} — {{ auto.end_client|default:auto.esn }}</h1>
   <div class="sub">{% translate "Période du" %} {{ auto.period_start|day }} {% translate "au" %} {{ auto.period_end|day }} · {% translate "Contrat" %} {{ auto.contract_ref }}</div>
   <div class="chips">
@@ -133,6 +132,6 @@
   {% for r in m.action_plan %}<tr><td>{{ r.0 }}</td><td class="c"><span class="pill {{ r.1|tone }}">{{ r.1|default:"—" }}</span></td><td>{{ r.2 }}</td><td>{{ r.3 }}</td><td>{{ r.4 }}</td></tr>{% empty %}<tr><td colspan="5" class="muted">—</td></tr>{% endfor %}
   </tbody></table></div>
   <div style="margin-top:14px">{% include "reports/_signatures.html" %}</div>
-  <p class="hash">{% translate "Données consolidées à partir des tickets et des rapports d'intervention validés de la période" %}{% if auto.curative_reports or auto.preventive_reports %} ({{ auto.curative_reports|length }} {% translate "curatif(s)" %}, {{ auto.preventive_reports|length }} {% translate "préventif(s)" %}){% endif %}.</p>
+  <p class="hash">{% translate "Données consolidées à partir des rapports d'intervention validés de la période" %}{% if auto.curative_reports or auto.preventive_reports %} ({{ auto.curative_reports|length }} {% translate "curatif(s)" %}, {{ auto.preventive_reports|length }} {% translate "préventif(s)" %}){% endif %}.</p>
 </section>
 {% endblock %}

@@ -28,6 +28,16 @@ WORKAROUND_STATES = [("Non nécessaire", _("Non nécessaire")), ("Appliquée", _
                      ("Non applicable", _("Non applicable"))]
 FIX_STATES = [("Appliquée", _("Appliquée")), ("Planifiée", _("Planifiée")), ("En attente", _("En attente"))]
 
+# Listes proposées dans les colonnes des tableaux de saisie (« select:<clé> » dans "editor").
+# Les valeurs sont celles relues par les modèles d'impression et le trimestriel : ne pas les traduire.
+COLUMN_CHOICES = {
+    "test": ["Validé", "Échec"],
+    "coverage": ["Contrat", "Hors contrat"],
+    "priority": ["Haute", "Moyenne", "Basse"],
+    "impact": ["élevé", "moyen"],
+    "effort": ["faible", "moyen", "élevé"],
+}
+
 # (clé, libellé, type, options) — type : text, textarea, datetime, date, int, choice, lines
 SCHEMA = {
     Report.Kind.CURATIVE: [
@@ -35,8 +45,6 @@ SCHEMA = {
             ("title", _("Intitulé du rapport"), "text", {"help": _("Ex. Authentification / Accès distant")}),
             ("site", _("Site concerné"), "text", {}),
             ("level", _("Niveau de traitement"), "choice", {"choices": LEVELS}),
-            ("technician_title", _("Fonction de l'intervenant"), "text",
-             {"help": _("Ex. Ingénieure support N2")}),
         ]),
         (_("Description et impact"), [
             ("symptoms", _("Symptômes"), "textarea", {}),
@@ -62,10 +70,10 @@ SCHEMA = {
         ]),
         (_("Tests, temps passé et suivi"), [
             ("tests", _("Tests de validation"), "lines", {"columns": [_("Test"), _("Résultat")],
-                                                         "help": _("Résultat : Validé ou Échec.")}),
+                                                         "editor": ["text", "select:test"]}),
             ("time_spent", _("Temps passé"), "lines",
-             {"columns": [_("Phase"), _("Durée"), _("Couverture")],
-              "help": _("Ex. Diagnostic | 0 h 45 | Contrat")}),
+             {"columns": [_("Phase"), _("Durée"), _("Couverture")], "editor": ["text", "text", "select:coverage"],
+              "help": _("Ex. Diagnostic, 0 h 45, Contrat.")}),
             ("time_note", _("Commentaire sur le temps passé"), "text", {}),
             ("followups", _("Actions de suivi"), "lines",
              {"columns": [_("Action"), _("Responsable"), _("Échéance"), _("Ticket")]}),
@@ -92,7 +100,6 @@ SCHEMA = {
             ("mode", _("Mode d'intervention"), "choice", {"choices": MODES}),
             ("level", _("Niveau"), "choice", {"choices": LEVELS}),
             ("technician", _("Technicien(s) intervenant(s)"), "text", {}),
-            ("technician_title", _("Fonction de l'intervenant"), "text", {}),
             ("equipments", _("Équipements ou services concernés"), "lines",
              {"columns": [_("Équipement")], "help": _("Prérempli avec les solutions du contrat.")}),
         ]),
@@ -102,15 +109,15 @@ SCHEMA = {
         (_("Contrôles réalisés"), [
             ("controls", _("Contrôles"), "lines",
              {"columns": [_("Catégorie"), _("Contrôle"), _("Équipement"), _("Résultat"), _("Commentaire")],
-              "help": _("Résultat : %(r)s. Une annexe se cite dans le commentaire (ex. « A1 »).")
-              % {"r": ", ".join(RESULTS)}, "rows": 18}),
+              "help": _("Un clic sur le résultat de chaque contrôle. Une annexe se cite dans le commentaire "
+                        "(ex. « A1 »)."), "controls": True, "rows": 18}),
         ]),
         (_("Opérations, anomalies et indicateurs"), [
             ("operations", _("Opérations de maintenance exécutées"), "lines",
-             {"columns": [_("Heure"), _("Opération"), _("Équipement")]}),
+             {"columns": [_("Heure"), _("Opération"), _("Équipement")], "editor": ["time", "text", "text"]}),
             ("recommendations", _("Anomalies et recommandations"), "lines",
              {"columns": [_("Recommandation"), _("Priorité"), _("Responsable"), _("Échéance"), _("Ticket curatif")],
-              "help": _("Priorité : Haute, Moyenne ou Basse.")}),
+              "editor": ["text", "select:priority", "text", "text", "text"]}),
             ("indicators", _("Indicateurs avant / après"), "lines",
              {"columns": [_("Indicateur"), _("Avant"), _("Après")]}),
         ]),
@@ -146,7 +153,7 @@ SCHEMA = {
         ]),
         (_("Actions"), [
             ("done_kpis", _("Chiffres clés des actions réalisées"), "lines",
-             {"columns": [_("Valeur"), _("Libellé")], "help": _("Ex. 42 | correctifs de sécurité appliqués")}),
+             {"columns": [_("Valeur"), _("Libellé")], "help": _("Ex. 42, correctifs de sécurité appliqués.")}),
             ("done_actions", _("Actions réalisées"), "lines", {"columns": [_("Action")]}),
             ("pending", _("Actions en attente"), "lines",
              {"columns": [_("Action ou anomalie"), _("Attendue de"), _("Situation")],
@@ -155,15 +162,16 @@ SCHEMA = {
         (_("Recommandations et plan d'action"), [
             ("recommendations", _("Recommandations"), "lines",
              {"columns": [_("Mesure"), _("Justification"), _("Impact"), _("Effort")],
-              "help": _("Impact : élevé ou moyen. Effort : faible, moyen ou élevé.")}),
+              "editor": ["text", "text", "select:impact", "select:effort"]}),
             ("action_plan", _("Plan d'action"), "lines",
              {"columns": [_("Action"), _("Priorité"), _("Responsable"), _("Échéance"), _("Statut")],
+              "editor": ["text", "select:priority", "text", "text", "text"],
               "help": _("Échéance au format JJ/MM/AAAA : elle place l'action sur la feuille de route du COMEX.")}),
         ]),
         (_("Comité de direction (COMEX)"), [
             ("decisions", _("Décisions attendues"), "lines",
              {"columns": [_("Décision"), _("Détail")],
-              "help": _("Trois au plus. Ex. Extension du stockage SAN-01 | Valider le budget avant décembre.")}),
+              "help": _("Trois au plus. Ex. Extension du stockage SAN-01 : valider le budget avant décembre.")}),
             ("next_point", _("Prochain point"), "text",
              {"help": _("Ex. Prochain point : rapport trimestriel T4 2026, début janvier 2027.")}),
         ]),
@@ -234,26 +242,39 @@ class ReportContentForm(forms.Form):
         super().__init__(*args, initial=initial, **kwargs)
         for key, label, ftype, opts in fields_of(report.kind):
             self.fields[key] = self._build(label, ftype, opts)
+        if "controls" in self.fields:
+            # Suggestions d'équipement : ceux du rapport (préremplis avec les solutions du contrat).
+            equipments = [row[0] for row in report.data.get("equipments") or [] if row and row[0]]
+            self.fields["controls"].widget.attrs["data-controls-editor"] = json.dumps(
+                {"results": RESULTS, "equipments": equipments}, ensure_ascii=False)
 
     @staticmethod
     def _build(label, ftype, opts):
         common = {"label": label, "required": False, "help_text": opts.get("help", "")}
         if ftype == "textarea":
             return forms.CharField(widget=forms.Textarea(attrs={"rows": 3}), **common)
-        if ftype == "lines" and opts.get("editor"):
-            # Tableau de saisie (date, heure, texte…) : le JS remplace la zone de texte,
-            # qui reste le support envoyé au serveur (colonnes séparées par « | »).
-            spec = [{"label": str(label), "type": kind} for label, kind in zip(opts["columns"], opts["editor"])]
+        if ftype == "lines" and opts.get("controls"):
+            # Contrôles groupés par catégorie, résultat en un clic (js/controls_editor.js).
             return forms.CharField(widget=forms.Textarea(attrs={
-                "rows": 4, "class": "mono", "data-row-editor": json.dumps(spec, ensure_ascii=False),
-                "data-add-label": str(_("Ajouter une étape")),
+                "rows": opts.get("rows", 4), "class": "mono",
+                "data-controls-editor": json.dumps({"results": RESULTS}, ensure_ascii=False),
             }), **common)
         if ftype == "lines":
+            # Tableau de champs à renseigner (texte, date, heure, liste) : le JS remplace la zone
+            # de texte, qui reste le support envoyé au serveur (une ligne par entrée, colonnes « | »).
+            editor = opts.get("editor") or ["text"] * len(opts["columns"])
+            spec = []
+            for col_label, kind in zip(opts["columns"], editor):
+                col = {"label": str(col_label), "type": kind}
+                if kind.startswith("select:"):
+                    col["type"], col["options"] = "select", COLUMN_CHOICES[kind.split(":", 1)[1]]
+                spec.append(col)
+            add = _("Ajouter une étape") if "date" in editor and "time" in editor else _("Ajouter une ligne")
             cols = " | ".join(str(c) for c in opts["columns"])
-            hint = _("Une ligne par entrée") if len(opts["columns"]) == 1 else                 _("Une ligne par entrée, colonnes séparées par « | » : %(c)s") % {"c": cols}
-            common["help_text"] = f"{hint}. {opts.get('help', '')}".strip()
-            return forms.CharField(widget=forms.Textarea(attrs={"rows": opts.get("rows", 4), "placeholder": cols,
-                                                                "class": "mono"}), **common)
+            return forms.CharField(widget=forms.Textarea(attrs={
+                "rows": opts.get("rows", 4), "class": "mono", "placeholder": cols,
+                "data-row-editor": json.dumps(spec, ensure_ascii=False), "data-add-label": str(add),
+            }), **common)
         if ftype == "datetime":
             return forms.CharField(widget=forms.DateTimeInput(attrs={"type": "datetime-local"}), **common)
         if ftype == "date":

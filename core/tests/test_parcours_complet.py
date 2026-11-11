@@ -296,7 +296,7 @@ def test_parcours_complet():
 
     mail.outbox.clear()
     assert notify_expiring_licenses() == (1, 1)
-    assert mail.outbox[0].to == [esn_admin.email] and "FW-LYN-01" in mail.outbox[0].body
+    assert esn_admin.email in mail.outbox[0].to and "FW-LYN-01" in mail.outbox[0].body
     assert LicenseNotice.objects.filter(solution=firewall).exists()
 
 

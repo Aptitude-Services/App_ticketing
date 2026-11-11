@@ -1,7 +1,6 @@
 {% extends "reports/_doc_base.html" %}{% load i18n report_tags %}
 {% block cover %}
 <div class="hero">
-  <div class="kicker">{% translate "Rapport d'intervention · Maintenance préventive" %}</div>
   <h1>{{ auto.end_client|default:auto.esn }}</h1>
   <div class="sub">{% if m.visit_no %}{% translate "Visite" %} {{ m.visit_no }}{% if m.visit_total %} {% translate "sur" %} {{ m.visit_total }}{% endif %}{% if m.periodicity %} ({{ m.periodicity }}){% endif %} · {% endif %}{% translate "Rédigé le" %} {{ report.created_at|date:"d/m/Y" }}{% if report.validated_at and user.is_aptitude %} · {% translate "Validé le" %} {{ report.validated_at|date:"d/m/Y" }}{% endif %}</div>
   <div class="chips">
@@ -20,7 +19,7 @@
       <div class="field"><label>{% translate "Planifiée" %}</label><div class="box">{{ m.planned_at|dt }}</div></div>
       <div class="field"><label>{% translate "Intervention" %}</label><div class="box">{{ m.started_at|dt }}{% if m.ended_at %}<br><small>{% translate "fin" %} {{ m.ended_at|hour }} · {{ m.started_at|duration_between:m.ended_at }}</small>{% endif %}</div></div>
     </div>
-    <div class="field"><label>{% translate "Technicien(s) intervenant(s)" %}</label><div class="box">{{ m.technician|default:report.author.display_name }}{% if m.technician_title %}, {{ m.technician_title }}{% endif %}<br><small>{{ m.mode|default:"" }}{% if m.level %} · {% translate "niveau" %} {{ m.level }}{% endif %}</small></div></div>
+    <div class="field"><label>{% translate "Technicien(s) intervenant(s)" %}</label><div class="box">{{ m.technician|default:report.author.display_name }}{% if auto.author_title %}, {{ auto.author_title }}{% endif %}<br><small>{{ m.mode|default:"" }}{% if m.level %} · {% translate "niveau" %} {{ m.level }}{% endif %}</small></div></div>
   </div>
   <div class="field" style="margin-top:10px"><label>{% translate "Équipements ou services concernés" %}</label><div class="box">{% if m.equipments %}<div class="tags">{% for e in m.equipments %}<span class="tag">{{ e.0 }}</span>{% endfor %}</div>{% else %}—{% endif %}</div></div>
   <div style="margin-top:10px"><span class="lbl">{% translate "Prestataire de support" %}</span>{{ auto.provider }}</div>

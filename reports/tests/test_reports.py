@@ -240,19 +240,44 @@ def test_esn_needs_no_sector_but_end_client_does():
 
 
 def test_license_thresholds():
-    assert [threshold_for(d) for d in (75, 60, 45, 20, 10, 3, 0)] == [None, 60, 60, 30, 15, 7, 0]
+    """Trois alertes : 5 mois, 3 mois puis 1 mois avant l'échéance (mois calendaires)."""
+    end = datetime.date(2027, 6, 15)
+    cases = {datetime.date(2027, 1, 14): None, datetime.date(2027, 1, 15): 150, datetime.date(2027, 3, 14): 150,
+             datetime.date(2027, 3, 15): 90, datetime.date(2027, 5, 15): 30, end: 30,
+             datetime.date(2027, 6, 16): None}
+    assert {day: threshold_for(end, day) for day in cases} == cases
 
 
 def test_license_expiry_notifies_esn_once_per_threshold(w):
     today = datetime.date(2026, 11, 9)
-    w["sol"].license_end = today + datetime.timedelta(days=25)
+    w["sol"].license_end = datetime.date(2027, 4, 1)  # moins de 5 mois
     w["sol"].save()
     mail.outbox.clear()
     assert notify_expiring_licenses(today) == (1, 1)
-    assert mail.outbox[0].to == ["admin@hudson.ci"] and "FW-01" in mail.outbox[0].body
+    assert "admin@hudson.ci" in mail.outbox[0].to and "FW-01" in mail.outbox[0].body
     assert notify_expiring_licenses(today) == (0, 0), "pas de doublon au même seuil"
-    assert notify_expiring_licenses(today + datetime.timedelta(days=12)) == (1, 1), "nouveau seuil : J-15"
-    assert LicenseNotice.objects.count() == 2
+    assert notify_expiring_licenses(today + datetime.timedelta(days=30)) == (0, 0), "toujours le seuil des 5 mois"
+    assert notify_expiring_licenses(datetime.date(2027, 1, 1)) == (1, 1), "nouveau seuil : 3 mois"
+    assert notify_expiring_licenses(datetime.date(2027, 3, 1)) == (1, 1), "dernier seuil : 1 mois"
+    assert notify_expiring_licenses(datetime.date(2027, 3, 20)) == (0, 0), "trois alertes en tout"
+    assert sorted(LicenseNotice.objects.values_list("threshold", flat=True)) == [30, 90, 150]
+
+
+def test_license_alert_goes_to_esn_end_client_and_managers(w):
+    end = Organisation.objects.create(name="Final Licences", kind=Organisation.Kind.END_CLIENT,
+                                      activity_sector=Organisation.ActivitySector.BANK)
+    w["sol"].contract.client.end_clients.add(end)
+    w["sol"].contract.end_clients.add(end)
+    User.objects.create_user("dsi@final.ci", organisation=end, profile=Profile.CLIENT_ADMIN)
+    w["sol"].license_end = datetime.date(2026, 12, 1)
+    w["sol"].save()
+    mail.outbox.clear()
+    assert notify_expiring_licenses(datetime.date(2026, 11, 9)) == (1, 1)
+    to = set(mail.outbox[0].to)
+    assert {"admin@hudson.ci", "dsi@final.ci"} <= to
+    managers = set(User.objects.filter(profile=Profile.APTITUDE_MANAGER, is_active=True)
+                   .values_list("email", flat=True))
+    assert managers and managers <= to
 
 
 def test_admin_action_notifies_esn(w, client):
@@ -264,7 +289,7 @@ def test_admin_action_notifies_esn(w, client):
     resp = client.post(reverse("admin:contracts_solution_changelist"),
                        {"action": "notify_esn", "_selected_action": [w["sol"].pk]})
     assert resp.status_code == 302
-    assert mail.outbox and mail.outbox[0].to == ["admin@hudson.ci"]
+    assert mail.outbox and "admin@hudson.ci" in mail.outbox[0].to
     assert LicenseNotice.objects.get().manual
 
 
@@ -339,3 +364,62 @@ def test_edit_page_offers_the_timeline_table(w):
     c.force_login(w["tech"])
     page = c.get(reverse("report_edit", args=[_curative(w).pk])).content.decode()
     assert "data-row-editor" in page and "js/row_editor.js" in page and "Ajouter une étape" in page
+
+
+# --- Améliorations : en-tête, pied de page, fonction, couleur, trimestriel ------------------------------
+
+def test_report_page_has_short_footer_and_no_fingerprint_text(w):
+    r = _curative(w)
+    R.submit(w["tech"], r)
+    R.validate(w["boss"], r)
+    c = w["client"]
+    c.force_login(w["tech"])
+    html = c.get(reverse("report_detail", args=[r.pk])).content.decode()
+    assert "Hudson — Document confidentiel</span>" in html
+    assert "prestataires désignés" not in html and "Support opéré par" not in html
+    assert "SHA-256" not in html and "toute modification crée une nouvelle version" not in html
+    assert "Rapport d&#x27;intervention · Maintenance curative" not in html
+    assert html.count("Rapport de maintenance curative") == 2  # page de garde + en-tête de page
+
+
+def test_engineer_title_comes_from_the_user_profile(w):
+    w["tech"].job_title = "Ingénieure support N2"
+    w["tech"].save()
+    r = _curative(w)
+    assert R.auto_data(r)["technician_title"] == "Ingénieure support N2"
+    assert "technician_title" not in ReportContentForm(report=r).fields
+    c = w["client"]
+    c.force_login(w["tech"])
+    assert "Camille, Ingénieure support N2" in c.get(reverse("report_detail", args=[r.pk])).content.decode()
+
+
+def test_engineer_title_defaults_to_profile(w):
+    assert R.auto_data(_curative(w))["author_title"] == "Ingénieur support"
+
+
+def test_report_uses_esn_brand_color(w):
+    w["esn"].brand_color = "#1F6FB2"
+    w["esn"].save()
+    c = w["client"]
+    c.force_login(w["tech"])
+    html = c.get(reverse("report_detail", args=[_curative(w).pk])).content.decode()
+    assert "--accent: #1F6FB2" in html
+
+
+def test_quarterly_ignores_tickets_without_intervention_report(w):
+    """Le trimestriel ne reprend que les tickets couverts par un rapport curatif validé."""
+    q = R.create_report(w["tech"], Report.Kind.QUARTERLY, w["contract"], end_client=w["end"], year=2026, quarter=4)
+    assert R.auto_data(q)["tickets_total"] == 0, "ticket sans rapport : non repris"
+    cur = _curative(w)
+    R.submit(w["tech"], cur)
+    R.validate(w["boss"], cur)
+    assert R.auto_data(q)["tickets_total"] == 1
+
+
+def test_controls_use_the_one_click_editor(w):
+    r = R.create_report(w["tech"], Report.Kind.PREVENTIVE, w["contract"], end_client=w["end"])
+    import json
+    widget = ReportContentForm(report=r).fields["controls"].widget
+    conf = json.loads(widget.attrs["data-controls-editor"])
+    assert conf["results"] == ["Conforme", "À surveiller", "Non conforme", "N/A"]
+    assert conf["equipments"] == ["FW-01"]

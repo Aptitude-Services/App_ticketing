@@ -138,10 +138,11 @@
   /* Page de garde */
   .cover { display: flex; flex-direction: column; min-height: 250mm; padding-bottom: 8mm; margin-bottom: 14mm;
            border-bottom: 1px dashed var(--line); }
-  .cover-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  /* Logo centré, intitulé du document en dessous (affiché une seule fois). */
+  .cover-head { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
   .cover-logo img { max-height: 70px; max-width: 260px; object-fit: contain; }
   .cover-logo .brand-name { font-size: 26px; font-weight: 700; }
-  .cover-head .right { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .cover-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
   .cover-main { margin-top: 30mm; }
   .cover .hero { margin: 0 0 14mm; padding-left: 18px; border-left-width: 4px; }
   .cover .hero h1 { font-size: 30px; margin: 8px 0 6px; }
@@ -158,6 +159,10 @@
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
+{% if esn.brand_color %}<style>
+  /* Couleur de l'ESN (fiche organisation) : titres, bandeaux et graphiques à son identité. */
+  :root { --accent: {{ esn.brand_color }}; --accent-soft: color-mix(in srgb, {{ esn.brand_color }} 13%, #fff); }
+</style>{% endif %}
 </head>
 <body>
 <div class="toolbar no-print">
@@ -185,11 +190,11 @@
   <section class="cover">
     <header class="cover-head">
       <div class="cover-logo">{% if logo %}<img src="{{ logo }}" alt="{{ esn.name }}">{% else %}<span class="brand-name">{{ esn.name }}</span>{% endif %}</div>
-      <div class="right">{{ doc_label }}</div>
+      <div class="cover-label">{{ doc_label }}</div>
     </header>
     <div class="cover-main">{% block cover %}{% endblock %}</div>
     <footer class="cover-foot">
-      <span>{{ esn.name }} — {% translate "Document confidentiel, destiné au client et à ses prestataires désignés." %}</span>
+      <span>{{ esn.name }} — {% translate "Document confidentiel" %}</span>
       <span class="mono">{{ report.reference }}</span>
     </footer>
   </section>
@@ -199,7 +204,7 @@
   </header>
   {% block body %}{% endblock %}
   <footer class="doc-foot">
-    <span>{{ esn.name }} — {% translate "Document confidentiel, destiné au client et à ses prestataires désignés." %}{% if auto.provider %} {% translate "Support opéré par" %} {{ auto.provider }}.{% endif %}</span>
+    <span>{{ esn.name }} — {% translate "Document confidentiel" %}</span>
     <span class="mono">{{ report.reference }}</span>
   </footer>
 </article>

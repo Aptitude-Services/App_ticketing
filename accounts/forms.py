@@ -19,12 +19,12 @@ class UserManageForm(forms.ModelForm):
     contracts = forms.ModelMultipleChoiceField(
         label=_("Contrats autorisés"), queryset=Contract.objects.none(), required=False,
         widget=forms.CheckboxSelectMultiple,
-        help_text=_("Utilisé si l'accès est limité, ou pour un profil « Engineer (restricted) »."),
+        help_text=_("Utilisé si l'accès est limité, ou pour désigner les contrats traités par un ingénieur."),
     )
 
     class Meta:
         model = User
-        fields = ["email", "first_name", "last_name", "phone", "language", "organisation", "profile", "manager",
+        fields = ["email", "first_name", "last_name", "job_title", "phone", "language", "organisation", "profile", "manager",
                   "all_contracts", "is_active"]
 
     def __init__(self, *args, actor, **kwargs):
@@ -90,8 +90,8 @@ class UserManageForm(forms.ModelForm):
             for contract in contracts:
                 if not org.is_aptitude and not org.relates_to(contract):
                     raise forms.ValidationError(_("Un contrat sélectionné n'appartient pas à cette organisation."))
-            if org.is_aptitude and contracts and profile != Profile.TECH_ASSIGNED:
-                self.add_error("contracts", _("Seuls les profils « Engineer (restricted) » reçoivent des affectations."))
+            if org.is_aptitude and contracts and profile not in (Profile.TECH_ALL, Profile.TECH_ASSIGNED):
+                self.add_error("contracts", _("Seuls les ingénieurs (profils « Engineer ») reçoivent des affectations."))
 
         if profile == Profile.CLIENT_ADMIN:
             data["all_contracts"] = True
@@ -117,7 +117,9 @@ class UserManageForm(forms.ModelForm):
 
     def _save_contracts(self, user):
         wanted = set(self.cleaned_data.get("contracts") or [])
-        needs_list = user.profile == Profile.TECH_ASSIGNED or (user.is_client and not user.all_contracts)
+        # Un Engineer voit tous les contrats ; ses affectations désignent ceux qu'il traite.
+        needs_list = user.profile in (Profile.TECH_ALL, Profile.TECH_ASSIGNED) or (
+            user.is_client and not user.all_contracts)
         if not needs_list:
             wanted = set()
         # On ne touche qu'aux contrats que l'acteur voit : il ne retire jamais un accès qu'il ne gère pas.
@@ -133,7 +135,13 @@ class UserManageForm(forms.ModelForm):
 class ProfileForm(forms.ModelForm):
     class Meta:
         model = User
-        fields = ["first_name", "last_name", "phone", "language", "theme"]
+        fields = ["first_name", "last_name", "job_title", "phone", "language", "theme"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # La fonction n'apparaît que dans les rapports rédigés par l'équipe Aptitude.
+        if not self.instance.is_aptitude:
+            del self.fields["job_title"]
 
 
 class TokenForm(forms.Form):

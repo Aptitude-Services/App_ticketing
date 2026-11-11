@@ -153,10 +153,16 @@ def auto_data(report):
     if snapshot:
         return snapshot
     if report.kind == Report.Kind.QUARTERLY:
-        return B.quarterly_info(report.contract, report.end_client, report.period_start, report.period_end)
-    info = B.contract_info(report.contract, report.end_client)
+        info = B.quarterly_info(report.contract, report.end_client, report.period_start, report.period_end)
+    else:
+        info = B.contract_info(report.contract, report.end_client)
+    # Fonction des intervenants reprise de leur fiche : rien à saisir dans le rapport.
+    info["author_title"] = report.author.title_label
+    technician = report.author
     if report.ticket_id:
         info["ticket"] = B.ticket_info(report.ticket)
+        technician = report.ticket.assignee or report.author
+    info["technician_title"] = technician.title_label
     return info
 
 

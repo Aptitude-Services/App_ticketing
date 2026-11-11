@@ -28,7 +28,6 @@
     --fc-ok: #1a7f37;
     --fc-ok-bg: rgba(26, 127, 55, .1);
     width: 100%;
-    max-width: 1200px;
 }
 
 /* Barre de résumé + recherche */
@@ -59,11 +58,15 @@
 }
 
 /* Cartes par catégorie */
+/* Colonnes « maçonnerie » : les cartes s'empilent dans chaque colonne sans laisser de vide
+   à côté d'une carte courte, et toute la largeur disponible est utilisée. */
 .feature-checklist .fc-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(360px, 100%), 1fr));
-    gap: 12px;
-    align-items: start;
+    columns: 340px 4;
+    column-gap: 12px;
+}
+.feature-checklist .fc-cards > .fc-card {
+    break-inside: avoid;
+    margin-bottom: 12px;
 }
 .feature-checklist .fc-card {
     min-width: 0; /* la description sur une ligne ne doit pas élargir la carte */

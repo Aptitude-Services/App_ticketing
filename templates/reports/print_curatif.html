@@ -2,7 +2,7 @@
 {% block cover %}{% with t=auto.ticket %}
 <div class="hero">
   <h1>{{ m.title|default:report.title }}</h1>
-  <div class="sub">{{ m.site|default:"" }}{% if m.site and t.solutions %} · {% endif %}{{ t.solutions|join:", " }}</div>
+  <div class="sub">{{ auto.site }}{% if auto.site and t.solutions %} · {% endif %}{{ t.solutions|join:", " }}</div>
   <div class="chips">
     <span class="chip">{% translate "Ticket" %} : {{ t.status_label }}</span>
     <span class="chip {% if t.priority <= 2 %}ko{% elif t.priority == 3 %}warn{% endif %}">{% translate "Priorité" %} {{ t.priority_label }}</span>
@@ -17,7 +17,7 @@
     <div class="field"><label>{% translate "Client" %}</label><div class="box">{{ auto.esn }}<br><small>{% translate "Client final" %} : {{ auto.end_client|default:"—" }}</small></div></div>
     <div class="field"><label>{% translate "Numéro du contrat d'assistance" %}</label><div class="box">{{ auto.contract_ref }}<br><small>{{ auto.contract_desc }}</small></div></div>
     <div class="field"><label>{% translate "Référence du ticket" %}</label><div class="box mono">{{ t.reference }}</div></div>
-    <div class="field"><label>{% translate "Site concerné" %}</label><div class="box">{{ m.site|default:"—" }}</div></div>
+    <div class="field"><label>{% translate "Site concerné" %}</label><div class="box">{{ auto.site|default:"—" }}</div></div>
     <div class="grid" style="gap:10px">
       <div class="field"><label>{% translate "Signalement" %}</label><div class="box">{{ t.created_at|dt }}</div></div>
       <div class="field"><label>{% translate "Intervention" %}</label><div class="box">{{ t.acknowledged_at|dt }}</div></div>

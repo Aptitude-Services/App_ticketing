@@ -88,12 +88,12 @@ def test_preventive_prefills_equipments_and_controls(w):
 
 def test_content_form_stores_lines(w):
     r = R.create_report(w["tech"], Report.Kind.PREVENTIVE, w["contract"], end_client=w["end"])
-    form = ReportContentForm({"site": "Siège", "controls": "Sécurité | MFA | Annuaire | Conforme | ok\n"
+    form = ReportContentForm({"periodicity": "trimestrielle", "controls": "Sécurité | MFA | Annuaire | Conforme | ok\n"
                                                         "Sécurité | TLS | Portail | Non conforme | 12 j"},
                              report=r)
     assert form.is_valid(), form.errors
     form.apply()
-    assert r.data["site"] == "Siège"
+    assert r.data["periodicity"] == "trimestrielle"
     counts = control_counts(r.data["controls"])
     assert (counts["total"], counts["ok"], counts["ko"]) == (2, 1, 1)
 
@@ -535,3 +535,33 @@ def test_license_settings_admin_page(w, client):
     from contracts.models import LicenseAlertSettings
     conf = LicenseAlertSettings.get()
     assert (conf.thresholds, conf.notify_managers, conf.start_hour) == ("6, 2", False, 8)
+
+
+
+def test_site_comes_from_solution_location_not_typed(w):
+    """Le site n'est plus saisi : il vient de la « localisation » des solutions."""
+    w["sol"].location = "Salle serveurs Plateau"
+    w["sol"].save()
+    cur = _curative(w)
+    assert "site" not in ReportContentForm(report=cur).fields
+    assert R.auto_data(cur)["site"] == "Salle serveurs Plateau"
+    Solution.objects.create(contract=w["contract"], category="software", name="VPN", location="Agence Cocody")
+    prev = R.create_report(w["tech"], Report.Kind.PREVENTIVE, w["contract"], end_client=w["end"])
+    assert "site" not in ReportContentForm(report=prev).fields
+    assert R.auto_data(prev)["site"] == "Salle serveurs Plateau, Agence Cocody"
+    c = w["client"]
+    c.force_login(w["tech"])
+    assert "Salle serveurs Plateau" in c.get(reverse("report_detail", args=[cur.pk])).content.decode()
+    assert "Salle serveurs Plateau" in c.get(reverse("report_edit", args=[cur.pk])).content.decode()
+    # Figé à la validation, et repris par le trimestriel.
+    R.submit(w["tech"], cur)
+    R.validate(w["boss"], cur)
+    q = R.create_report(w["tech"], Report.Kind.QUARTERLY, w["contract"], end_client=w["end"], year=2026, quarter=4)
+    assert {"name": "Salle serveurs Plateau", "count": 1} in R.auto_data(q)["sites"]
+
+
+def test_site_typed_in_old_reports_is_kept(w):
+    cur = _curative(w)
+    cur.data["site"] = "Siège"
+    cur.save()
+    assert R.auto_data(cur)["site"] == "Siège"

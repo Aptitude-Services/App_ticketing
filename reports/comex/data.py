@@ -155,7 +155,7 @@ def comex_data(esn, end_client, start, end, now=None):
         counts = B.control_counts(r.data.get("controls"))
         for k in ("total", "ok", "watch", "ko", "na"):
             controls[k] += counts[k]
-        health.append({"site": r.data.get("site") or r.reference, "states": B._health(r.data.get("controls"))})
+        health.append({"site": B.report_site(r) or r.reference, "states": B._health(r.data.get("controls"))})
     causes = Counter((r.data.get("diagnosis_category") or "").strip() or "Cause non déterminée"
                      for r in curatives).most_common(6)
 

@@ -176,6 +176,33 @@ def default_controls():
     return [[cat, label, "", "", ""] for cat, label in DEFAULT_CONTROLS]
 
 
+def solutions_site(solutions):
+    """Site déduit de la « localisation » des solutions : les localisations distinctes, dans
+    l'ordre, séparées par des virgules (ex. « Siège Plateau, Agence Cocody »)."""
+    seen = []
+    for sol in solutions:
+        loc = (sol.location or "").strip()
+        if loc and loc not in seen:
+            seen.append(loc)
+    return ", ".join(seen)[:300]
+
+
+def report_site_auto(report):
+    """Site d'un rapport curatif ou préventif : localisation des solutions du ticket (curatif)
+    ou des équipements listés dans le rapport (préventif)."""
+    if report.ticket_id:
+        return solutions_site(report.ticket.solutions.all())
+    names = [row[0] for row in report.data.get("equipments") or [] if row and row[0]]
+    order = {name: i for i, name in enumerate(names)}
+    sols = sorted(report.contract.solutions.filter(name__in=names), key=lambda s: order.get(s.name, 0))
+    return solutions_site(sols)
+
+
+def report_site(report):
+    """Site d'un rapport validé (figé à la validation), à défaut celui saisi à la main."""
+    return ((report.data.get("snapshot") or {}).get("site") or report.data.get("site") or "").strip()
+
+
 def contract_equipments(contract):
     return [[s.name] for s in contract.solutions.filter(is_active=True).order_by("category", "name")]
 
@@ -321,7 +348,7 @@ def quarterly_info(contract, end_client, start, end):
         for k in ("total", "ok", "watch", "ko", "na"):
             total_controls[k] += counts[k]
         anomalies += counts["watch"] + counts["ko"]
-        label = r.data.get("site") or r.reference
+        label = report_site(r) or r.reference
         when = (r.data.get("started_at") or r.data.get("planned_at") or "")[:10]
         visits.append({"site": label, "date": when, "reference": r.reference, **counts})
         health.append({"site": label, "states": _health(r.data.get("controls"))})
@@ -336,7 +363,7 @@ def quarterly_info(contract, end_client, start, end):
                 pending.append([row[0], row[1] if len(row) > 1 else "", _("Suivi %(ref)s") % {"ref": r.reference}])
     cause_peak = max([1] + list(causes.values()))
 
-    sites = Counter((r.data.get("site") or "").strip() for r in curatives + preventives if r.data.get("site"))
+    sites = Counter(report_site(r) for r in curatives + preventives if report_site(r))
 
     derived = quarterly_content(start, end, tickets, curatives, preventives, total_controls, pending,
                                 resolution_pct)
@@ -485,7 +512,7 @@ def quarterly_content(start, end, tickets, curatives, preventives, controls, pen
     out["highlights"] = [[str(x)] for x in highlights]
     attention = []
     for r in preventives:
-        where = r.data.get("site") or r.reference
+        where = report_site(r) or r.reference
         for row in r.data.get("controls") or []:
             row = (list(row) + [""] * 5)[:5]
             if row[3] in ("Non conforme", "À surveiller"):

@@ -161,6 +161,10 @@ def auto_data(report):
         info["ticket"] = B.ticket_info(report.ticket)
         technician = report.ticket.assignee or report.author
     info["technician_title"] = technician.title_label
+    if report.kind != Report.Kind.QUARTERLY:
+        # Site : « localisation » des solutions (fiche contrat), rien à saisir dans le rapport.
+        # Un site saisi à la main dans un ancien rapport est conservé.
+        info["site"] = report.data.get("site") or B.report_site_auto(report)
     return info
 
 

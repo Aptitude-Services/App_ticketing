@@ -14,7 +14,7 @@
     <div class="field"><label>{% translate "Client" %}</label><div class="box">{{ auto.esn }}<br><small>{% translate "Client final" %} : {{ auto.end_client|default:"—" }}</small></div></div>
     <div class="field"><label>{% translate "Numéro du contrat d'assistance" %}</label><div class="box">{{ auto.contract_ref }}<br><small>{{ auto.contract_desc }}</small></div></div>
     <div class="field"><label>{% translate "Référence du ticket" %}</label><div class="box mono">{{ auto.ticket.reference|default:"—" }}</div></div>
-    <div class="field"><label>{% translate "Site concerné" %}</label><div class="box">{{ m.site|default:"—" }}</div></div>
+    <div class="field"><label>{% translate "Site concerné" %}</label><div class="box">{{ auto.site|default:"—" }}</div></div>
     <div class="grid" style="gap:10px">
       <div class="field"><label>{% translate "Planifiée" %}</label><div class="box">{{ m.planned_at|dt }}</div></div>
       <div class="field"><label>{% translate "Intervention" %}</label><div class="box">{{ m.started_at|dt }}{% if m.ended_at %}<br><small>{% translate "fin" %} {{ m.ended_at|hour }} · {{ m.started_at|duration_between:m.ended_at }}</small>{% endif %}</div></div>

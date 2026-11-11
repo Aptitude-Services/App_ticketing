@@ -127,6 +127,7 @@ def report_detail(request, pk):
     # Rapports validés avant la reprise automatique de la fonction : celle saisie à l'époque.
     for key in ("author_title", "technician_title"):
         auto.setdefault(key, report.data.get("technician_title", ""))
+    auto.setdefault("site", report.data.get("site", ""))
     user = request.user
     ctx = {
         "report": report, "auto": auto, "m": report.data, "esn": report.esn,

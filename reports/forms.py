@@ -43,7 +43,6 @@ SCHEMA = {
     Report.Kind.CURATIVE: [
         (_("Intervention"), [
             ("title", _("Intitulé du rapport"), "text", {"help": _("Ex. Authentification / Accès distant")}),
-            ("site", _("Site concerné"), "text", {}),
             ("level", _("Niveau de traitement"), "choice", {"choices": LEVELS}),
         ]),
         (_("Description et impact"), [
@@ -90,7 +89,6 @@ SCHEMA = {
     ],
     Report.Kind.PREVENTIVE: [
         (_("Contexte de l'intervention"), [
-            ("site", _("Site concerné"), "text", {}),
             ("visit_no", _("Visite n°"), "int", {}),
             ("visit_total", _("Nombre de visites prévues"), "int", {}),
             ("periodicity", _("Périodicité"), "text", {"help": _("Ex. trimestrielle")}),

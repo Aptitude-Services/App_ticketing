@@ -34,6 +34,7 @@
       <dt>{% translate "Client final" %}</dt><dd>{{ auto.end_client|default:"—" }}</dd>
       <dt>{% translate "Contrat" %}</dt><dd class="mono">{{ auto.contract_ref }}</dd>
       <dt>{% translate "Formule / SLA" %}</dt><dd>{{ auto.contract_desc|default:"—" }}</dd>
+      {% if kind != "trimestriel" %}<dt>{% translate "Site" %}</dt><dd>{{ auto.site|default:_("— (localisation des solutions à renseigner dans le contrat)") }}</dd>{% endif %}
       {% if auto.ticket %}
       <dt>{% translate "Ticket" %}</dt><dd class="mono">{{ auto.ticket.reference }}</dd>
       <dt>{% translate "Priorité" %}</dt><dd>{{ auto.ticket.priority_label }}</dd>

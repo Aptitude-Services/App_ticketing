@@ -39,19 +39,17 @@
       o.value = name;
       datalist.appendChild(o);
     });
-    var summary = el("div", "ce-summary");
     var groups = el("div", "ce-groups");
     var addGroup = el("button", "btn btn-secondary ce-add-group", "+ Ajouter une catégorie");
     addGroup.type = "button";
     wrap.appendChild(datalist);
-    wrap.appendChild(summary);
     wrap.appendChild(groups);
     wrap.appendChild(addGroup);
     area.hidden = true;
     area.parentNode.insertBefore(wrap, area);
 
     function sync() {
-      var lines = [], counts = {}, total = 0;
+      var lines = [];
       groups.querySelectorAll(".ce-group").forEach(function (g) {
         var cat = clean(g.querySelector(".ce-cat").value);
         var rows = g.querySelectorAll(".ce-row"), done = 0;
@@ -62,26 +60,11 @@
           if (result) done++;
           if (cells.slice(1).some(function (v) { return v; })) {
             lines.push(cells.join(" | ").replace(/( \| )+$/, ""));
-            total++;
-            counts[result] = (counts[result] || 0) + 1;
           }
         });
         g.querySelector(".ce-progress").textContent = done + " / " + rows.length;
       });
       area.value = lines.join("\n");
-      // Résumé : un compteur par résultat, et le nombre de contrôles restant à renseigner.
-      var todo = total - results.reduce(function (s, r) { return s + (counts[r] || 0); }, 0);
-      summary.innerHTML = "";
-      results.forEach(function (r, i) {
-        var chip = el("span", "ce-chip ce-" + (TONES[i] || "na"));
-        chip.appendChild(el("strong", "", String(counts[r] || 0)));
-        chip.appendChild(document.createTextNode(" " + r));
-        summary.appendChild(chip);
-      });
-      var left = el("span", "ce-chip ce-todo");
-      left.appendChild(el("strong", "", String(todo)));
-      left.appendChild(document.createTextNode(" à renseigner"));
-      summary.appendChild(left);
     }
 
     function setResult(row, value) {

@@ -27,10 +27,6 @@
 .row-editor td input:focus { outline: none; border-color: var(--orange); box-shadow: var(--focus); }
 
 /* Contrôles réalisés (voir js/controls_editor.js) : groupes par catégorie, résultat en un clic */
-.controls-editor .ce-summary { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-.controls-editor .ce-chip { font-size: 12.5px; padding: 3px 10px; border-radius: 999px; background: #EEF0F3; color: #4B5563; }
-.controls-editor .ce-chip strong { font-variant-numeric: tabular-nums; }
-.controls-editor .ce-chip.ce-todo { background: transparent; border: 1px dashed var(--field-line, #d0d5dd); }
 .controls-editor .ce-group { border: 1px solid var(--line, #e5e7eb); border-radius: 10px; padding: 10px 12px 8px; margin-bottom: 10px; }
 .controls-editor .ce-group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .controls-editor .ce-group-head .ce-cat { flex: 1; font-weight: 600; }
@@ -49,10 +45,10 @@
 .controls-editor .ce-result button:first-child { border-left: 0; }
 .controls-editor .ce-result button:hover { background: #F4F5F7; }
 .controls-editor .ce-result button:focus-visible { outline: 2px solid var(--orange, #F58436); outline-offset: -2px; }
-.controls-editor .ce-ok.is-on, .controls-editor .ce-chip.ce-ok { background: #E3F1E7; color: #1E6B3A; }
-.controls-editor .ce-warn.is-on, .controls-editor .ce-chip.ce-warn { background: #FBEFD9; color: #8A5A14; }
-.controls-editor .ce-ko.is-on, .controls-editor .ce-chip.ce-ko { background: #F8E1E1; color: #9B2C2C; }
-.controls-editor .ce-na.is-on, .controls-editor .ce-chip.ce-na { background: #E7E9ED; color: #4B5563; }
+.controls-editor .ce-ok.is-on { background: #E3F1E7; color: #1E6B3A; }
+.controls-editor .ce-warn.is-on { background: #FBEFD9; color: #8A5A14; }
+.controls-editor .ce-ko.is-on { background: #F8E1E1; color: #9B2C2C; }
+.controls-editor .ce-na.is-on { background: #E7E9ED; color: #4B5563; }
 .controls-editor .ce-remove {
   display: inline-grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 6px;
   background: transparent; color: #9aa3ad; cursor: pointer;

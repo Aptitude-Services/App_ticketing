@@ -3,6 +3,12 @@ FROM python:3.13-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 WORKDIR /app
 
+# Ordre à conserver : ces étapes sont reprises du cache de Docker tant qu'elles ne changent pas
+# (aucun téléchargement de paquets Python si requirements.txt est inchangé).
+RUN useradd --create-home --uid 1000 app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
 # Facultatif (INSTALL_LIBREOFFICE=1) : LibreOffice sans interface et la police du modèle,
 # pour l'export PDF du COMEX depuis le site. Par défaut, image sans LibreOffice.
 ARG INSTALL_LIBREOFFICE=0
@@ -11,10 +17,6 @@ RUN if [ "$INSTALL_LIBREOFFICE" = "1" ]; then \
         && apt-get install -y --no-install-recommends libreoffice-impress fonts-montserrat fonts-dejavu-core \
         && rm -rf /var/lib/apt/lists/*; \
     fi
-
-RUN useradd --create-home --uid 1000 app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
 
 COPY --chown=app:app . .
 # Certificat de confiance du relais SMTP Postfix : installé s'il est présent dans certs/

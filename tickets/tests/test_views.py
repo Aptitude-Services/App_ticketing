@@ -144,3 +144,32 @@ def test_report_pages_writing_is_for_aptitude_only(client, w):  # noqa: F811
     client.force_login(w["a_rw"])
     assert client.get(reverse("report", args=["tous"])).status_code == 200
     assert client.get(reverse("report_create", args=["curatif"])).status_code == 403
+
+
+def test_ticket_page_offers_escalation_to_n_plus_1_only(client, w, frozen):  # noqa: F811
+    """Ingénieur : bloc « Escalade » limité à son N+1, plus de liste « Assigné à ». Le manager garde l'assignation."""
+    from accounts.models import Profile, User
+    apt = w["tech"].organisation
+    boss = User.objects.create_user("boss@apt.ci", organisation=apt, profile=Profile.APTITUDE_MANAGER)
+    User.objects.create_user("autre@apt.ci", organisation=apt, profile=Profile.APTITUDE_MANAGER)
+    w["tech"].manager = boss
+    w["tech"].save()
+    t = S.create_ticket(w["a_rw"], w["c85"], "Serveur lent", "Lent.", now=MON_10)
+    url = reverse("ticket_detail", args=[t.reference])
+
+    login_aptitude(client, w["tech"])
+    html = client.get(url).content.decode()
+    assert 'id="esc-sel"' in html and html.count('name="manager"') == 1
+    assert html.count("<option", html.index('id="esc-sel"'), html.index("</select>", html.index('id="esc-sel"'))) == 1
+    assert 'id="as-sel"' not in html
+    resp = client.post(reverse("ticket_escalate", args=[t.reference]),
+                       {"manager": boss.pk, "reason": "Besoin d'un avis N2"})
+    assert resp.status_code == 302
+    t.refresh_from_db()
+    assert t.assignee == boss
+    assert "a escaladé le ticket" in client.get(url).content.decode()
+
+    client.logout()
+    login_aptitude(client, boss)
+    html = client.get(url).content.decode()
+    assert 'id="as-sel"' in html and 'id="esc-sel"' not in html

@@ -231,6 +231,47 @@ def test_assign_only_to_technician_with_access(w):
         S.assign(w["a_rw"], t, w["tech"])
 
 
+@pytest.fixture
+def esc(w):
+    """Un ingénieur, son N+1 et un autre manager (qui n'est pas son N+1)."""
+    apt = w["tech"].organisation
+    boss = User.objects.create_user("boss@apt.ci", organisation=apt, profile=Profile.APTITUDE_MANAGER)
+    other = User.objects.create_user("autre@apt.ci", organisation=apt, profile=Profile.APTITUDE_MANAGER)
+    w["tech"].manager = boss
+    w["tech"].save()
+    return {**w, "boss": boss, "other": other, "t": new(w)}
+
+
+def test_escalation_lists_only_the_engineers_n_plus_1(esc):
+    assert S.escalation_targets(esc["tech"], esc["t"]) == [esc["boss"]]
+
+
+def test_escalation_without_n_plus_1_offers_nobody(esc):
+    esc["tech"].manager = None
+    esc["tech"].save()
+    assert S.escalation_targets(esc["tech"], esc["t"]) == []
+
+
+def test_escalate_assigns_to_n_plus_1_with_internal_trace(esc):
+    from django.core import mail
+    t = S.escalate(esc["tech"], esc["t"], esc["boss"], "Besoin d'un avis N2 sur le pare-feu")
+    assert t.assignee == esc["boss"]
+    ev = t.events.filter(kind="assigned").last()
+    assert ev.is_internal and ev.data["escalated"] and ev.data["reason"].startswith("Besoin")
+    assert any("boss@apt.ci" in m.to and "escaladé" in m.subject for m in mail.outbox)
+
+
+def test_escalate_refuses_other_manager_short_reason_and_non_engineer(esc):
+    with pytest.raises(ValidationError):
+        S.escalate(esc["tech"], esc["t"], esc["other"], "Motif suffisamment long")   # pas son N+1
+    with pytest.raises(ValidationError):
+        S.escalate(esc["tech"], esc["t"], esc["boss"], "court")
+    with pytest.raises(PermissionDenied):
+        S.escalate(esc["boss"], esc["t"], esc["boss"], "Motif suffisamment long")    # un manager n'escalade pas
+    with pytest.raises(PermissionDenied):
+        S.escalate(esc["a_rw"], esc["t"], esc["boss"], "Motif suffisamment long")
+
+
 def test_visible_tickets_isolation(w):
     ta = new(w)
     tb = S.create_ticket(w["b_rw"], w["cb"], "Serveur B", "Panne", now=MON_10)

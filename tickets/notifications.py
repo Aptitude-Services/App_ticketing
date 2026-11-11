@@ -108,6 +108,12 @@ def assigned(ticket, actor, user):
           [f"Ce ticket vous est assigné (priorité P{ticket.priority}, client {ticket.contract.client})."], ticket, actor)
 
 
+def escalated(ticket, actor, user, reason):
+    _send(_others([user], actor), "Ticket escaladé vers vous",
+          [f"{actor.display_name} vous escalade ce ticket (priorité P{ticket.priority}, client {ticket.contract.client}).",
+           "", f"Motif : {reason}"], ticket, actor)
+
+
 def commented(ticket, actor, comment):
     if comment.is_internal:
         return  # une note interne ne sort jamais de l'équipe Aptitude

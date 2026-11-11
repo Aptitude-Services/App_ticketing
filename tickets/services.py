@@ -284,6 +284,40 @@ def assign(actor, ticket, user, now=None):
     return ticket
 
 
+# --- Escalade (ingénieur → supérieur / N2) -------------------------------------------------
+
+MIN_ESCALATION_REASON = 10
+
+
+def escalation_targets(actor, ticket):
+    """Le seul N+1 de l'ingénieur (supérieur hiérarchique de sa fiche), s'il est actif et voit le contrat."""
+    if not (actor.is_engineer and can_write(actor) and ticket.is_open and actor.manager_id):
+        return []
+    return [u for u in assignable_users(ticket) if u.pk == actor.manager_id]
+
+
+@transaction.atomic
+def escalate(actor, ticket, user, reason="", now=None):
+    """L'ingénieur confie le ticket à son supérieur / N2, avec un motif tracé en interne."""
+    now = now or timezone.now()
+    _require(actor.is_engineer and can_write(actor), _("Seuls les ingénieurs escaladent un ticket."))
+    _require(ticket.is_open, _("Ce ticket est fermé."))
+    if user is None or user not in escalation_targets(actor, ticket):
+        raise ValidationError(_("Un ticket ne s'escalade qu'à votre supérieur hiérarchique (N+1)."))
+    reason = (reason or "").strip()
+    if len(reason) < MIN_ESCALATION_REASON:
+        raise ValidationError(_("Un motif d'au moins %(n)s caractères est obligatoire pour escalader.")
+                              % {"n": MIN_ESCALATION_REASON})
+    old = ticket.assignee
+    ticket.assignee = user
+    ticket.save(update_fields=["assignee"])
+    # Interne : le client ne voit ni l'escalade ni son motif.
+    _event(ticket, actor, Event.Kind.ASSIGNED, at=now, internal=True, escalated=True, reason=reason,
+           old=str(old) if old else None, new=str(user))
+    N.escalated(ticket, actor, user, reason)
+    return ticket
+
+
 # --- Suivis et pièces jointes --------------------------------------------------------------
 
 def validate_upload(f):

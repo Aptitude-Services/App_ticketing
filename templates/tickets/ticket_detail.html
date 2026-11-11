@@ -73,7 +73,7 @@
       </dl>
     </div></section>
 
-    {% if statuses or priorities or assignees %}
+    {% if statuses or priorities or assignees or can_escalate %}
     <section class="panel"><div class="panel-body">
       <h2>{% translate "Actions" %}</h2>
       {% if statuses %}
@@ -98,6 +98,25 @@
         <select id="as-sel" name="assignee"><option value="">{% translate "Personne" %}</option>{% for u in assignees %}<option value="{{ u.pk }}" {% if t.assignee_id == u.pk %}selected{% endif %}>{{ u.display_name }}</option>{% endfor %}</select>
         <button class="btn btn-secondary" type="submit">{% translate "Assigner" %}</button>
       </form>
+      {% endif %}
+      {% if can_escalate %}<hr class="side-sep">
+      {% if t.assignee_id != user.pk %}
+      <form class="side-form" method="post" action="{% url 'ticket_assign' t.reference %}">{% csrf_token %}
+        <input type="hidden" name="assignee" value="{{ user.pk }}">
+        <button class="btn btn-secondary" type="submit">{% translate "Me l'assigner" %}</button>
+      </form>
+      {% endif %}
+      {% if escalation_targets %}
+      <form class="side-form" method="post" action="{% url 'ticket_escalate' t.reference %}">{% csrf_token %}
+        <label for="esc-sel" class="small" style="font-weight:600">{% translate "Escalade" %}</label>
+        <select id="esc-sel" name="manager">{% for u in escalation_targets %}<option value="{{ u.pk }}">{{ u.display_name }} (N+1)</option>{% endfor %}</select>
+        <label for="esc-reason" class="sr-only">{% translate "Motif de l'escalade" %}</label>
+        <textarea id="esc-reason" name="reason" rows="2" required minlength="10" placeholder="{% translate 'Motif de l’escalade (obligatoire)' %}"></textarea>
+        <button class="btn btn-secondary" type="submit">{% translate "Escalader" %}</button>
+      </form>
+      {% else %}
+      <p class="muted small" style="margin:0">{% translate "Escalade impossible : aucun supérieur hiérarchique (N+1) actif n’est renseigné sur votre fiche, ou il n’a pas accès à ce contrat." %}</p>
+      {% endif %}
       {% endif %}
     </div></section>
     {% endif %}

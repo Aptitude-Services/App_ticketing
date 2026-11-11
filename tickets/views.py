@@ -146,6 +146,8 @@ def _event_text(e):
     if e.kind == Event.Kind.PRIORITY:
         txt = _("a changé la priorité de P%(a)s à P%(b)s") % {"a": d.get("old"), "b": d.get("new")}
         return txt + (f" : {d['justification']}" if d.get("justification") else "")
+    if e.kind == Event.Kind.ASSIGNED and d.get("escalated"):
+        return _("a escaladé le ticket à %(u)s : %(r)s") % {"u": d.get("new"), "r": d.get("reason", "")}
     if e.kind == Event.Kind.ASSIGNED:
         return _("a assigné le ticket à %(u)s") % {"u": d["new"]} if d.get("new") else _("a retiré l'assignation")
     if e.kind == Event.Kind.SLA and d.get("note") == "created_out_of_coverage":
@@ -164,7 +166,9 @@ def ticket_detail(request, ref):
         "comment_form": CommentForm(actor=user) if S.can_write(user) and ticket.status != Status.CLOSED else None,
         "statuses": [(s, dict(Status.choices)[s]) for s in S.allowed_statuses(user, ticket)],
         "priorities": [(p, f"P{p} — {PRIORITY_NAMES[p]}") for p in S.allowed_priorities(user, ticket)],
-        "assignees": S.assignable_users(ticket) if user.is_aptitude and S.can_write(user) else [],
+        "assignees": S.assignable_users(ticket) if user.is_aptitude and not user.is_engineer and S.can_write(user) else [],
+        "escalation_targets": S.escalation_targets(user, ticket) if user.is_aptitude else [],
+        "can_escalate": user.is_aptitude and user.is_engineer and S.can_write(user) and ticket.is_open,
         "solutions": ticket.solutions.all(),
         "attachments": [a for a in ticket.attachments.select_related("comment") if user.is_aptitude or not a.is_internal],
         "target": ticket.contract.sla.target(ticket.priority) if ticket.contract.sla else None,
@@ -225,6 +229,17 @@ def ticket_assign(request, ref):
         user = User.objects.filter(pk=uid).first() if uid.isdigit() else None
         S.assign(request.user, ticket, user)
         return _("Assignation mise à jour.")
+    return _act(request, ref, run)
+
+
+@login_required
+@require_POST
+def ticket_escalate(request, ref):
+    def run(ticket):
+        uid = request.POST.get("manager", "")
+        user = User.objects.filter(pk=uid).first() if uid.isdigit() else None
+        S.escalate(request.user, ticket, user, request.POST.get("reason", ""))
+        return _("Ticket escaladé à %(u)s.") % {"u": user.display_name}
     return _act(request, ref, run)
 
 

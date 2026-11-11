@@ -316,6 +316,11 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.profile in CLIENT_PROFILES
 
     @property
+    def is_engineer(self):
+        """Ingénieur (N1) : escalade ses tickets vers un Manager ou un Super Admin."""
+        return self.profile in {Profile.TECH_ALL, Profile.TECH_ASSIGNED}
+
+    @property
     def is_staff(self):
         """Accès à l'administration Django : admins et managers Aptitude."""
         return self.is_active and self.profile in {Profile.APTITUDE_ADMIN, Profile.APTITUDE_MANAGER}

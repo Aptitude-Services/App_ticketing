@@ -10,5 +10,6 @@ urlpatterns = [
     path("<str:ref>/statut/", views.ticket_status, name="ticket_status"),
     path("<str:ref>/priorite/", views.ticket_priority, name="ticket_priority"),
     path("<str:ref>/assignation/", views.ticket_assign, name="ticket_assign"),
+    path("<str:ref>/escalade/", views.ticket_escalate, name="ticket_escalate"),
     path("<str:ref>/pieces-jointes/<int:pk>/", views.attachment_download, name="attachment_download"),
 ]

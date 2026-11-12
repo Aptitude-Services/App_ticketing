@@ -1,7 +1,7 @@
 /* Fiche organisation : n'afficher que les champs utiles au type choisi.
-   Client ESN → « Clients finaux » ; client final → « ESN rattachées » ;
-   Aptitude → ni rattachements ni secteur d'activité.
-   Le secteur d'activité n'est demandé qu'au client final ; le logo qu'à l'ESN. */
+   Vendeur (ESN ou Aptitude) → « Clients finaux » ; client final → « Vendeurs rattachés ».
+   Aptitude est un vendeur : elle peut avoir ses propres clients finaux (vente directe).
+   Le secteur d'activité n'est demandé qu'au client final ; le logo qu'au vendeur. */
 (function (init) {
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();

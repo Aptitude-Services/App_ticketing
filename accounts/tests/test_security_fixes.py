@@ -69,7 +69,7 @@ def test_super_admin_keeps_full_access(w):
 
 @pytest.fixture
 def unverified_engineer(client):
-    apt = Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.APTITUDE)
+    apt = Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.CLIENT, is_operator=True)
     user = User.objects.create_user("eng@apt.ci", PWD, organisation=apt, profile=Profile.TECH_ALL)
     client.force_login(user)  # mot de passe seul, sans code de l'application d'authentification
     return client, user

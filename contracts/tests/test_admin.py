@@ -13,7 +13,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def setup(rf):
-    apt = Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.APTITUDE)
+    apt = Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.CLIENT, is_operator=True)
     sector = Organisation.ActivitySector.OTHER
     client = Organisation.objects.create(name="HUDSON", kind=Organisation.Kind.CLIENT, activity_sector=sector)
     other = Organisation.objects.create(name="Autre", kind=Organisation.Kind.CLIENT, activity_sector=sector)

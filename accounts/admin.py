@@ -47,10 +47,11 @@ class OrganisationForm(forms.ModelForm):
     un rattachement qui ne correspond pas au type est ignoré.
     """
 
+    # Vendeurs : les ESN, et Aptitude pour ses ventes directes.
     partner_esns = forms.ModelMultipleChoiceField(
-        label=_("ESN rattachées"), required=False,
+        label=_("Vendeurs rattachés (ESN ou Aptitude)"), required=False,
         queryset=Organisation.objects.filter(kind=Organisation.Kind.CLIENT),
-        widget=WrappedFilteredSelectMultiple(_("ESN"), is_stacked=False),
+        widget=WrappedFilteredSelectMultiple(_("vendeurs"), is_stacked=False),
     )
 
     class Meta:
@@ -74,7 +75,7 @@ class OrganisationForm(forms.ModelForm):
             self.fields["brand_color"].help_text = _("Couleur des titres, bandeaux et graphiques des rapports : "
                                                      "choisissez-la d'après le logo pour garder l'identité de l'ESN.")
         if "logo" in self.fields:
-            self.fields["logo"].label = _("Logo de l'ESN")
+            self.fields["logo"].label = _("Logo du vendeur")
             self.fields["logo"].help_text = _("PNG, JPG ou SVG, fond transparent de préférence. "
                                               "Affiché en tête des rapports envoyés à ses clients finaux.")
 
@@ -116,7 +117,7 @@ class OrganisationAdmin(admin.ModelAdmin):
     form = OrganisationForm
     change_form_template = "admin/accounts/organisation/change_form.html"
     # Le code (HUD, BLAG…) est calculé tout seul et ne se saisit jamais : pas de colonne dans la liste.
-    list_display = ("logo_thumb", "name", "kind", "sector", "nb_end_clients", "is_active", "email_domains")
+    list_display = ("logo_thumb", "name", "kind_label", "sector", "nb_end_clients", "is_active", "email_domains")
     list_display_links = ("logo_thumb", "name")
     list_filter = ("kind", "activity_sector", "is_active")
     search_fields = ("name", "email_domains")
@@ -197,6 +198,12 @@ class OrganisationAdmin(admin.ModelAdmin):
         src = obj.logo_data_uri() if obj.is_esn else ""
         return format_html('<img src="{}" alt="" class="org-logo-thumb">', src) if src else ""
 
+    @admin.display(description=_("type d'organisation"), ordering="kind")
+    def kind_label(self, obj):
+        if obj.is_operator:
+            return _("Vendeur — Aptitude (opérateur, vente directe)")
+        return _("Vendeur — ESN") if obj.is_vendor else obj.get_kind_display()
+
     @admin.display(description=_("secteur d'activité"), ordering="activity_sector")
     def sector(self, obj):
         return obj.get_activity_sector_display() or "—"
@@ -230,7 +237,8 @@ class OrganisationAdmin(admin.ModelAdmin):
         if not self.has_change_permission(request, esn):
             raise PermissionDenied
         if not esn.is_esn:
-            self.message_user(request, _("Seule une ESN peut avoir des clients finaux."), level="error")
+            self.message_user(request, _("Seul un vendeur (ESN ou Aptitude) peut avoir des clients finaux."),
+                              level="error")
             return redirect("admin:accounts_organisation_changelist")
 
         if request.method == "POST":

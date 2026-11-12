@@ -142,7 +142,7 @@ def test_secrets_are_encrypted_and_unreadable_after_key_change(settings):
 
 @pytest.fixture
 def people():
-    apt = Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.APTITUDE)
+    apt = Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.CLIENT, is_operator=True)
     client_org = Organisation.objects.create(name="Client A")
 
     def mk(email, org, profile):

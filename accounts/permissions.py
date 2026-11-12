@@ -26,8 +26,10 @@ def visible_contracts(user) -> QuerySet:
         # Technicien « contrats affectés »
         return qs.filter(accesses__user=user).distinct()
 
-    # ESN : ses contrats et ceux historiquement portés par ses clients finaux.
-    # Client final : ses propres contrats et ceux des ESN qui le couvrent.
+    # Visibilité par contrat : chacun ne voit que les contrats dont il est partie.
+    # Vendeur (ESN) : les contrats qu'il a vendus, jamais ceux d'Aptitude en direct
+    # ni ceux d'une autre ESN, même pour un client final partagé.
+    # Client final : les contrats dont il est bénéficiaire, directs ou via ESN.
     org = user.organisation
     if org.is_end_client:
         qs = qs.filter(Q(client_id=org.pk) | Q(end_clients=org.pk)).distinct()
@@ -60,7 +62,8 @@ def manageable_users(actor) -> QuerySet:
     if actor.profile == Profile.APTITUDE_ADMIN:
         return qs
     if actor.profile == Profile.APTITUDE_MANAGER:
-        return qs.filter(organisation__kind=Organisation.Kind.CLIENT)
+        # Comptes clients : ESN et clients finaux (Aptitude gère ceux de ses ventes directes).
+        return qs.filter(organisation__is_operator=False)
     if actor.profile == Profile.CLIENT_ADMIN:
         return qs.filter(organisation_id__in=actor.organisation.scope_ids())
     return qs.none()
@@ -85,7 +88,7 @@ def manageable_organisations(actor) -> QuerySet:
     if actor.profile == Profile.APTITUDE_ADMIN:
         return qs
     if actor.profile == Profile.APTITUDE_MANAGER:
-        return qs.filter(kind=Organisation.Kind.CLIENT)
+        return qs.filter(is_operator=False)
     if actor.profile == Profile.CLIENT_ADMIN:
         return qs.filter(pk__in=actor.organisation.scope_ids())
     return qs.none()

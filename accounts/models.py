@@ -24,11 +24,21 @@ def file_data_uri(field_file):
 
 
 class Organisation(models.Model):
-    """Aptitude, un client ESN, ou un client final d'une ou plusieurs ESN."""
+    """Une organisation, décrite selon deux axes indépendants.
+
+    - Le type (`kind`) est son rôle commercial : *vendeur* (une ESN, ou Aptitude en
+      vente directe), qui signe les contrats et a des clients finaux ; ou *client final*,
+      bénéficiaire des contrats.
+    - `is_operator` désigne l'organisation qui exploite la plateforme (Aptitude) :
+      ses comptes sont l'équipe interne (Super Admin, Manager, Engineer).
+
+    Aptitude est donc un vendeur opérateur : elle vend en direct à ses propres clients
+    finaux, comme une ESN, tout en gardant les droits de l'équipe interne.
+    """
 
     class Kind(models.TextChoices):
-        APTITUDE = "aptitude", _("Aptitude")
-        CLIENT = "client", _("Client ESN")
+        # Codes enregistrés en base : ne pas les renommer (« client » = vendeur).
+        CLIENT = "client", _("Vendeur (ESN ou Aptitude)")
         END_CLIENT = "end_client", _("Client final")
 
     class ActivitySector(models.TextChoices):
@@ -79,10 +89,14 @@ class Organisation(models.Model):
         help_text=_("2 à 8 lettres ou chiffres, repris dans les références de contrat (ex. HUD). "
                     "Vide : calculé depuis le nom."),
     )
-    kind = models.CharField(_("type"), max_length=20, choices=Kind.choices, default=Kind.CLIENT)
+    kind = models.CharField(_("type d'organisation"), max_length=20, choices=Kind.choices, default=Kind.CLIENT)
+    is_operator = models.BooleanField(
+        _("opérateur de la plateforme"), default=False, editable=False,
+        help_text=_("Aptitude : ses comptes forment l'équipe interne. Une seule organisation l'est."),
+    )
     activity_sector = models.CharField(
         _("secteur d'activité"), max_length=30, choices=ActivitySector.choices, blank=True,
-        help_text=_("Demandé pour un client final uniquement (ni pour une ESN, ni pour Aptitude)."),
+        help_text=_("Demandé pour un client final uniquement (pas pour un vendeur)."),
     )
     logo = models.FileField(
         _("logo"), upload_to="logos/", blank=True,
@@ -111,6 +125,10 @@ class Organisation(models.Model):
         ordering = ["name"]
         verbose_name = _("organisation")
         verbose_name_plural = _("organisations")
+        constraints = [
+            models.UniqueConstraint(fields=["is_operator"], condition=models.Q(is_operator=True),
+                                    name="single_platform_operator"),
+        ]
 
     def __str__(self):
         return self.name
@@ -133,7 +151,9 @@ class Organisation(models.Model):
                 raise ValidationError({"code": _("De 2 à 8 lettres (sans accent) ou chiffres, ex. HUD.")})
         if self.kind == self.Kind.END_CLIENT and not self.activity_sector:
             raise ValidationError({"activity_sector": _("Choisissez le secteur d'activité.")})
-        if self.kind == self.Kind.APTITUDE and self.activity_sector:
+        if self.is_operator and self.kind != self.Kind.CLIENT:
+            raise ValidationError({"kind": _("L'opérateur de la plateforme (Aptitude) est un vendeur.")})
+        if self.is_operator and self.activity_sector:
             raise ValidationError({"activity_sector": _("Aptitude n'a pas de secteur d'activité.")})
         if self.pk:
             self.clean_links()
@@ -145,19 +165,31 @@ class Organisation(models.Model):
         if self.kind != self.Kind.CLIENT and self.end_clients.exists():
             raise ValidationError({"kind": _("Retirez les clients finaux avant de changer ce type d'organisation.")})
         if self.end_clients.exclude(kind=self.Kind.END_CLIENT).exists():
-            raise ValidationError({"end_clients": _("Seuls des clients finaux peuvent être rattachés à une ESN.")})
+            raise ValidationError({"end_clients": _("Seuls des clients finaux peuvent être rattachés à un vendeur.")})
         if self.kind != self.Kind.END_CLIENT and self.partner_esns.exists():
-            raise ValidationError({"kind": _("Retirez les ESN rattachées avant de changer ce type d'organisation.")})
+            raise ValidationError({"kind": _("Retirez les vendeurs rattachés avant de changer ce type d'organisation.")})
         if self.partner_esns.exclude(kind=self.Kind.CLIENT).exists():
-            raise ValidationError(_("Un client final ne se rattache qu'à des clients ESN."))
+            raise ValidationError(_("Un client final ne se rattache qu'à des vendeurs (ESN ou Aptitude)."))
 
     @property
     def is_aptitude(self):
-        return self.kind == self.Kind.APTITUDE
+        """Opérateur de la plateforme : ses comptes sont l'équipe interne."""
+        return self.is_operator
+
+    @property
+    def is_vendor(self):
+        """Vendeur : une ESN, ou Aptitude en vente directe. Signe les contrats."""
+        return self.kind == self.Kind.CLIENT
 
     @property
     def is_esn(self):
-        return self.kind == self.Kind.CLIENT
+        """Synonyme historique de `is_vendor` (Aptitude comprise, pour la vente directe)."""
+        return self.is_vendor
+
+    @property
+    def is_partner_esn(self):
+        """ESN partenaire : un vendeur autre qu'Aptitude."""
+        return self.is_vendor and not self.is_operator
 
     @property
     def is_end_client(self):
@@ -220,9 +252,8 @@ class UserManager(BaseUserManager):
         return user
 
     def create_superuser(self, email, password=None, **extra):
-        org, _created = Organisation.objects.get_or_create(
-            kind=Organisation.Kind.APTITUDE, defaults={"name": "Aptitude Services"}
-        )
+        org = Organisation.objects.filter(is_operator=True).first() or Organisation.objects.create(
+            name="Aptitude Services", kind=Organisation.Kind.CLIENT, is_operator=True)
         extra.setdefault("organisation", org)
         extra.setdefault("profile", Profile.APTITUDE_ADMIN)
         extra["is_superuser"] = True

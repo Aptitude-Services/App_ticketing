@@ -29,7 +29,7 @@ def test_end_client_requires_activity_sector():
 
 
 def test_aptitude_has_no_activity_sector():
-    org = Organisation(name="Aptitude Services", kind=Organisation.Kind.APTITUDE, activity_sector=BANK)
+    org = Organisation(name="Aptitude Services", kind=Organisation.Kind.CLIENT, is_operator=True, activity_sector=BANK)
     with pytest.raises(ValidationError) as exc:
         org.full_clean()
     assert "activity_sector" in exc.value.message_dict
@@ -67,8 +67,8 @@ def test_admin_lists_and_filters_by_sector():
     assert "activity_sector" in admin.list_filter
 
 
-def test_esn_kind_is_labelled_client_esn():
-    assert dict(Organisation.Kind.choices)["client"] == "Client ESN"
+def test_vendor_kind_label_covers_esn_and_aptitude():
+    assert dict(Organisation.Kind.choices)["client"] == "Vendeur (ESN ou Aptitude)"
 
 
 # --- Logo de l'ESN ----------------------------------------------------------------------------------

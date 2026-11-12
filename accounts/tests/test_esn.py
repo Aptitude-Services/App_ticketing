@@ -17,7 +17,7 @@ SECTOR = Organisation.ActivitySector.OTHER
 
 @pytest.fixture
 def esn():
-    Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.APTITUDE)
+    Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.CLIENT, is_operator=True)
     partner = Organisation.objects.create(name="ESN Partenaire", kind=Organisation.Kind.CLIENT, activity_sector=SECTOR)
     partner2 = Organisation.objects.create(name="ESN Autre", kind=Organisation.Kind.CLIENT, activity_sector=SECTOR)
     end = Organisation.objects.create(name="Client final", kind=Organisation.Kind.END_CLIENT, activity_sector=SECTOR)
@@ -94,7 +94,7 @@ def test_only_esns_can_have_end_clients(esn):
 
 
 def test_end_client_cannot_be_attached_to_itself_or_aptitude(esn):
-    apt = Organisation.objects.get(kind=Organisation.Kind.APTITUDE)
+    apt = Organisation.objects.get(kind=Organisation.Kind.CLIENT, is_operator=True)
     esn["partner"].end_clients.add(esn["end"], apt)
     esn["partner"].refresh_from_db()
     with pytest.raises(ValidationError):

@@ -53,8 +53,8 @@ def user_list(request):
     audience = _audience(request)
     users = permissions.manageable_users(request.user).prefetch_related("contract_accesses__contract")
     if request.user.is_aptitude:
-        kind = Organisation.Kind.APTITUDE if audience == "equipe" else Organisation.Kind.CLIENT
-        users = users.filter(organisation__kind=kind)
+        # Équipe interne : l'organisation opératrice ; clients : ESN et clients finaux.
+        users = users.filter(organisation__is_operator=(audience == "equipe"))
     return render(request, "accounts/user_list.html", {"users": users, "audience": audience})
 
 
@@ -65,7 +65,7 @@ def user_create(request):
     audience = _audience(request)
     form = UserManageForm(request.POST or None, actor=request.user)
     if request.method == "GET" and audience == "equipe":
-        form.initial.update(organisation=Organisation.objects.filter(kind=Organisation.Kind.APTITUDE).first(),
+        form.initial.update(organisation=Organisation.objects.filter(is_operator=True).first(),
                             profile=Profile.TECH_ALL)
     if request.method == "POST" and form.is_valid():
         user = form.save()

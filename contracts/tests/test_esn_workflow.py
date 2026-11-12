@@ -21,7 +21,7 @@ def env(client, monkeypatch):
     # L'enrôlement MFA est testé ailleurs ; ici on ouvre directement l'administration.
     from accounts.middleware import MFARequiredMiddleware
     monkeypatch.setattr(MFARequiredMiddleware, "__call__", lambda self, request: self.get_response(request))
-    apt = Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.APTITUDE)
+    apt = Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.CLIENT, is_operator=True)
     esn = Organisation.objects.create(name="ESN A", kind=Organisation.Kind.CLIENT, activity_sector=SECTOR)
     end = Organisation.objects.create(name="Banque Finale", kind=Organisation.Kind.END_CLIENT, activity_sector=SECTOR)
     esn.end_clients.add(end)
@@ -119,10 +119,10 @@ def test_create_end_client_from_esn_page(env):
     assert created in env["esn"].end_clients.all()
 
 
-def test_org_admin_add_page_shows_client_esn_and_sector(env):
+def test_org_admin_add_page_shows_vendor_kind_and_sector(env):
     resp = env["client"].get(reverse("admin:accounts_organisation_add"))
     html = resp.content.decode()
-    assert "Client ESN" in html
+    assert "Vendeur (ESN ou Aptitude)" in html
     assert "Secteur d" in html
     assert "type de client" not in html.lower()
 

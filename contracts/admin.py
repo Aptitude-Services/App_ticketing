@@ -333,7 +333,7 @@ class ContractForm(forms.ModelForm):
             return
         self.fields["end_clients"] = forms.ModelChoiceField(
             queryset=field.queryset, required=False, label=_("Client final"),
-            empty_label=_("— Choisissez d'abord l'ESN —"),
+            empty_label=_("— Choisissez d'abord le vendeur —"),
         )
         if self.instance.pk:
             first = self.instance.end_clients.first()
@@ -366,8 +366,8 @@ class ContractForm(forms.ModelForm):
         client = data.get("client")
         end_clients = data.get("end_clients") or []
         if end_clients:
-            if client is None or not client.is_esn:
-                self.add_error("end_clients", _("Choisissez d'abord une organisation de type « Client ESN »."))
+            if client is None or not client.is_vendor:
+                self.add_error("end_clients", _("Choisissez d'abord le vendeur (une ESN ou Aptitude)."))
             else:
                 allowed = set(client.end_clients.values_list("pk", flat=True))
                 invalid = [e.name for e in end_clients if e.pk not in allowed]
@@ -392,8 +392,12 @@ class ContractForm(forms.ModelForm):
 class ContractAdmin(SuperAdminCascadeDeleteMixin, admin.ModelAdmin):
     form = ContractForm
     change_form_template = "admin/contracts/contract/change_form.html"
-    list_display = ("reference", "title", "client", "contract_type", "status", "start_date", "end_date")
+    list_display = ("reference", "title", "client", "channel", "contract_type", "status", "start_date", "end_date")
     list_filter = ("status", "contract_type", "contract_type__sla__coverage", "client")
+
+    @admin.display(description=_("canal"), ordering="client__is_operator")
+    def channel(self, obj):
+        return _("Vente directe") if obj.is_direct else _("Via ESN")
     search_fields = ("reference", "title", "client__name")
     list_select_related = ("client", "contract_type")
     exclude = ("allowance_hours",)  # forfait d'heures : non utilisé, masqué

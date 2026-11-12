@@ -136,14 +136,17 @@ class Contract(models.Model):
                     "(ex. APT1-0911/COM/2026, 1er contrat du 9 novembre 2026)."),
     )
     title = models.CharField(_("intitulé"), max_length=200)
+    # Vendeur du contrat : une ESN (vente indirecte) ou Aptitude (vente directe).
+    # Le nom du champ est historique ; il porte aussi le logo et le code des rapports.
     client = models.ForeignKey(
         Organisation, on_delete=models.PROTECT, related_name="contracts",
-        limit_choices_to={"kind": Organisation.Kind.CLIENT}, verbose_name=_("client ESN"),
+        limit_choices_to={"kind": Organisation.Kind.CLIENT}, verbose_name=_("vendeur (ESN ou Aptitude)"),
+        help_text=_("Choisissez Aptitude pour une vente directe, sans ESN intermédiaire."),
     )
     end_clients = models.ManyToManyField(
         Organisation, blank=True, related_name="covered_contracts",
         limit_choices_to={"kind": Organisation.Kind.END_CLIENT}, verbose_name=_("clients finaux"),
-        help_text=_("Clients finaux couverts par ce contrat. La liste se limite à ceux rattachés à l'ESN choisie."),
+        help_text=_("Clients finaux couverts par ce contrat. La liste se limite à ceux rattachés au vendeur choisi."),
     )
     contract_type = models.ForeignKey(
         ContractType, on_delete=models.PROTECT, related_name="contracts", null=True,
@@ -174,6 +177,11 @@ class Contract(models.Model):
 
     def __str__(self):
         return f"{self.reference} — {self.title}"
+
+    @property
+    def is_direct(self) -> bool:
+        """Vente directe : Aptitude est elle-même le vendeur, sans ESN intermédiaire."""
+        return bool(self.client_id) and self.client.is_operator
 
     @property
     def sla(self):
@@ -258,8 +266,8 @@ class Contract(models.Model):
     def clean(self):
         if not self.contract_type_id:
             raise ValidationError({"contract_type": _("Le type de contrat est obligatoire.")})
-        if self.client_id and not self.client.is_esn:
-            raise ValidationError({"client": _("Un contrat se rattache à un client ESN.")})
+        if self.client_id and not self.client.is_vendor:
+            raise ValidationError({"client": _("Le vendeur d'un contrat est une ESN ou Aptitude.")})
         if self.end_date and self.start_date and self.end_date < self.start_date:
             raise ValidationError({"end_date": _("La fin doit suivre le début.")})
 

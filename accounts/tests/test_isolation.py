@@ -15,7 +15,7 @@ pytestmark = pytest.mark.django_db
 
 @pytest.fixture
 def world():
-    apt = Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.APTITUDE)
+    apt = Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.CLIENT, is_operator=True)
     a = Organisation.objects.create(name="Client A")
     b = Organisation.objects.create(name="Client B")
     today = datetime.date(2026, 1, 1)
@@ -101,7 +101,7 @@ def test_manageable_users_scope(world):
     assert a_emails == ["admin@a.ci", "restreint@a.ci", "rw@a.ci"]
     assert not manageable_users(world["a_rw"]).exists()
     assert not manageable_users(world["tech_all"]).exists()
-    assert not manageable_users(world["apt_manager"]).filter(organisation__kind="aptitude").exists()
+    assert not manageable_users(world["apt_manager"]).filter(organisation__is_operator=True).exists()
 
 
 def test_client_admin_cannot_open_other_org_user(client, world):

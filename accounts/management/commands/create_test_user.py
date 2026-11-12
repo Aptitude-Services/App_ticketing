@@ -47,8 +47,8 @@ class Command(BaseCommand):
             is_super = False
         else:
             org, _ = Organisation.objects.get_or_create(
-                kind=Organisation.Kind.APTITUDE,
-                defaults={"name": "Aptitude Services"},
+                is_operator=True,
+                defaults={"name": "Aptitude Services", "kind": Organisation.Kind.CLIENT},
             )
             profile = Profile.APTITUDE_ADMIN
             first_name = "Test"

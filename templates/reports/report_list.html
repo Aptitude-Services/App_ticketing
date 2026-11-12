@@ -15,13 +15,13 @@
   <div class="seg">{% for key, label, n in tabs %}<a href="?vue={{ key }}{% if q %}&q={{ q|urlencode }}{% endif %}" {% if tab == key %}aria-current="true"{% endif %}>{{ label }} <span class="muted">{{ n }}</span></a>{% endfor %}</div>
   <input type="hidden" name="vue" value="{{ tab }}">
   <label class="sr-only" for="q">{% translate "Rechercher" %}</label>
-  <input id="q" type="search" name="q" value="{{ q }}" placeholder="{% translate 'Référence, ESN ou client final' %}">
+  <input id="q" type="search" name="q" value="{{ q }}" placeholder="{% translate 'Référence, vendeur ou client final' %}">
 </form>
 
 <section class="panel">
   {% if reports %}
   <div class="table-wrap"><table>
-    <thead><tr><th>{% translate "Référence" %}</th>{% if kind == 'tous' %}<th>{% translate "Type" %}</th>{% endif %}<th>{% translate "Intitulé" %}</th><th>{% translate "ESN" %}</th><th>{% translate "Client final" %}</th>{% if user.is_aptitude %}<th>{% translate "Rédacteur" %}</th><th>{% translate "Statut" %}</th>{% endif %}<th>{% translate "Date" %}</th></tr></thead>
+    <thead><tr><th>{% translate "Référence" %}</th>{% if kind == 'tous' %}<th>{% translate "Type" %}</th>{% endif %}<th>{% translate "Intitulé" %}</th><th>{% translate "Vendeur" %}</th><th>{% translate "Client final" %}</th>{% if user.is_aptitude %}<th>{% translate "Rédacteur" %}</th><th>{% translate "Statut" %}</th>{% endif %}<th>{% translate "Date" %}</th></tr></thead>
     <tbody>{% for r in reports %}
       <tr>
         <td><a class="mono" href="{% url 'report_detail' r.pk %}">{{ r.reference }}</a></td>

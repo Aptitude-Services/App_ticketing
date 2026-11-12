@@ -47,8 +47,8 @@
         shown++;
       });
       if (placeholder) {
-        placeholder.text = !clientSel.value ? "— Choisissez d'abord l'ESN —"
-          : (shown ? "— Sélectionnez le client final —" : "— Aucun client final pour cette ESN —");
+        placeholder.text = !clientSel.value ? "— Choisissez d'abord le vendeur —"
+          : (shown ? "— Sélectionnez le client final —" : "— Aucun client final pour ce vendeur —");
         placeholder.selected = !picked;
         endClientsSel.disabled = !clientSel.value || !shown;
       }

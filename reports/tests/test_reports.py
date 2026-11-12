@@ -28,7 +28,7 @@ MON_10 = datetime.datetime(2026, 11, 2, 10, tzinfo=TZ)
 def w(client, monkeypatch):
     from accounts.middleware import MFARequiredMiddleware
     monkeypatch.setattr(MFARequiredMiddleware, "__call__", lambda self, request: self.get_response(request))
-    apt = Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.APTITUDE)
+    apt = Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.CLIENT, is_operator=True)
     esn = Organisation.objects.create(name="Hudson", code="HUD", kind=Organisation.Kind.CLIENT)
     end = Organisation.objects.create(name="Banque Lagune", code="BLAG", kind=Organisation.Kind.END_CLIENT,
                                       activity_sector=SECTOR)

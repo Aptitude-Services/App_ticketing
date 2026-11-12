@@ -19,7 +19,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         if not settings.DEBUG:
             raise CommandError("Réservé au développement (DJANGO_DEBUG=1).")
-        apt, _ = Organisation.objects.get_or_create(name="Aptitude Services", defaults={"kind": "aptitude"})
+        apt, _ = Organisation.objects.get_or_create(name="Aptitude Services", defaults={"kind": "client", "is_operator": True})
         a, _ = Organisation.objects.get_or_create(name="Banque Lagune", defaults={"email_domains": "banque-lagune.ci"})
         b, _ = Organisation.objects.get_or_create(name="Clinique Riviera", defaults={"email_domains": "clinique-riviera.ci"})
         d = datetime.date(2026, 1, 1)

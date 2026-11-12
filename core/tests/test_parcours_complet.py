@@ -56,7 +56,7 @@ def text(resp):
 
 def test_parcours_complet():
     # ================================================================== 1. Mise en place (Super Admin)
-    Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.APTITUDE)
+    Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.CLIENT, is_operator=True)
     root = User.objects.create_superuser("admin@aptitudes.net", PASSWORD, first_name="Super", last_name="Admin")
     admin = session(root)
 
@@ -106,7 +106,7 @@ def test_parcours_complet():
     def team(email, profile, manager=None):
         ok(admin.post(reverse("user_create") + "?type=equipe", {
             "email": email, "first_name": email.split("@")[0].capitalize(), "last_name": "Aptitude",
-            "language": "fr", "organisation": Organisation.objects.get(kind="aptitude").pk,
+            "language": "fr", "organisation": Organisation.objects.get(kind="client", is_operator=True).pk,
             "profile": profile, "manager": manager.pk if manager else "", "all_contracts": "on", "is_active": "on",
         }), 302)
         return User.objects.get(email=email)
@@ -308,7 +308,7 @@ def test_creation_de_compte_quand_la_messagerie_est_en_panne(monkeypatch):
         raise RuntimeError("Graph 404 ErrorInvalidUser")
 
     monkeypatch.setattr(V, "send_mail", broken)
-    Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.APTITUDE)
+    Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.CLIENT, is_operator=True)
     esn = Organisation.objects.create(name="ESN", kind=Organisation.Kind.CLIENT)
     admin = session(User.objects.create_superuser("root@aptitudes.net", PASSWORD))
     resp = ok(admin.post(reverse("user_create"), {

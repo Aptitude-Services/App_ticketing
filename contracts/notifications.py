@@ -34,7 +34,12 @@ class LicenseMailError(Exception):
 
 
 def esn_recipients(esn):
-    """Administrateurs de l'ESN ; à défaut, tous ses utilisateurs actifs."""
+    """Administrateurs de l'ESN ; à défaut, tous ses utilisateurs actifs.
+
+    Vente directe (vendeur = Aptitude) : personne ici, l'équipe interne n'est pas une ESN ;
+    les managers Aptitude sont prévenus par leur propre réglage (notify_managers)."""
+    if esn.is_operator:
+        return []
     users = User.objects.filter(organisation=esn, is_active=True)
     admins = [u.email for u in users.filter(profile=Profile.CLIENT_ADMIN)]
     return admins or [u.email for u in users]

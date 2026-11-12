@@ -38,7 +38,7 @@ def test_offline_page_needs_no_login(client):
 
 
 def test_pwa_files_skip_mfa_for_unverified_aptitude_user(client):
-    org = Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.APTITUDE)
+    org = Organisation.objects.create(name="Aptitude Services", kind=Organisation.Kind.CLIENT, is_operator=True)
     user = User.objects.create_user("ing@aptitudes.net", "Motdepasse-tres-long-1", organisation=org,
                                     profile=Profile.TECH_ALL)
     client.force_login(user)  # MFA pas encore activée : les pages redirigent, pas les fichiers PWA

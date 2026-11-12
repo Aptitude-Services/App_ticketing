@@ -25,7 +25,7 @@ SAT_10 = at(2026, 11, 7, 10)      # samedi
 
 @pytest.fixture
 def w():
-    apt = Organisation.objects.create(name="Aptitude Services", kind="aptitude")
+    apt = Organisation.objects.create(name="Aptitude Services", kind="client", is_operator=True)
     a = Organisation.objects.create(name="Client A")
     b = Organisation.objects.create(name="Client B")
     t24 = ContractType.objects.get(name="Standard 24x7")

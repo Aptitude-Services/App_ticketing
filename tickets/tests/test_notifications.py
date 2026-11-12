@@ -16,7 +16,7 @@ NOW = datetime.datetime(2026, 11, 2, 10, tzinfo=ZoneInfo("Africa/Abidjan"))
 
 @pytest.fixture
 def w():
-    apt = Organisation.objects.create(name="Aptitude Services", kind="aptitude")
+    apt = Organisation.objects.create(name="Aptitude Services", kind="client", is_operator=True)
     esn = Organisation.objects.create(name="ESN", kind="client")
     end = Organisation.objects.create(name="Final", kind="end_client", activity_sector="bank")
     esn.end_clients.add(end)

@@ -2,7 +2,8 @@
 
 Réglages (seuils, destinataires, plage d'envoi, activation) : fiche « Paramètres des alertes
 de licence » de l'administration (modèle LicenseAlertSettings). Par défaut : trois alertes,
-5 mois, 3 mois puis 1 mois avant l'échéance, au client ESN, au client final et aux managers.
+5 mois, 3 mois puis 1 mois avant l'échéance. Deux emails : un interne (ESN vendeur + managers,
+offre de renouvellement à envoyer) et un pour le client final (expiration + offre à venir).
 Deux déclencheurs :
 - automatique : le planificateur intégré (service « scheduler », commande ``run_scheduler``)
   vérifie chaque heure dans la plage d'envoi (``notify_license_expiry`` reste disponible
@@ -98,40 +99,104 @@ def _contract_url(contract):
 def _when(days):
     if days == 0:
         return _("aujourd'hui")
+    if days == 1:
+        return _("demain")
     if days >= 28:
         months = round(days / 30.4)
         return _("dans environ %(m)d mois (%(d)d jours)") % {"m": months, "d": days}
-    return _("dans %(d)d jour(s)") % {"d": days}
+    return _("dans %(d)d jours") % {"d": days}
 
 
-def _body(esn, solutions, today):
-    lines = [
-        _("Bonjour,"),
-        "",
-        _("Les licences suivantes, couvertes par vos contrats de support, arrivent bientôt à expiration :"),
+def _end_names(solutions):
+    return ", ".join(e.name for e in solutions[0].contract.end_clients.all()) or "—"
+
+
+def _license_lines(sol, today, extra=()):
+    """Bloc d'une licence : nom, échéance, contrat, (lignes internes), client final, lien."""
+    contract = sol.contract
+    return [
+        sol.name,
+        f"• {_('Fin de licence')} : {sol.license_end:%d/%m/%Y}, {_when((sol.license_end - today).days)}",
+        f"• {_('Contrat')} : {contract.reference}",
+        *extra,
+        f"• {_('Client final')} : {_end_names([sol])}",
+        f"• {_('Voir le contrat')} : {_contract_url(contract)}",
         "",
     ]
+
+
+def _client_subject(solutions):
+    if len(solutions) == 1:
+        return _("Expiration prochaine de votre licence")
+    return _("Expiration prochaine de vos licences")
+
+
+def _client_body(solutions, today):
+    """Mail au client final : information + annonce de l'offre de renouvellement."""
+    intro = (_("La licence ci-dessous, couverte par votre contrat de support, arrive bientôt à expiration :")
+             if len(solutions) == 1 else
+             _("Les licences ci-dessous, couvertes par vos contrats de support, arrivent bientôt à expiration :"))
+    lines = [_("Bonjour,"), "", intro, ""]
     for sol in solutions:
-        contract = sol.contract
-        ends = ", ".join(e.name for e in contract.end_clients.all()) or "—"
-        when = _when((sol.license_end - today).days)
-        lines.append(f"- {sol.name} ({sol.category_label}) — {_('fin de licence le')} "
-                     f"{sol.license_end:%d/%m/%Y}, {when}")
-        lines.append(f"  {_('Contrat')} {contract.reference} · {_('Client final')} : {ends}")
-        lines.append(f"  {_contract_url(contract)}")
+        lines += _license_lines(sol, today)
     lines += [
+        _("Pour que votre service continue sans interruption, nous vous ferons parvenir une offre "
+          "de renouvellement dans les plus brefs délais."),
         "",
-        _("Pensez à engager le renouvellement pour éviter toute interruption de service."),
-        "",
+        _("Cordialement,"),
         _("L'équipe Aptitude Support"),
     ]
     return "\n".join(lines)
 
 
-def send_license_notice(esn, solutions, actor=None, threshold=0, manual=False, today=None):
-    """Envoie l'alerte au client ESN, aux clients finaux concernés et aux managers, puis la trace.
+def _internal_subject(solutions):
+    soonest = min(s.license_end for s in solutions)
+    return _("[Action requise] Offre de renouvellement à envoyer : %(c)s, échéance le %(d)s") % {
+        "c": _end_names(solutions), "d": soonest.strftime("%d/%m/%Y")}
 
-    Un email par groupe de clients finaux : un client final ne reçoit que ses licences.
+
+def _internal_body(esn, solutions, today, client_emails):
+    """Mail au vendeur (ESN ou Aptitude) et aux managers : l'offre promise au client reste à envoyer."""
+    head = (_("La licence ci-dessous arrive à expiration.") if len(solutions) == 1 else
+            _("Les licences ci-dessous arrivent à expiration."))
+    if client_emails:
+        tail = _("Le client final a été informé ce jour qu'une offre de renouvellement lui sera transmise "
+                 "dans les plus brefs délais.")
+    else:
+        tail = _("Le client final n'a pas été prévenu par email (aucun destinataire).")
+    lines = [_("Bonjour,"), "", f"{head} {tail}", ""]
+    for sol in solutions:
+        lines += _license_lines(sol, today, [f"• {_('Vendeur')} : {esn.name}"])
+    if client_emails:
+        # Même(s) client(s) final(aux) pour tout le groupe : une seule mention.
+        lines += [f"{_('Client prévenu')} : {', '.join(client_emails)}", ""]
+    lines += [
+        _("Action attendue : préparer et envoyer l'offre de renouvellement au client final."),
+        "",
+        _("Cordialement,"),
+        _("L'équipe Aptitude Support"),
+    ]
+    return "\n".join(lines)
+
+
+def _send(subject, body, recipients):
+    if not recipients:
+        return
+    try:
+        sent = send_mail(subject, body, None, recipients, fail_silently=True)
+    except Exception:
+        sent = 0
+    if not sent:
+        # Échec d'envoi (inscrit au journal des emails) : rien n'est tracé, l'alerte sera retentée.
+        raise LicenseMailError(recipients)
+
+
+def send_license_notice(esn, solutions, actor=None, threshold=0, manual=False, today=None):
+    """Envoie l'alerte puis la trace. Deux emails distincts :
+    - interne, au vendeur (admins de l'ESN) et aux managers Aptitude : offre de renouvellement à envoyer ;
+    - client, aux clients finaux concernés : expiration annoncée, offre à venir.
+
+    Un envoi par groupe de clients finaux : un client final ne reçoit que ses licences.
     Renvoie la liste des destinataires (vide si personne). Lève LicenseMailError si un envoi échoue."""
     today = today or timezone.localdate()
     by_end = defaultdict(list)
@@ -149,26 +214,20 @@ def _send_group(esn, solutions, actor, threshold, manual, today):
     if not solutions:
         return []
     conf = LicenseAlertSettings.get()
-    recipients = []
+    internal = []
     if conf.notify_esn:
-        recipients += esn_recipients(esn)
-    if conf.notify_end_client:
-        recipients += end_client_recipients(solutions[0].contract)
+        internal += esn_recipients(esn)
     if conf.notify_managers:
-        recipients += manager_recipients()
-    recipients = list(dict.fromkeys(recipients))
+        internal += manager_recipients()
+    internal = list(dict.fromkeys(internal))
+    clients = list(dict.fromkeys(end_client_recipients(solutions[0].contract))) if conf.notify_end_client else []
+    clients = [e for e in clients if e not in internal]
+    recipients = internal + clients
     if not recipients:
         return []
-    soonest = min(s.license_end for s in solutions)
-    subject = _("[Aptitude] %(n)d licence(s) expirent bientôt — première échéance le %(d)s") % {
-        "n": len(solutions), "d": soonest.strftime("%d/%m/%Y")}
-    try:
-        sent = send_mail(subject, _body(esn, solutions, today), None, recipients, fail_silently=True)
-    except Exception:
-        sent = 0
-    if not sent:
-        # Échec d'envoi (inscrit au journal des emails) : rien n'est tracé, l'alerte sera retentée.
-        raise LicenseMailError(recipients)
+    # L'équipe interne d'abord : le client ne reçoit la promesse d'une offre que si le vendeur est prévenu.
+    _send(_internal_subject(solutions), _internal_body(esn, solutions, today, clients), internal)
+    _send(_client_subject(solutions), _client_body(solutions, today), clients)
     LicenseNotice.objects.bulk_create([
         LicenseNotice(solution=s, license_end=s.license_end, threshold=threshold if not manual else
                       max(0, (s.license_end - today).days), manual=manual,

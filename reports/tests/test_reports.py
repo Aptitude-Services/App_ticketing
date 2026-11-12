@@ -273,11 +273,22 @@ def test_license_alert_goes_to_esn_end_client_and_managers(w):
     w["sol"].save()
     mail.outbox.clear()
     assert notify_expiring_licenses(datetime.date(2026, 11, 9)) == (1, 1)
-    to = set(mail.outbox[0].to)
-    assert {"admin@hudson.ci", "dsi@final.ci"} <= to
+    internal, to_client = mail.outbox
     managers = set(User.objects.filter(profile=Profile.APTITUDE_MANAGER, is_active=True)
                    .values_list("email", flat=True))
-    assert managers and managers <= to
+    # Interne : vendeur + managers, invités à envoyer l'offre ; le client n'y figure pas.
+    assert managers and {"admin@hudson.ci"} | managers <= set(internal.to)
+    assert "dsi@final.ci" not in internal.to
+    assert internal.subject.startswith("[Action requise] Offre de renouvellement à envoyer")
+    assert "Action attendue" in internal.body and "Client prévenu" in internal.body
+    assert "dsi@final.ci" in internal.body and "Vendeur" in internal.body
+    # Client : seul destinataire, annonce de l'offre, sans adresse interne.
+    assert "dsi@final.ci" in to_client.to and not (managers | {"admin@hudson.ci"}) & set(to_client.to)
+    assert to_client.subject == "Expiration prochaine de votre licence"
+    body = to_client.body
+    assert "nous vous ferons parvenir une offre de renouvellement" in body
+    assert "dans 22 jours" in body and "jour(s)" not in body and "Pensez à engager" not in body
+    assert "Action attendue" not in body and "Vendeur" not in body
 
 
 def test_admin_action_notifies_esn(w, client):
@@ -508,7 +519,13 @@ def test_license_alert_recipients_follow_settings(w):
     w["sol"].save()
     mail.outbox.clear()
     notify_expiring_licenses(datetime.date(2026, 11, 9))
-    assert set(mail.outbox[0].to) == {"admin@hudson.ci", "it@blag.ci"}, "ESN et client final, sans les managers"
+    assert [m.to for m in mail.outbox] == [["admin@hudson.ci"], ["it@blag.ci"]], \
+        "ESN (interne) puis client final, sans les managers"
+
+
+def test_license_delay_wording():
+    from contracts.notifications import _when
+    assert [_when(d) for d in (0, 1, 10)] == ["aujourd'hui", "demain", "dans 10 jours"]
 
 
 @pytest.mark.parametrize("bad", ["", "5, -1", "trois", "30"])

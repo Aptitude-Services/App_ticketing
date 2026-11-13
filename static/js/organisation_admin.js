@@ -1,5 +1,5 @@
 /* Fiche organisation : n'afficher que les champs utiles au type choisi.
-   Vendeur (ESN ou Aptitude) → « Clients finaux » ; client final → « Vendeurs rattachés ».
+   Vendeur (ESN ou Propriétaire) → « Clients finaux » ; client final → « Vendeurs rattachés ».
    Aptitude est un vendeur : elle peut avoir ses propres clients finaux (vente directe).
    Le secteur d'activité n'est demandé qu'au client final ; le logo qu'au vendeur. */
 (function (init) {

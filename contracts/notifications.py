@@ -156,7 +156,7 @@ def _internal_subject(solutions):
 
 
 def _internal_body(esn, solutions, today, client_emails):
-    """Mail au vendeur (ESN ou Aptitude) et aux managers : l'offre promise au client reste à envoyer."""
+    """Mail au vendeur (ESN ou Propriétaire) et aux managers : l'offre promise au client reste à envoyer."""
     head = (_("La licence ci-dessous arrive à expiration.") if len(solutions) == 1 else
             _("Les licences ci-dessous arrivent à expiration."))
     if client_emails:

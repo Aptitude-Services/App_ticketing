@@ -21,10 +21,10 @@ d'authentification sur téléphone) à leur première connexion.
 ## Étape 1 — Super Admin : le référentiel
 
 1. **Administration → Organisations → Ajouter** : l'ESN.
-   Type « Client ESN », **logo** (PNG/SVG), domaines email. Pas de secteur d'activité.
+   Type « ESN », **logo** (PNG/SVG), domaines email. Pas de secteur d'activité.
 2. Sur la fiche de l'ESN, bouton **« Nouveau client final »** : nom, **secteur d'activité**, domaines.
 3. **Administration → Contrats → Ajouter** :
-   intitulé, **Client ESN**, puis **Client final** dans la liste déroulante (seuls ceux de l'ESN),
+   intitulé, **vendeur** (l'ESN), puis **Client final** dans la liste déroulante (seuls ceux de l'ESN),
    formule (ex. GOLD, couverte 24x7), dates.
    Solutions : **Choisir un fichier** (modèle Excel) remplit le tableau, ou saisie ligne par ligne.
    Enregistrer : la référence `ESN-CLIENT-ANNÉE-NNN` est attribuée.

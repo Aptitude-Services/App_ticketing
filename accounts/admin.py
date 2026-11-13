@@ -49,7 +49,7 @@ class OrganisationForm(forms.ModelForm):
 
     # Vendeurs : les ESN, et Aptitude pour ses ventes directes.
     partner_esns = forms.ModelMultipleChoiceField(
-        label=_("Vendeurs rattachés (ESN ou Aptitude)"), required=False,
+        label=_("Vendeurs rattachés (ESN ou Propriétaire)"), required=False,
         queryset=Organisation.objects.filter(kind=Organisation.Kind.CLIENT),
         widget=WrappedFilteredSelectMultiple(_("vendeurs"), is_stacked=False),
     )
@@ -201,8 +201,8 @@ class OrganisationAdmin(admin.ModelAdmin):
     @admin.display(description=_("type d'organisation"), ordering="kind")
     def kind_label(self, obj):
         if obj.is_operator:
-            return _("Vendeur — Aptitude (opérateur, vente directe)")
-        return _("Vendeur — ESN") if obj.is_vendor else obj.get_kind_display()
+            return _("Propriétaire")
+        return _("ESN") if obj.is_vendor else obj.get_kind_display()
 
     @admin.display(description=_("secteur d'activité"), ordering="activity_sector")
     def sector(self, obj):
@@ -237,7 +237,7 @@ class OrganisationAdmin(admin.ModelAdmin):
         if not self.has_change_permission(request, esn):
             raise PermissionDenied
         if not esn.is_esn:
-            self.message_user(request, _("Seul un vendeur (ESN ou Aptitude) peut avoir des clients finaux."),
+            self.message_user(request, _("Seul un vendeur (ESN ou Propriétaire) peut avoir des clients finaux."),
                               level="error")
             return redirect("admin:accounts_organisation_changelist")
 

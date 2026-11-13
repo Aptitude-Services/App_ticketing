@@ -367,7 +367,7 @@ class ContractForm(forms.ModelForm):
         end_clients = data.get("end_clients") or []
         if end_clients:
             if client is None or not client.is_vendor:
-                self.add_error("end_clients", _("Choisissez d'abord le vendeur (une ESN ou Aptitude)."))
+                self.add_error("end_clients", _("Choisissez d'abord le vendeur (ESN ou Propriétaire)."))
             else:
                 allowed = set(client.end_clients.values_list("pk", flat=True))
                 invalid = [e.name for e in end_clients if e.pk not in allowed]

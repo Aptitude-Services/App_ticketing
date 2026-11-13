@@ -68,7 +68,7 @@ def test_admin_lists_and_filters_by_sector():
 
 
 def test_vendor_kind_label_covers_esn_and_aptitude():
-    assert dict(Organisation.Kind.choices)["client"] == "Vendeur (ESN ou Aptitude)"
+    assert dict(Organisation.Kind.choices)["client"] == "ESN"
 
 
 # --- Logo de l'ESN ----------------------------------------------------------------------------------

@@ -122,7 +122,7 @@ def test_create_end_client_from_esn_page(env):
 def test_org_admin_add_page_shows_vendor_kind_and_sector(env):
     resp = env["client"].get(reverse("admin:accounts_organisation_add"))
     html = resp.content.decode()
-    assert "Vendeur (ESN ou Aptitude)" in html
+    assert ">ESN</option>" in html
     assert "Secteur d" in html
     assert "type de client" not in html.lower()
 

@@ -38,7 +38,8 @@ class Organisation(models.Model):
 
     class Kind(models.TextChoices):
         # Codes enregistrés en base : ne pas les renommer (« client » = vendeur).
-        CLIENT = "client", _("Vendeur (ESN ou Aptitude)")
+        # Aptitude a aussi ce type, mais s'affiche « Propriétaire » (cf. is_operator).
+        CLIENT = "client", _("ESN")
         END_CLIENT = "end_client", _("Client final")
 
     class ActivitySector(models.TextChoices):
@@ -169,7 +170,7 @@ class Organisation(models.Model):
         if self.kind != self.Kind.END_CLIENT and self.partner_esns.exists():
             raise ValidationError({"kind": _("Retirez les vendeurs rattachés avant de changer ce type d'organisation.")})
         if self.partner_esns.exclude(kind=self.Kind.CLIENT).exists():
-            raise ValidationError(_("Un client final ne se rattache qu'à des vendeurs (ESN ou Aptitude)."))
+            raise ValidationError(_("Un client final ne se rattache qu'à des vendeurs (ESN ou Propriétaire)."))
 
     @property
     def is_aptitude(self):

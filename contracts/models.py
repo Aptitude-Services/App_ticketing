@@ -140,7 +140,7 @@ class Contract(models.Model):
     # Le nom du champ est historique ; il porte aussi le logo et le code des rapports.
     client = models.ForeignKey(
         Organisation, on_delete=models.PROTECT, related_name="contracts",
-        limit_choices_to={"kind": Organisation.Kind.CLIENT}, verbose_name=_("vendeur (ESN ou Aptitude)"),
+        limit_choices_to={"kind": Organisation.Kind.CLIENT}, verbose_name=_("vendeur (ESN ou Propriétaire)"),
         help_text=_("Choisissez Aptitude pour une vente directe, sans ESN intermédiaire."),
     )
     end_clients = models.ManyToManyField(
@@ -267,7 +267,7 @@ class Contract(models.Model):
         if not self.contract_type_id:
             raise ValidationError({"contract_type": _("Le type de contrat est obligatoire.")})
         if self.client_id and not self.client.is_vendor:
-            raise ValidationError({"client": _("Le vendeur d'un contrat est une ESN ou Aptitude.")})
+            raise ValidationError({"client": _("Le vendeur d'un contrat est une ESN ou le Propriétaire.")})
         if self.end_date and self.start_date and self.end_date < self.start_date:
             raise ValidationError({"end_date": _("La fin doit suivre le début.")})
 

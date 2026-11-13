@@ -25,8 +25,8 @@ Complète `PLAN_DEMONSTRATION.md` (parcours de démo) avec les contrôles négat
 | # | Élément | Où | Valeurs suggérées |
 |---|---|---|---|
 | 1 | Messagerie | Configuration → Messagerie | SMTP ou Microsoft Graph, puis « Envoyer un test » |
-| 2 | ESN A | Administration → Organisations | Type *Client ESN*, logo, domaine `esna.test` |
-| 3 | ESN B (contrôle d'isolement) | idem | Type *Client ESN*, domaine `esnb.test` |
+| 2 | ESN A | Administration → Organisations | Type *ESN*, logo, domaine `esna.test` |
+| 3 | ESN B (contrôle d'isolement) | idem | Type *ESN*, domaine `esnb.test` |
 | 4 | Client final A1 | Fiche ESN A → « Nouveau client final » | Secteur *Banque* |
 | 5 | Client final A2 | idem | Secteur *Santé* (sert à tester les droits par client) |
 | 6 | Client final B1 | Fiche ESN B → « Nouveau client final » | n'importe quel secteur |
@@ -71,7 +71,7 @@ Complète `PLAN_DEMONSTRATION.md` (parcours de démo) avec les contrôles négat
 
 ### Formules et contrats
 - [ ] Formule : SLA, critères de service par catégorie, forfait de tickets enregistrés
-- [ ] Contrat : après choix du **Client ESN**, la liste **Client final** ne propose que ses clients finaux
+- [ ] Contrat : après choix du **vendeur** (l'ESN), la liste **Client final** ne propose que ses clients finaux
 - [ ] Référence attribuée à l'enregistrement au format `ESN-CLIENT-ANNÉE-NNN` ; 2ᵉ contrat → numéro suivant
 - [ ] Critères ajoutés / exclus par rapport à la formule correctement affichés sur la fiche contrat
 - [ ] **Import Excel** : télécharger le modèle `modele-import-solutions.xlsx`, le remplir, « Choisir un fichier » → tableau rempli

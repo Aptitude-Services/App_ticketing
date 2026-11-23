@@ -246,4 +246,4 @@ def test_pdf_button_only_when_libreoffice_is_installed(w, monkeypatch, installed
     page = c.get(reverse("comex")).content.decode()
     assert "Télécharger le PowerPoint" in page
     assert ("Télécharger en PDF" in page) is installed
-    assert ("Enregistrer sous → PDF" in page) is not installed
+    assert "Enregistrer sous → PDF" not in page  # plus de consigne de conversion manuelle

@@ -16,7 +16,7 @@ from django.utils.translation import gettext_lazy as _
 from core.assets import versioned
 
 from . import permissions
-from .models import AuditEvent, Organisation, Profile, User, file_data_uri
+from .models import APTITUDE_PROFILES, AuditEvent, Organisation, Profile, User, file_data_uri
 
 
 class WrappedFilteredSelectMultiple(FilteredSelectMultiple):
@@ -278,6 +278,9 @@ class UserAdmin(BaseUserAdmin):
     )
     filter_horizontal = ()
 
+    class Media:
+        js = (versioned("js/user_admin.js"),)
+
     # Même périmètre que la gestion des comptes dans l'application (accounts.permissions) :
     # un Manager ne voit, ne crée et ne modifie que des comptes clients, avec des profils clients.
     # Sans cela, il pourrait se donner le profil Super Admin ou changer le mot de passe d'un
@@ -304,6 +307,11 @@ class UserAdmin(BaseUserAdmin):
             # déjà le compte modifié.
             keep = {obj.profile} if obj else set()
             field.choices = [c for c in field.choices if c[0] in allowed or c[0] in keep or c[0] == ""]
+            # Repères pour user_admin.js : la liste ne propose que les profils de l'organisation
+            # choisie (internes pour Aptitude, clients sinon). User.clean reste le contrôle de fond.
+            field.widget.attrs["data-aptitude-profiles"] = ",".join(sorted(APTITUDE_PROFILES))
+            operator = Organisation.objects.filter(is_operator=True).values_list("pk", flat=True).first()
+            field.widget.attrs["data-operator-org"] = "" if operator is None else str(operator)
         org = form.base_fields.get("organisation")
         if org:
             org.queryset = permissions.manageable_organisations(request.user)

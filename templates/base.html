@@ -116,7 +116,7 @@
       </form>
     </div>
   </aside>
-  <div>
+  <div class="app-main">
     <header class="mobilebar">
       <a href="{% url 'dashboard' %}"><img src="{% static 'img/logo-white.png' %}" alt="Aptitude"></a>
       <nav>
@@ -128,8 +128,10 @@
     </header>
     <main class="content" id="contenu">
 {% endif %}
+      <div class="page-body">
       {% if messages %}<ul class="messages">{% for m in messages %}<li class="{{ m.tags }}">{{ m }}</li>{% endfor %}</ul>{% endif %}
       {% block content %}{% endblock %}
+      </div>
       <footer class="foot">
         {% if not user.is_aptitude %}
         <span>Aptitude Services · {% translate "Abidjan, Côte d'Ivoire" %}</span>

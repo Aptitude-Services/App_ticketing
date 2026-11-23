@@ -94,7 +94,7 @@ h3 { font-size: 15px; font-weight: 700; margin: 0 0 8px; }
 
 .mobilebar { display: none; }
 
-.content { padding: 36px 44px 64px; max-width: 1240px; width: 100%; }
+.content { padding: 36px 44px 24px; max-width: 1240px; width: 100%; }
 
 @media (max-width: 900px) {
   .app { grid-template-columns: 1fr; background: var(--paper); }
@@ -104,7 +104,7 @@ h3 { font-size: 15px; font-weight: 700; margin: 0 0 8px; }
   .mobilebar nav { margin-left: auto; display: flex; gap: 4px; }
   .mobilebar nav a { color: #C9D2DC; text-decoration: none; font-size: 13px; padding: 6px 8px; border-radius: 6px; }
   .mobilebar nav a[aria-current="page"] { color: #fff; background: var(--night-2); }
-  .content { padding: 24px 16px 48px; }
+  .content { padding: 24px 16px 20px; }
 }
 
 /* ------------------------------------------------------------ En-tête de page */
@@ -257,8 +257,8 @@ td .secondary { display: block; color: var(--muted); font-size: 13px; margin-top
 .auth-brand .pitch p { color: #B8C3CF; margin: 14px 0 0; font-size: 15px; }
 .auth-brand .contact { position: relative; margin-top: 40px; font-size: 13px; color: #93A1B2; }
 .auth-brand .contact a { color: #fff; }
-.auth-form { display: flex; align-items: center; justify-content: center; padding: 48px 24px; }
-.auth-card { width: 100%; max-width: 400px; }
+.auth-form { display: flex; flex-direction: column; align-items: center; padding: 48px 24px 24px; }
+.auth-card { width: 100%; max-width: 400px; margin-block: auto; }
 .auth-card .logo-mobile { display: none; margin-bottom: 28px; }
 .auth-card .logo-mobile img { height: 30px; }
 .auth-card h1 { font-size: 24px; margin-bottom: 6px; }
@@ -283,10 +283,21 @@ details.manual code { margin-top: 8px; }
 }
 
 /* ----------------------------------------------------------------- Pied */
-.foot { margin-top: 48px; font-size: 12.5px; color: var(--faint); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+/* Le contenu occupe toute la hauteur libre : le pied reste en bas de l'écran,
+   même sur une page courte. */
+.app-main { display: flex; flex-direction: column; min-width: 0; }
+.app-main > .content { flex: 1; }
+.content, .c-main { display: flex; flex-direction: column; }
+.page-body { flex: 1; min-width: 0; }
+.foot { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--faint); display: flex; justify-content: space-between; align-items: center; gap: 8px 24px; flex-wrap: wrap; }
 .foot a { color: var(--muted); }
 .foot .copyright { margin-left: auto; }
-.auth-copyright { margin: 20px 0 0; font-size: 12px; color: var(--faint); text-align: center; }
+.foot .copyright:only-child { margin: 0 auto; }
+@media (max-width: 700px) {
+  .foot { flex-direction: column; gap: 6px; text-align: center; }
+  .foot .copyright { margin: 4px 0 0; }
+}
+.auth-copyright { margin: 32px 0 0; font-size: 12px; color: var(--faint); text-align: center; }
 
 /* Cases multiples Django 5 (rendu en <div>) */
 .choices > div[id] { display: grid; gap: 8px; }
@@ -366,7 +377,7 @@ body.is-console { background: var(--console-bg); }
 .c-side .side-foot button { background: none; border: 0; padding: 0; font: inherit; color: var(--muted); cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
 .c-side .side-foot button:hover { color: var(--ink); }
 .c-side .side-foot svg { width: 16px; height: 16px; }
-.c-main { padding: 26px 30px 56px; min-width: 0; max-width: 1480px; }
+.c-main { padding: 26px 30px 24px; min-width: 0; max-width: 1480px; }
 .is-console .panel { border-radius: 12px; }
 .is-console .content { padding: 0; }
 .is-console h1 { font-size: 22px; }

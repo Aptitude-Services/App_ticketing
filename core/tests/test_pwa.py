@@ -34,7 +34,10 @@ def test_service_worker_is_served_at_the_root(client):
 
 def test_offline_page_needs_no_login(client):
     resp = client.get(reverse("offline"))
-    assert resp.status_code == 200 and "Pas de connexion" in resp.content.decode()
+    body = resp.content.decode()
+    assert resp.status_code == 200 and "Service indisponible" in body
+    # Aucune indication sur l'infrastructure (VPN, réseau interne) n'est exposée.
+    assert "VPN" not in body
 
 
 def test_pwa_files_skip_mfa_for_unverified_aptitude_user(client):

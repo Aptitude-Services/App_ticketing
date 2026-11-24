@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from django.core import mail
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 
@@ -582,3 +582,34 @@ def test_site_typed_in_old_reports_is_kept(w):
     cur.data["site"] = "Siège"
     cur.save()
     assert R.auto_data(cur)["site"] == "Siège"
+
+
+def _direct_report(w, end_profile=Profile.CLIENT_RW, link_end=True):
+    """Vente directe : contrat signé par Aptitude, client final avec un simple compte utilisateur."""
+    apt = Organisation.objects.get(is_operator=True)
+    end = Organisation.objects.create(name="Talentys", kind=Organisation.Kind.END_CLIENT, activity_sector=SECTOR)
+    apt.end_clients.add(end)
+    contract = Contract.objects.create(title="Direct", client=apt, start_date=datetime.date(2026, 1, 1),
+                                       contract_type=ContractType.objects.get(name="Standard 24x7"))
+    if link_end:
+        contract.end_clients.add(end)
+    user = User.objects.create_user("it@talentys.ci", "Motdepasse-tres-long-1", organisation=end, profile=end_profile)
+    r = R.create_report(w["tech"], Report.Kind.PREVENTIVE, contract, end_client=end if link_end else None)
+    R.submit(w["tech"], r)
+    R.validate(w["boss"], r)
+    return r, user
+
+
+def test_direct_sale_report_goes_to_end_client_user_not_internal_team(w):
+    r, end_user = _direct_report(w)
+    recipients, _mailed = R.send_to_client(w["boss"], r)
+    assert recipients == ["it@talentys.ci"]
+    assert R.visible_reports(end_user).filter(pk=r.pk).exists()
+    assert end_user.notifications.filter(kind="report").exists()
+    assert not w["other_mgr"].notifications.filter(title__contains="Nouveau rapport").exists()
+
+
+def test_direct_sale_report_without_end_client_explains_what_to_fix(w):
+    r, _user = _direct_report(w, link_end=False)
+    with pytest.raises(ValidationError, match="pas de client final"):
+        R.send_to_client(w["boss"], r)

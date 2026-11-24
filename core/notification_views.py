@@ -52,4 +52,7 @@ def notification_panel(request):
     """Compteur et contenu de la liste déroulante, rafraîchis périodiquement par la page."""
     ctx = panel_context(request.user)
     html = render_to_string("_notif_items.html", ctx, request=request)
-    return JsonResponse({"unread": ctx["notif_unread"], "html": html})
+    # Notifications non lues les plus récentes : la page s'en sert pour signaler une nouveauté
+    # (bandeau) et se mettre à jour quand elle concerne le ticket ou le rapport affiché.
+    fresh = [{"id": n.pk, "title": n.title, "url": n.url} for n in ctx["notif_items"] if n.read_at is None]
+    return JsonResponse({"unread": ctx["notif_unread"], "html": html, "fresh": fresh})

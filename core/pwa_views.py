@@ -7,6 +7,7 @@ import hashlib
 
 from django.http import JsonResponse
 from django.shortcuts import render
+from django.template.loader import get_template
 from django.templatetags.static import static
 from django.views.decorators.cache import cache_control
 
@@ -42,6 +43,8 @@ def manifest(request):
 @cache_control(no_cache=True)
 def service_worker(request):
     shell = "|".join(static(p) for p in ("css/app.css", "js/mobile.js", "img/logo.png", "img/icon-192.png"))
+    # La page « hors ligne » est en cache sur l'appareil : son contenu change aussi la version.
+    shell += get_template("pwa/offline.html").template.source
     version = hashlib.sha256(shell.encode()).hexdigest()[:12]
     response = render(request, "pwa/sw.js", {"version": version}, content_type="application/javascript")
     response["Service-Worker-Allowed"] = "/"

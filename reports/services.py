@@ -16,7 +16,6 @@ from django.utils.translation import gettext as _
 
 from accounts.models import Profile, User
 from accounts.permissions import visible_contracts
-from contracts.notifications import esn_recipients
 from core.notify import notify
 
 from . import builders as B
@@ -101,13 +100,24 @@ def _notify(users, report, actor, title, body=""):
     return notify(users, "report", title, reverse("report_detail", args=[report.pk]), actor=actor, body=body)
 
 
+def _org_users(org):
+    """Comptes actifs d'une organisation cliente : ses admins, à défaut tous ses comptes."""
+    users = list(User.objects.filter(organisation=org, is_active=True))
+    return [u for u in users if u.profile == Profile.CLIENT_ADMIN] or users
+
+
+def _client_ends(report):
+    """Clients finaux destinataires : celui du rapport, à défaut ceux du contrat."""
+    return [report.end_client] if report.end_client_id else list(report.contract.end_clients.all())
+
+
 def _client_users(report):
-    """Mêmes destinataires que l'email d'envoi : admins de l'ESN (à défaut tous ses comptes actifs),
-    plus les admins du client final."""
-    esn_users = list(User.objects.filter(organisation=report.esn, is_active=True))
-    users = [u for u in esn_users if u.profile == Profile.CLIENT_ADMIN] or esn_users
-    if report.end_client_id:
-        users += list(report.end_client.users.filter(is_active=True, profile=Profile.CLIENT_ADMIN))
+    """Destinataires de l'envoi (email et cloche) : l'ESN, puis le ou les clients finaux.
+
+    Vente directe (vendeur = Aptitude) : jamais l'équipe interne, seulement le client final."""
+    users = [] if report.esn.is_operator else _org_users(report.esn)
+    for end in _client_ends(report):
+        users += _org_users(end)
     return users
 
 
@@ -225,14 +235,16 @@ def reject(user, report, comment):
 def send_to_client(user, report):
     """Envoi au client ESN (et au client final s'il a des comptes) : uniquement un rapport validé."""
     _require(can_send(user, report), _("Seul un rapport validé peut partir chez le client."))
-    recipients = list(esn_recipients(report.esn))
-    if report.end_client_id:
-        recipients += [u.email for u in report.end_client.users.filter(is_active=True,
-                                                                      profile=Profile.CLIENT_ADMIN)]
-    recipients = sorted(set(recipients))
-    if not recipients:
-        raise ValidationError(_("Aucun destinataire actif chez %(esn)s : créez d'abord un compte client.")
-                              % {"esn": report.esn.name})
+    users = _client_users(report)
+    recipients = sorted({u.email for u in users if u.email})
+    if not users:
+        ends = _client_ends(report)
+        if report.esn.is_operator and not ends:
+            raise ValidationError(_("Ce contrat de vente directe n'a pas de client final : rattachez-le au contrat, "
+                                    "puis créez-lui un compte client."))
+        names = ", ".join(e.name for e in ends) if report.esn.is_operator else report.esn.name
+        raise ValidationError(_("Aucun destinataire actif chez %(org)s : créez d'abord un compte client.")
+                              % {"org": names})
     url = _absolute(reverse("report_detail", args=[report.pk]))
     target = report.end_client.name if report.end_client_id else report.esn.name
     mailed = _mail(
@@ -247,7 +259,7 @@ def send_to_client(user, report):
     report.sent_at = timezone.now()
     report.sent_to = ", ".join(recipients)
     report.save()
-    _notify(_client_users(report), report, user,
+    _notify(users, report, user,
             lambda: _("Nouveau rapport disponible : %(ref)s") % {"ref": report.reference},
             lambda: _("%(kind)s — à consulter et à confirmer.") % {"kind": report.get_kind_display()})
     return recipients, mailed

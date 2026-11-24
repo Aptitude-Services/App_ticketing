@@ -107,6 +107,8 @@ def test_bell_shows_unread_count_and_items(w):
     data = c.get(reverse("notification_panel")).json()
     assert data["unread"] == unread(w["boss"]) > 0
     assert "Nouveau ticket" in data["html"]
+    # Non lues récentes, avec leur lien : la page s'en sert pour annoncer et se mettre à jour seule.
+    assert data["fresh"] and all({"id", "title", "url"} <= set(n) for n in data["fresh"])
 
 
 def test_bell_is_also_on_the_client_portal(w):

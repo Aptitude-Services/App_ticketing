@@ -113,9 +113,64 @@ def test_mail_failure_never_blocks_the_ticket(w, monkeypatch):
     def broken(*args, **kwargs):
         raise RuntimeError("Graph 404")
 
-    monkeypatch.setattr(N, "send_mail", broken)
+    monkeypatch.setattr(N, "get_connection", broken)
     t = S.create_ticket(w["client"], w["contract"], "VPN", "x", now=NOW)
     S.add_comment(w["eng"], t, "Réponse", now=NOW)
     S.change_status(w["eng"], t, Status.RESOLVED, now=NOW)
     t.refresh_from_db()
     assert t.status == Status.RESOLVED
+
+
+def test_emails_leave_in_background_after_commit(w, settings, django_capture_on_commit_callbacks):
+    """En production, la création n'attend pas le serveur de messagerie (sinon : 502 si SMTP injoignable)."""
+    import threading
+
+    import tickets.notifications as N
+
+    settings.TICKET_MAIL_ASYNC = True
+    started = []
+    real_thread = threading.Thread
+
+    class Recorder(real_thread):
+        def start(self):
+            started.append(self)
+            super().start()
+
+    mail.outbox.clear()
+    N.threading.Thread = Recorder
+    try:
+        with django_capture_on_commit_callbacks(execute=False) as callbacks:
+            t = S.create_ticket(w["client"], w["contract"], "VPN", "x", now=NOW)
+            assert not mail.outbox, "rien ne part avant la validation de la transaction"
+        assert callbacks
+        for callback in callbacks:
+            callback()
+        for thread in started:
+            thread.join(5)
+    finally:
+        N.threading.Thread = real_thread
+    assert started and all(th.name == f"mail-{t.reference}" for th in started)
+    assert sent_to("it@final.ci") and sent_to("eng@apt.ci")
+
+
+def test_slow_mail_server_does_not_delay_ticket_creation(w, settings, monkeypatch,
+                                                         django_capture_on_commit_callbacks):
+    import threading
+    import time
+
+    import tickets.notifications as N
+
+    settings.TICKET_MAIL_ASYNC = True
+    release = threading.Event()
+
+    def slow(messages, reference):
+        release.wait(5)  # serveur SMTP qui ne répond pas
+        return 0
+
+    monkeypatch.setattr(N, "_deliver", slow)
+    begin = time.monotonic()
+    with django_capture_on_commit_callbacks(execute=True):
+        S.create_ticket(w["client"], w["contract"], "VPN", "x", now=NOW)
+    elapsed = time.monotonic() - begin
+    release.set()
+    assert elapsed < 2

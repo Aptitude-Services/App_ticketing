@@ -18,7 +18,7 @@ from .graph_mail import GraphEmailBackend
 
 logger = logging.getLogger(__name__)
 
-SMTP_TIMEOUT = 30
+SMTP_TIMEOUT = 10  # secondes : un serveur injoignable ne doit pas retenir l'envoi trop longtemps
 SELF = "core.mail.AppEmailBackend"
 
 

@@ -8,6 +8,7 @@ from .settings import *  # noqa: E402,F401,F403
 
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+TICKET_MAIL_ASYNC = False  # emails des tickets envoyés tout de suite, pour pouvoir les vérifier
 STORAGES["staticfiles"] = {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}  # noqa: F405
 AXES_ENABLED = False
 import tempfile  # noqa: E402

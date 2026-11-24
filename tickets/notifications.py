@@ -13,9 +13,11 @@ Chaque email est doublé d'une notification interne (cloche), pour les mêmes de
 l'auteur de l'action, y compris pour l'accusé de réception.
 """
 import logging
+import threading
 
 from django.conf import settings
-from django.core.mail import send_mail
+from django.core.mail import EmailMessage, get_connection
+from django.db import close_old_connections, transaction
 from django.urls import reverse
 from django.utils import translation
 from django.utils.translation import gettext as _
@@ -46,12 +48,32 @@ def _url(ticket):
     return f"{settings.SITE_URL.rstrip('/')}{path}" if settings.SITE_URL else path
 
 
+def _deliver(messages, reference):
+    """Envoie les emails sur une seule connexion. Ne lève jamais d'exception."""
+    try:
+        return get_connection(fail_silently=True).send_messages(messages) or 0
+    except Exception:
+        logger.exception("Notification du ticket %s impossible", reference)
+        return 0
+
+
+def _deliver_in_background(messages, reference):
+    try:
+        _deliver(messages, reference)
+    finally:
+        close_old_connections()  # connexion à la base ouverte par ce thread (journal des emails)
+
+
 def _send(users, subject, lines, ticket, actor=None):
-    """Un email par destinataire, dans sa langue, plus une notification interne. Ne lève jamais d'exception."""
+    """Un email par destinataire, dans sa langue, plus une notification interne. Ne lève jamais d'exception.
+
+    Les emails partent en arrière-plan une fois la transaction validée : un serveur de messagerie lent
+    ou injoignable ne bloque jamais l'action (sinon Gunicorn coupe la requête et le proxy renvoie un 502).
+    """
     users = list(users)
     notify(users, "ticket", f"{ticket.reference} — {subject}", reverse("ticket_detail", args=[ticket.reference]),
            actor=actor, body=next((line for line in lines if line), ""))
-    sent = 0
+    messages = []
     for user in {u.pk: u for u in users if u and u.is_active and u.email}.values():
         try:
             with translation.override(user.language or settings.LANGUAGE_CODE):
@@ -59,11 +81,18 @@ def _send(users, subject, lines, ticket, actor=None):
                                  + list(lines)
                                  + ["", f"{ticket.reference} — {ticket.title}", _url(ticket), "",
                                     _("L'équipe Aptitude Support")])
-                sent += send_mail(f"[{ticket.reference}] {subject}", body, None, [user.email],
-                                  fail_silently=True)
+                messages.append(EmailMessage(f"[{ticket.reference}] {subject}", body, None, [user.email]))
         except Exception:
             logger.exception("Notification du ticket %s impossible", ticket.reference)
-    return sent
+    if not messages:
+        return 0
+    if not getattr(settings, "TICKET_MAIL_ASYNC", True):
+        return _deliver(messages, ticket.reference)
+    reference = ticket.reference
+    transaction.on_commit(lambda: threading.Thread(
+        target=_deliver_in_background, args=(messages, reference), name=f"mail-{reference}",
+    ).start())
+    return len(messages)
 
 
 def _support_team(ticket):
